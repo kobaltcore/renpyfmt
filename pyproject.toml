@@ -1,0 +1,25 @@
+[tool.poetry]
+name = "renpyfmt"
+version = "0.1.0"
+description = "A Ren'Py formatter."
+authors = ["cobaltcore <cobaltcore@yandex.com>"]
+license = "MIT"
+readme = "README.md"
+
+[tool.poetry.scripts]
+renpyfmt = "renpyfmt:cli"
+
+[tool.poetry.dependencies]
+python = "^3.10,<3.12"
+click = "^8.1.3"
+black = "^22.10.0"
+
+[tool.poetry.group.dev.dependencies]
+pre-commit = "^2.20.0"
+black = "^22.10.0"
+flake8 = "^5.0.4"
+pyinstaller = "^5.6.2"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
