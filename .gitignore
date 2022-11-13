@@ -1,3 +1,5 @@
+*.rpy
+bin/
 Experiments.ipynb
 report.xml
 htmlcov/
