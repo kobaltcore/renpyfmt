@@ -79,6 +79,9 @@ def code_format(source):
     for (start, end), code in sorted(
         reformatted.items(), key=lambda x: x[0][0], reverse=True
     ):
+        if end == -1:
+            code_fmt = [code]
+            continue
         del code_fmt[start : end + 1]
         code_fmt.insert(start, code)
 
