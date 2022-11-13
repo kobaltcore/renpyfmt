@@ -4,7 +4,7 @@ install:
 
 compile:
 	pyoxidizer build --release
-	mkdir bin
+	mkdir -p bin
 	cp build/**/release/**/renpyfmt/renpyfmt bin/renpyfmt
 
 pc:
