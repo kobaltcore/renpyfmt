@@ -8,7 +8,7 @@ import black
 from .common import dedent, indent
 
 
-def format(source):
+def code_format(source):
     source = [line.rstrip() for line in source.splitlines()]
 
     reformatted = {}
