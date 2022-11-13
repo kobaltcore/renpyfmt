@@ -19,7 +19,7 @@ def code_format(source):
             continue
         leading_spaces, code = m.groups()
         src_indent = len(leading_spaces)
-        code_fmt = black.format_str(code, mode=black.FileMode()).split("\n")
+        code_fmt = black.format_str(code, mode=black.Mode(line_length=1000)).split("\n")
         new_code = ""
         for i, line in enumerate(code_fmt):
             spaces = " " * src_indent
