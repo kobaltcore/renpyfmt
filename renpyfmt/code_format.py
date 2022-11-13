@@ -53,6 +53,8 @@ def code_format(source):
             current_group_line_num = line_num
             if current_group == "python early":
                 is_python = True
+            elif current_group == "python":
+                is_python = True
             elif m := re.match(r"init\s+(?:-|\+)?\d+\s+python", current_group):
                 is_python = True
             else:
