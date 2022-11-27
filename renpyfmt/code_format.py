@@ -85,9 +85,6 @@ def code_format(source):
         del code_fmt[start : end + 1]
         code_fmt.insert(start, code)
 
-    code_fmt = "\n".join(code_fmt)
-
-    if not code_fmt.endswith("\n"):
-        code_fmt += "\n"
+    code_fmt = "\n".join(code_fmt).strip() + "\n"
 
     return code_fmt
