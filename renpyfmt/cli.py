@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 import click
 
 from .code_format import code_format

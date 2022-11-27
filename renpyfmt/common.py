@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 import re
 
 _whitespace_only_re = re.compile("^[ \t]+$", re.MULTILINE)
