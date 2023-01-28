@@ -198,8 +198,7 @@ class Mode:
     def get_cache_key(self) -> str:
         if self.target_versions:
             version_str = ",".join(
-                str(version.value)
-                for version in sorted(self.target_versions, key=attrgetter("value"))
+                str(version.value) for version in sorted(self.target_versions, key=attrgetter("value"))
             )
         else:
             version_str = "-"

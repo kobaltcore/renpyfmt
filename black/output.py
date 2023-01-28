@@ -62,9 +62,7 @@ def diff(a: str, b: str, a_name: str, b_name: str) -> str:
     a_lines = a.splitlines(keepends=True)
     b_lines = b.splitlines(keepends=True)
     diff_lines = []
-    for line in difflib.unified_diff(
-        a_lines, b_lines, fromfile=a_name, tofile=b_name, n=5
-    ):
+    for line in difflib.unified_diff(a_lines, b_lines, fromfile=a_name, tofile=b_name, n=5):
         # Work around https://bugs.python.org/issue2142
         # See:
         # https://www.gnu.org/software/diffutils/manual/html_node/Incomplete-Lines.html
@@ -95,9 +93,7 @@ def color_diff(contents: str) -> str:
 @mypyc_attr(patchable=True)
 def dump_to_file(*output: str, ensure_final_newline: bool = True) -> str:
     """Dump `output` to a temporary file. Return path to the file."""
-    with tempfile.NamedTemporaryFile(
-        mode="w", prefix="blk_", suffix=".log", delete=False, encoding="utf8"
-    ) as f:
+    with tempfile.NamedTemporaryFile(mode="w", prefix="blk_", suffix=".log", delete=False, encoding="utf8") as f:
         for lines in output:
             f.write(lines)
             if ensure_final_newline and lines and lines[-1] != "\n":

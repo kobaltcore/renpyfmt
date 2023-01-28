@@ -72,9 +72,7 @@ class Line:
         if self.leaves and not preformatted:
             # Note: at this point leaf.prefix should be empty except for
             # imports, for which we only preserve newlines.
-            leaf.prefix += whitespace(
-                leaf, complex_subscript=self.is_complex_subscript(leaf)
-            )
+            leaf.prefix += whitespace(leaf, complex_subscript=self.is_complex_subscript(leaf))
         if self.inside_brackets or not preformatted:
             self.bracket_tracker.mark(leaf)
             if self.mode.magic_trailing_comma:
@@ -96,9 +94,7 @@ class Line:
                 raise ValueError("cannot append to standalone comments")
 
             if self.leaves and leaf.type == STANDALONE_COMMENT:
-                raise ValueError(
-                    "cannot append standalone comments to a populated line"
-                )
+                raise ValueError("cannot append standalone comments to a populated line")
 
         self.append(leaf, preformatted=preformatted)
 
@@ -120,18 +116,12 @@ class Line:
     @property
     def is_class(self) -> bool:
         """Is this line a class definition?"""
-        return (
-            bool(self)
-            and self.leaves[0].type == token.NAME
-            and self.leaves[0].value == "class"
-        )
+        return bool(self) and self.leaves[0].type == token.NAME and self.leaves[0].value == "class"
 
     @property
     def is_stub_class(self) -> bool:
         """Is this line a class definition with a body consisting only of "..."?"""
-        return self.is_class and self.leaves[-3:] == [
-            Leaf(token.DOT, ".") for _ in range(3)
-        ]
+        return self.is_class and self.leaves[-3:] == [Leaf(token.DOT, ".") for _ in range(3)]
 
     @property
     def is_def(self) -> bool:
@@ -171,11 +161,7 @@ class Line:
     @property
     def is_triple_quoted_string(self) -> bool:
         """Is the line a triple quoted string?"""
-        return (
-            bool(self)
-            and self.leaves[0].type == token.STRING
-            and self.leaves[0].value.startswith(('"""', "'''"))
-        )
+        return bool(self) and self.leaves[0].type == token.STRING and self.leaves[0].value.startswith(('"""', "'''"))
 
     @property
     def opens_block(self) -> bool:
@@ -197,9 +183,7 @@ class Line:
         try:
             last_leaf = self.leaves[-1]
             ignored_ids.add(id(last_leaf))
-            if last_leaf.type == token.COMMA or (
-                last_leaf.type == token.RPAR and not last_leaf.value
-            ):
+            if last_leaf.type == token.COMMA or (last_leaf.type == token.RPAR and not last_leaf.value):
                 # When trailing commas or optional parens are inserted by Black for
                 # consistency, comments after the previous last element are not moved
                 # (they don't have to, rendering will still be correct).  So we ignore
@@ -218,10 +202,7 @@ class Line:
         for leaf_id, comments in self.comments.items():
             for comment in comments:
                 if is_type_comment(comment):
-                    if comment_seen or (
-                        not is_type_comment(comment, " ignore")
-                        and leaf_id not in ignored_ids
-                    ):
+                    if comment_seen or (not is_type_comment(comment, " ignore") and leaf_id not in ignored_ids):
                         return True
 
                 comment_seen = True
@@ -246,9 +227,7 @@ class Line:
 
         # Grab the first and last line numbers, skipping generated leaves
         first_line = next((leaf.lineno for leaf in self.leaves if leaf.lineno != 0), 0)
-        last_line = next(
-            (leaf.lineno for leaf in reversed(self.leaves) if leaf.lineno != 0), 0
-        )
+        last_line = next((leaf.lineno for leaf in reversed(self.leaves) if leaf.lineno != 0), 0)
 
         if first_line == last_line:
             # We look at the last two leaves since a comma or an
@@ -264,9 +243,7 @@ class Line:
     def contains_multiline_strings(self) -> bool:
         return any(is_multiline_string(leaf) for leaf in self.leaves)
 
-    def has_magic_trailing_comma(
-        self, closing: Leaf, ensure_removable: bool = False
-    ) -> bool:
+    def has_magic_trailing_comma(self, closing: Leaf, ensure_removable: bool = False) -> bool:
         """Return True if we have a magic trailing comma, that is when:
         - there's a trailing comma here
         - it's not a one-tuple
@@ -276,11 +253,7 @@ class Line:
         (specifically, single-element square bracket indexing with
         Preview.skip_magic_trailing_comma_in_subscript)
         """
-        if not (
-            closing.type in CLOSING_BRACKETS
-            and self.leaves
-            and self.leaves[-1].type == token.COMMA
-        ):
+        if not (closing.type in CLOSING_BRACKETS and self.leaves and self.leaves[-1].type == token.COMMA):
             return False
 
         if closing.type == token.RBRACE:
@@ -332,10 +305,7 @@ class Line:
 
     def append_comment(self, comment: Leaf) -> bool:
         """Add an inline or standalone comment to the line."""
-        if (
-            comment.type == STANDALONE_COMMENT
-            and self.bracket_tracker.any_open_brackets()
-        ):
+        if comment.type == STANDALONE_COMMENT and self.bracket_tracker.any_open_brackets():
             comment.prefix = ""
             return False
 
@@ -375,9 +345,7 @@ class Line:
         """Remove the trailing comma and moves the comments attached to it."""
         trailing_comma = self.leaves.pop()
         trailing_comma_comments = self.comments.pop(id(trailing_comma), [])
-        self.comments.setdefault(id(self.leaves[-1]), []).extend(
-            trailing_comma_comments
-        )
+        self.comments.setdefault(id(self.leaves[-1]), []).extend(trailing_comma_comments)
 
     def is_complex_subscript(self, leaf: Leaf) -> bool:
         """Return True iff `leaf` is part of a slice with non-trivial exprs."""
@@ -393,13 +361,9 @@ class Line:
 
             if subscript_start.type == syms.subscriptlist:
                 subscript_start = child_towards(subscript_start, leaf)
-        return subscript_start is not None and any(
-            n.type in TEST_DESCENDANTS for n in subscript_start.pre_order()
-        )
+        return subscript_start is not None and any(n.type in TEST_DESCENDANTS for n in subscript_start.pre_order())
 
-    def enumerate_with_length(
-        self, reversed: bool = False
-    ) -> Iterator[Tuple[Index, Leaf, int]]:
+    def enumerate_with_length(self, reversed: bool = False) -> Iterator[Tuple[Index, Leaf, int]]:
         """Return an enumeration of leaves with their length.
 
         Stops prematurely on multiline strings and standalone comments.
@@ -511,10 +475,7 @@ class EmptyLineTracker:
                     not depth
                     and self.previous_defs[-1]
                     and current_line.leaves[-1].type == token.COLON
-                    and (
-                        current_line.leaves[0].value
-                        not in ("with", "try", "for", "while", "if", "match")
-                    )
+                    and (current_line.leaves[0].value not in ("with", "try", "for", "while", "if", "match"))
                 ):
                     # We shouldn't add two newlines between an indented function and
                     # a dependent non-indented clause. This is to avoid issues with
@@ -538,11 +499,7 @@ class EmptyLineTracker:
         ):
             return (before or 1), 0
 
-        if (
-            self.previous_line
-            and self.previous_line.is_class
-            and current_line.is_triple_quoted_string
-        ):
+        if self.previous_line and self.previous_line.is_class and current_line.is_triple_quoted_string:
             return before, 1
 
         if (
@@ -553,9 +510,7 @@ class EmptyLineTracker:
             return 0, 0
         return before, 0
 
-    def _maybe_empty_lines_for_class_or_def(
-        self, current_line: Line, before: int
-    ) -> Tuple[int, int]:
+    def _maybe_empty_lines_for_class_or_def(self, current_line: Line, before: int) -> Tuple[int, int]:
         if not current_line.is_decorator:
             self.previous_defs.append(current_line.depth)
         if self.previous_line is None:
@@ -569,16 +524,10 @@ class EmptyLineTracker:
 
             return 0, 0
 
-        if self.previous_line.depth < current_line.depth and (
-            self.previous_line.is_class or self.previous_line.is_def
-        ):
+        if self.previous_line.depth < current_line.depth and (self.previous_line.is_class or self.previous_line.is_def):
             return 0, 0
 
-        if (
-            self.previous_line.is_comment
-            and self.previous_line.depth == current_line.depth
-            and before == 0
-        ):
+        if self.previous_line.is_comment and self.previous_line.depth == current_line.depth and before == 0:
             return 0, 0
 
         if self.is_pyi:
@@ -592,9 +541,7 @@ class EmptyLineTracker:
                     newlines = 0
                 else:
                     newlines = 1
-            elif (
-                current_line.is_def or current_line.is_decorator
-            ) and not self.previous_line.is_def:
+            elif (current_line.is_def or current_line.is_decorator) and not self.previous_line.is_def:
                 if current_line.depth:
                     # In classes empty lines between attributes and methods should
                     # be preserved.
@@ -620,9 +567,7 @@ def enumerate_reversed(sequence: Sequence[T]) -> Iterator[Tuple[Index, T]]:
         index -= 1
 
 
-def append_leaves(
-    new_line: Line, old_line: Line, leaves: List[Leaf], preformatted: bool = False
-) -> None:
+def append_leaves(new_line: Line, old_line: Line, leaves: List[Leaf], preformatted: bool = False) -> None:
     """
     Append leaves (taken from @old_line) to @new_line, making sure to fix the
     underlying Node structure where appropriate.

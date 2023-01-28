@@ -345,16 +345,12 @@ class ParserGenerator(object):
             self.gettoken()
             return a, z
         else:
-            self.raise_error(
-                "expected (...) or NAME or STRING, got %s/%s", self.type, self.value
-            )
+            self.raise_error("expected (...) or NAME or STRING, got %s/%s", self.type, self.value)
             assert False
 
     def expect(self, type: int, value: Optional[Any] = None) -> Text:
         if self.type != type or (value is not None and self.value != value):
-            self.raise_error(
-                "expected %s/%s, got %s/%s", type, value, self.type, self.value
-            )
+            self.raise_error("expected %s/%s, got %s/%s", type, value, self.type, self.value)
         value = self.value
         self.gettoken()
         return value

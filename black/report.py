@@ -93,8 +93,7 @@ class Report:
         if self.change_count:
             s = "s" if self.change_count > 1 else ""
             report.append(
-                style(f"{self.change_count} file{s} ", bold=True, fg="blue")
-                + style(f"{reformatted}", bold=True)
+                style(f"{self.change_count} file{s} ", bold=True, fg="blue") + style(f"{reformatted}", bold=True)
             )
 
         if self.same_count:

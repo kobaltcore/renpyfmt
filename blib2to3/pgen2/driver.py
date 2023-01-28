@@ -160,9 +160,7 @@ class Driver(object):
                 type = grammar.opmap[value]
             if debug:
                 assert type is not None
-                self.logger.debug(
-                    "%s %r (prefix=%r)", token.tok_name[type], value, prefix
-                )
+                self.logger.debug("%s %r (prefix=%r)", token.tok_name[type], value, prefix)
             if type == token.INDENT:
                 indent_columns.append(len(value))
                 _prefix = prefix + value
@@ -198,18 +196,14 @@ class Driver(object):
         """Parse a stream and return the syntax tree."""
         return self.parse_stream_raw(stream, debug)
 
-    def parse_file(
-        self, filename: Path, encoding: Optional[Text] = None, debug: bool = False
-    ) -> NL:
+    def parse_file(self, filename: Path, encoding: Optional[Text] = None, debug: bool = False) -> NL:
         """Parse a file and return the syntax tree."""
         with io.open(filename, "r", encoding=encoding) as stream:
             return self.parse_stream(stream, debug)
 
     def parse_string(self, text: Text, debug: bool = False) -> NL:
         """Parse a string and return the syntax tree."""
-        tokens = tokenize.generate_tokens(
-            io.StringIO(text).readline, grammar=self.grammar
-        )
+        tokens = tokenize.generate_tokens(io.StringIO(text).readline, grammar=self.grammar)
         return self.parse_tokens(tokens, debug)
 
     def _partially_consume_prefix(self, prefix: Text, column: int) -> Tuple[Text, Text]:
@@ -285,9 +279,7 @@ def _newer(a: Text, b: Text) -> bool:
     return os.path.getmtime(a) >= os.path.getmtime(b)
 
 
-def load_packaged_grammar(
-    package: str, grammar_source: Text, cache_dir: Optional[Path] = None
-) -> grammar.Grammar:
+def load_packaged_grammar(package: str, grammar_source: Text, cache_dir: Optional[Path] = None) -> grammar.Grammar:
     """Normally, loads a pickled grammar by doing
         pkgutil.get_data(package, pickled_grammar)
     where *pickled_grammar* is computed from *grammar_source* by adding the

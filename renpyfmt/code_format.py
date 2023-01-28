@@ -70,14 +70,10 @@ def code_format(source):
         block, margin = dedent("\n".join(block))
         block_fmt = black.format_str(block, mode=black.FileMode())
         start, end = python_block_ranges[line_num]
-        reformatted[(start, end)] = f"{python_block_types[line_num]}:\n" + indent(
-            block_fmt, margin
-        )
+        reformatted[(start, end)] = f"{python_block_types[line_num]}:\n" + indent(block_fmt, margin)
 
     code_fmt = copy.deepcopy(source)
-    for (start, end), code in sorted(
-        reformatted.items(), key=lambda x: x[0][0], reverse=True
-    ):
+    for (start, end), code in sorted(reformatted.items(), key=lambda x: x[0][0], reverse=True):
         if end == -1:
             code_fmt = [code]
             continue

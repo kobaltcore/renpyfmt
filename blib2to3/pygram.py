@@ -179,7 +179,10 @@ def initialize(cache_dir: Union[str, "os.PathLike[str]", None] = None) -> None:
 
     # Python 2
     # python_grammar = driver.load_packaged_grammar("blib2to3", _GRAMMAR_FILE, cache_dir)
-    python_grammar = ParserGenerator(None, stream=io.StringIO("""
+    python_grammar = ParserGenerator(
+        None,
+        stream=io.StringIO(
+            """
 # Grammar for 2to3. This grammar supports Python 2.x and 3.x.
 
 # NOTE WELL: You should also follow all the steps listed at
@@ -432,7 +435,9 @@ case_block: "case" patterns [guard] ':' suite
 guard: 'if' namedexpr_test
 patterns: pattern (',' pattern)* [',']
 pattern: (expr|star_expr) ['as' expr]
-    """)).make_grammar()
+    """
+        ),
+    ).make_grammar()
     python_grammar.version = (2, 0)
 
     soft_keywords = python_grammar.soft_keywords.copy()
@@ -454,22 +459,21 @@ pattern: (expr|star_expr) ['as' expr]
     python_grammar_no_print_statement_no_exec_statement_async_keywords = (
         python_grammar_no_print_statement_no_exec_statement.copy()
     )
-    python_grammar_no_print_statement_no_exec_statement_async_keywords.async_keywords = (
-        True
-    )
+    python_grammar_no_print_statement_no_exec_statement_async_keywords.async_keywords = True
     python_grammar_no_print_statement_no_exec_statement_async_keywords.version = (3, 7)
 
     # Python 3.10+
-    python_grammar_soft_keywords = (
-        python_grammar_no_print_statement_no_exec_statement_async_keywords.copy()
-    )
+    python_grammar_soft_keywords = python_grammar_no_print_statement_no_exec_statement_async_keywords.copy()
     python_grammar_soft_keywords.soft_keywords = soft_keywords
     python_grammar_soft_keywords.version = (3, 10)
 
     # pattern_grammar = driver.load_packaged_grammar(
     #     "blib2to3", _PATTERN_GRAMMAR_FILE, cache_dir
     # )
-    pattern_grammar = ParserGenerator(None, stream=io.StringIO("""
+    pattern_grammar = ParserGenerator(
+        None,
+        stream=io.StringIO(
+            """
 # Copyright 2006 Google, Inc. All Rights Reserved.
 # Licensed to PSF under a Contributor Agreement.
 
@@ -498,5 +502,7 @@ NegatedUnit: 'not' (STRING | NAME [Details] | '(' Alternatives ')')
 Repeater: '*' | '+' | '{' NUMBER [',' NUMBER] '}'
 
 Details: '<' Alternatives '>'
-    """)).make_grammar()
+    """
+        ),
+    ).make_grammar()
     pattern_symbols = _pattern_symbols(pattern_grammar)

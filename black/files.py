@@ -40,9 +40,7 @@ if TYPE_CHECKING:
 
 
 @lru_cache()
-def find_project_root(
-    srcs: Sequence[str], stdin_filename: Optional[str] = None
-) -> Tuple[Path, str]:
+def find_project_root(srcs: Sequence[str], stdin_filename: Optional[str] = None) -> Tuple[Path, str]:
     """Return a directory containing .git, .hg, or pyproject.toml.
 
     That directory will be a common parent of all files and directories
@@ -64,9 +62,7 @@ def find_project_root(
 
     # A list of lists of parents for each 'src'. 'src' is included as a
     # "parent" of itself if it is a directory
-    src_parents = [
-        list(path.parents) + ([path] if path.is_dir() else []) for path in path_srcs
-    ]
+    src_parents = [list(path.parents) + ([path] if path.is_dir() else []) for path in path_srcs]
 
     common_base = max(
         set.intersection(*(set(parents) for parents in src_parents)),
@@ -95,11 +91,7 @@ def find_pyproject_toml(path_search_start: Tuple[str, ...]) -> Optional[str]:
 
     try:
         path_user_pyproject_toml = find_user_pyproject_toml()
-        return (
-            str(path_user_pyproject_toml)
-            if path_user_pyproject_toml.is_file()
-            else None
-        )
+        return str(path_user_pyproject_toml) if path_user_pyproject_toml.is_file() else None
     except (PermissionError, RuntimeError) as e:
         # We do not have access to the user-level config directory, so ignore it.
         err(f"Ignoring user configuration directory due to {e!r}")
@@ -169,9 +161,7 @@ def normalize_path_maybe_ignore(
             root_relative_path = normalized_path.relative_to(root).as_posix()
         except ValueError:
             if report:
-                report.path_ignored(
-                    path, f"is a symbolic link that points outside {root}"
-                )
+                report.path_ignored(path, f"is a symbolic link that points outside {root}")
             return None
 
     except OSError as e:
@@ -232,9 +222,7 @@ def gen_python_files(
             continue
 
         if path_is_excluded(normalized_path, extend_exclude):
-            report.path_ignored(
-                child, "matches the --extend-exclude regular expression"
-            )
+            report.path_ignored(child, "matches the --extend-exclude regular expression")
             continue
 
         if path_is_excluded(normalized_path, force_exclude):
@@ -258,9 +246,7 @@ def gen_python_files(
             )
 
         elif child.is_file():
-            if child.suffix == ".ipynb" and not jupyter_dependencies_are_installed(
-                verbose=verbose, quiet=quiet
-            ):
+            if child.suffix == ".ipynb" and not jupyter_dependencies_are_installed(verbose=verbose, quiet=quiet):
                 continue
             include_match = include.search(normalized_path) if include else True
             if include_match:

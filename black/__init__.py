@@ -101,9 +101,7 @@ class WriteBack(Enum):
     COLOR_DIFF = 4
 
     @classmethod
-    def from_configuration(
-        cls, *, check: bool, diff: bool, color: bool = False
-    ) -> "WriteBack":
+    def from_configuration(cls, *, check: bool, diff: bool, color: bool = False) -> "WriteBack":
         if check and not diff:
             return cls.CHECK
 
@@ -117,9 +115,7 @@ class WriteBack(Enum):
 FileMode = Mode
 
 
-def read_pyproject_toml(
-    ctx: click.Context, param: click.Parameter, value: Optional[str]
-) -> Optional[str]:
+def read_pyproject_toml(ctx: click.Context, param: click.Parameter, value: Optional[str]) -> Optional[str]:
     """Inject Black configuration from "pyproject.toml" into defaults in `ctx`.
 
     Returns the path to a successfully found and read configuration file, None
@@ -133,9 +129,7 @@ def read_pyproject_toml(
     try:
         config = parse_pyproject_toml(value)
     except (OSError, ValueError) as e:
-        raise click.FileError(
-            filename=value, hint=f"Error reading configuration file: {e}"
-        ) from None
+        raise click.FileError(filename=value, hint=f"Error reading configuration file: {e}") from None
 
     if not config:
         return None
@@ -143,16 +137,11 @@ def read_pyproject_toml(
         # Sanitize the values to be Click friendly. For more information please see:
         # https://github.com/psf/black/issues/1458
         # https://github.com/pallets/click/issues/1567
-        config = {
-            k: str(v) if not isinstance(v, (list, dict)) else v
-            for k, v in config.items()
-        }
+        config = {k: str(v) if not isinstance(v, (list, dict)) else v for k, v in config.items()}
 
     target_version = config.get("target_version")
     if target_version is not None and not isinstance(target_version, list):
-        raise click.BadOptionUsage(
-            "target-version", "Config key target-version must be a list"
-        )
+        raise click.BadOptionUsage("target-version", "Config key target-version must be a list")
 
     default_map: Dict[str, Any] = {}
     if ctx.default_map:
@@ -217,10 +206,7 @@ def validate_regex(
     type=click.Choice([v.name.lower() for v in TargetVersion]),
     callback=target_version_option_callback,
     multiple=True,
-    help=(
-        "Python versions that should be supported by Black's output. [default: per-file"
-        " auto-detection]"
-    ),
+    help=("Python versions that should be supported by Black's output. [default: per-file" " auto-detection]"),
 )
 @click.option(
     "--pyi",
@@ -377,18 +363,14 @@ def validate_regex(
     "-q",
     "--quiet",
     is_flag=True,
-    help=(
-        "Don't emit non-error messages to stderr. Errors are still emitted; silence"
-        " those with 2>/dev/null."
-    ),
+    help=("Don't emit non-error messages to stderr. Errors are still emitted; silence" " those with 2>/dev/null."),
 )
 @click.option(
     "-v",
     "--verbose",
     is_flag=True,
     help=(
-        "Also emit messages to stderr about files that were not changed or were ignored"
-        " due to exclusion patterns."
+        "Also emit messages to stderr about files that were not changed or were ignored" " due to exclusion patterns."
     ),
 )
 @click.version_option(
@@ -401,9 +383,7 @@ def validate_regex(
 @click.argument(
     "src",
     nargs=-1,
-    type=click.Path(
-        exists=True, file_okay=True, dir_okay=True, readable=True, allow_dash=True
-    ),
+    type=click.Path(exists=True, file_okay=True, dir_okay=True, readable=True, allow_dash=True),
     is_eager=True,
     metavar="SRC ...",
 )
@@ -455,18 +435,13 @@ def main(  # noqa: C901
     ctx.ensure_object(dict)
 
     if src and code is not None:
-        out(
-            main.get_usage(ctx)
-            + "\n\n'SRC' and 'code' cannot be passed simultaneously."
-        )
+        out(main.get_usage(ctx) + "\n\n'SRC' and 'code' cannot be passed simultaneously.")
         ctx.exit(1)
     if not src and code is None:
         out(main.get_usage(ctx) + "\n\nOne of 'SRC' or 'code' is required.")
         ctx.exit(1)
 
-    root, method = (
-        find_project_root(src, stdin_filename) if code is None else (None, None)
-    )
+    root, method = find_project_root(src, stdin_filename) if code is None else (None, None)
     ctx.obj["root"] = root
 
     if verbose:
@@ -477,16 +452,12 @@ def main(  # noqa: C901
             )
 
             normalized = [
-                (source, source)
-                if source == "-"
-                else (normalize_path_maybe_ignore(Path(source), root), source)
+                (source, source) if source == "-" else (normalize_path_maybe_ignore(Path(source), root), source)
                 for source in src
             ]
             srcs_string = ", ".join(
                 [
-                    f'"{_norm}"'
-                    if _norm
-                    else f'\033[31m"{source} (skipping - invalid)"\033[34m'
+                    f'"{_norm}"' if _norm else f'\033[31m"{source} (skipping - invalid)"\033[34m'
                     for _norm, source in normalized
                 ]
             )
@@ -497,8 +468,7 @@ def main(  # noqa: C901
             user_level_config = str(find_user_pyproject_toml())
             if config == user_level_config:
                 out(
-                    "Using configuration from user-level config at "
-                    f"'{user_level_config}'.",
+                    "Using configuration from user-level config at " f"'{user_level_config}'.",
                     fg="blue",
                 )
             elif config_source in (
@@ -510,11 +480,7 @@ def main(  # noqa: C901
                 out(f"Using configuration in '{config}'.", fg="blue")
 
     error_msg = "Oh no! 💥 💔 💥"
-    if (
-        required_version
-        and required_version != __version__
-        and required_version != __version__.split(".")[0]
-    ):
+    if required_version and required_version != __version__ and required_version != __version__.split(".")[0]:
         err(
             f"{error_msg} The required version `{required_version}` does not match"
             f" the running version `{__version__}`!"
@@ -551,9 +517,7 @@ def main(  # noqa: C901
     report = Report(check=check, diff=diff, quiet=quiet, verbose=verbose)
 
     if code is not None:
-        reformat_code(
-            content=code, fast=fast, write_back=write_back, mode=mode, report=report
-        )
+        reformat_code(content=code, fast=fast, write_back=write_back, mode=mode, report=report)
     else:
         try:
             sources = get_sources(
@@ -651,9 +615,7 @@ def get_sources(
             if is_stdin:
                 p = Path(f"{STDIN_PLACEHOLDER}{str(p)}")
 
-            if p.suffix == ".ipynb" and not jupyter_dependencies_are_installed(
-                verbose=verbose, quiet=quiet
-            ):
+            if p.suffix == ".ipynb" and not jupyter_dependencies_are_installed(verbose=verbose, quiet=quiet):
                 continue
 
             sources.add(p)
@@ -689,9 +651,7 @@ def get_sources(
     return sources
 
 
-def path_empty(
-    src: Sized, msg: str, quiet: bool, verbose: bool, ctx: click.Context
-) -> None:
+def path_empty(src: Sized, msg: str, quiet: bool, verbose: bool, ctx: click.Context) -> None:
     """
     Exit if there is no `src` provided for formatting
     """
@@ -701,9 +661,7 @@ def path_empty(
         ctx.exit(0)
 
 
-def reformat_code(
-    content: str, fast: bool, write_back: WriteBack, mode: Mode, report: Report
-) -> None:
+def reformat_code(content: str, fast: bool, write_back: WriteBack, mode: Mode, report: Report) -> None:
     """
     Reformat and print out `content` without spawning child processes.
     Similar to `reformat_one`, but for string content.
@@ -714,9 +672,7 @@ def reformat_code(
     path = Path("<string>")
     try:
         changed = Changed.NO
-        if format_stdin_to_stdout(
-            content=content, fast=fast, write_back=write_back, mode=mode
-        ):
+        if format_stdin_to_stdout(content=content, fast=fast, write_back=write_back, mode=mode):
             changed = Changed.YES
         report.done(path, changed)
     except Exception as exc:
@@ -728,9 +684,7 @@ def reformat_code(
 # diff-shades depends on being to monkeypatch this function to operate. I know it's
 # not ideal, but this shouldn't cause any issues ... hopefully. ~ichard26
 @mypyc_attr(patchable=True)
-def reformat_one(
-    src: Path, fast: bool, write_back: WriteBack, mode: Mode, report: "Report"
-) -> None:
+def reformat_one(src: Path, fast: bool, write_back: WriteBack, mode: Mode, report: "Report") -> None:
     """Reformat a single file under `src` without spawning child processes.
 
     `fast`, `write_back`, and `mode` options are passed to
@@ -764,9 +718,7 @@ def reformat_one(
                 res_src_s = str(res_src)
                 if res_src_s in cache and cache[res_src_s] == get_cache_info(res_src):
                     changed = Changed.CACHED
-            if changed is not Changed.CACHED and format_file_in_place(
-                src, fast=fast, write_back=write_back, mode=mode
-            ):
+            if changed is not Changed.CACHED and format_file_in_place(src, fast=fast, write_back=write_back, mode=mode):
                 changed = Changed.YES
             if (write_back is WriteBack.YES and changed is not Changed.CACHED) or (
                 write_back is WriteBack.CHECK and changed is Changed.NO
@@ -808,9 +760,7 @@ def format_file_in_place(
     except NothingChanged:
         return False
     except JSONDecodeError:
-        raise ValueError(
-            f"File '{src}' cannot be parsed as valid Jupyter notebook."
-        ) from None
+        raise ValueError(f"File '{src}' cannot be parsed as valid Jupyter notebook.") from None
     src_contents = header.decode(encoding) + src_contents
     dst_contents = header.decode(encoding) + dst_contents
 
@@ -874,9 +824,7 @@ def format_stdin_to_stdout(
         return False
 
     finally:
-        f = io.TextIOWrapper(
-            sys.stdout.buffer, encoding=encoding, newline=newline, write_through=True
-        )
+        f = io.TextIOWrapper(sys.stdout.buffer, encoding=encoding, newline=newline, write_through=True)
         if write_back == WriteBack.YES:
             # Make sure there's a newline after the content
             if dst and dst[-1] != "\n":
@@ -894,9 +842,7 @@ def format_stdin_to_stdout(
         f.detach()
 
 
-def check_stability_and_equivalence(
-    src_contents: str, dst_contents: str, *, mode: Mode
-) -> None:
+def check_stability_and_equivalence(src_contents: str, dst_contents: str, *, mode: Mode) -> None:
     """Perform stability and equivalence checks.
 
     Raise AssertionError if source and destination contents are not
@@ -949,10 +895,7 @@ def validate_cell(src: str, mode: Mode) -> None:
     """
     if any(transformed_magic in src for transformed_magic in TRANSFORMED_MAGICS):
         raise NothingChanged
-    if (
-        src[:2] == "%%"
-        and src.split()[0][2:] not in PYTHON_CELL_MAGICS | mode.python_cell_magics
-    ):
+    if src[:2] == "%%" and src.split()[0][2:] not in PYTHON_CELL_MAGICS | mode.python_cell_magics:
         raise NothingChanged
 
 
@@ -973,9 +916,7 @@ def format_cell(src: str, *, fast: bool, mode: Mode) -> str:
     are currently not supported.
     """
     validate_cell(src, mode)
-    src_without_trailing_semicolon, has_trailing_semicolon = remove_trailing_semicolon(
-        src
-    )
+    src_without_trailing_semicolon, has_trailing_semicolon = remove_trailing_semicolon(src)
     try:
         masked_src, replacements = mask_cell(src_without_trailing_semicolon)
     except SyntaxError:
@@ -984,9 +925,7 @@ def format_cell(src: str, *, fast: bool, mode: Mode) -> str:
     if not fast:
         check_stability_and_equivalence(masked_src, masked_dst, mode=mode)
     dst_without_trailing_semicolon = unmask_cell(masked_dst, replacements)
-    dst = put_trailing_semicolon_back(
-        dst_without_trailing_semicolon, has_trailing_semicolon
-    )
+    dst = put_trailing_semicolon_back(dst_without_trailing_semicolon, has_trailing_semicolon)
     dst = dst.rstrip("\n")
     if dst == src:
         raise NothingChanged from None
@@ -1096,9 +1035,7 @@ def _format_str_once(src_contents: str, *, mode: Mode) -> str:
         dst_contents.append(str(empty_line) * after)
         before, after = elt.maybe_empty_lines(current_line)
         dst_contents.append(str(empty_line) * before)
-        for line in transform_line(
-            current_line, mode=mode, features=split_line_features
-        ):
+        for line in transform_line(current_line, mode=mode, features=split_line_features):
             dst_contents.append(str(line))
     return "".join(dst_contents)
 
@@ -1120,9 +1057,7 @@ def decode_bytes(src: bytes) -> Tuple[FileContent, Encoding, NewLine]:
         return tiow.read(), encoding, newline
 
 
-def get_features_used(  # noqa: C901
-    node: Node, *, future_imports: Optional[Set[str]] = None
-) -> Set[Feature]:
+def get_features_used(node: Node, *, future_imports: Optional[Set[str]] = None) -> Set[Feature]:  # noqa: C901
     """Return a set of (relatively) new Python features used in this file.
 
     Currently looking for:
@@ -1171,16 +1106,10 @@ def get_features_used(  # noqa: C901
             features.add(Feature.ASSIGNMENT_EXPRESSIONS)
 
         elif n.type == syms.decorator:
-            if len(n.children) > 1 and not is_simple_decorator_expression(
-                n.children[1]
-            ):
+            if len(n.children) > 1 and not is_simple_decorator_expression(n.children[1]):
                 features.add(Feature.RELAXED_DECORATORS)
 
-        elif (
-            n.type in {syms.typedargslist, syms.arglist}
-            and n.children
-            and n.children[-1].type == token.COMMA
-        ):
+        elif n.type in {syms.typedargslist, syms.arglist} and n.children and n.children[-1].type == token.COMMA:
             if n.type == syms.typedargslist:
                 feature = Feature.TRAILING_COMMA_IN_DEF
             else:
@@ -1203,43 +1132,25 @@ def get_features_used(  # noqa: C901
         ):
             features.add(Feature.UNPACKING_ON_FLOW)
 
-        elif (
-            n.type == syms.annassign
-            and len(n.children) >= 4
-            and n.children[3].type == syms.testlist_star_expr
-        ):
+        elif n.type == syms.annassign and len(n.children) >= 4 and n.children[3].type == syms.testlist_star_expr:
             features.add(Feature.ANN_ASSIGN_EXTENDED_RHS)
 
-        elif (
-            n.type == syms.except_clause
-            and len(n.children) >= 2
-            and n.children[1].type == token.STAR
-        ):
+        elif n.type == syms.except_clause and len(n.children) >= 2 and n.children[1].type == token.STAR:
             features.add(Feature.EXCEPT_STAR)
 
-        elif n.type in {syms.subscriptlist, syms.trailer} and any(
-            child.type == syms.star_expr for child in n.children
-        ):
+        elif n.type in {syms.subscriptlist, syms.trailer} and any(child.type == syms.star_expr for child in n.children):
             features.add(Feature.VARIADIC_GENERICS)
 
-        elif (
-            n.type == syms.tname_star
-            and len(n.children) == 3
-            and n.children[2].type == syms.star_expr
-        ):
+        elif n.type == syms.tname_star and len(n.children) == 3 and n.children[2].type == syms.star_expr:
             features.add(Feature.VARIADIC_GENERICS)
 
     return features
 
 
-def detect_target_versions(
-    node: Node, *, future_imports: Optional[Set[str]] = None
-) -> Set[TargetVersion]:
+def detect_target_versions(node: Node, *, future_imports: Optional[Set[str]] = None) -> Set[TargetVersion]:
     """Detect the version to target based on the nodes used."""
     features = get_features_used(node, future_imports=future_imports)
-    return {
-        version for version in TargetVersion if features <= VERSION_TO_FEATURES[version]
-    }
+    return {version for version in TargetVersion if features <= VERSION_TO_FEATURES[version]}
 
 
 def get_future_imports(node: Node) -> Set[str]:

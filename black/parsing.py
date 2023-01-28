@@ -61,13 +61,11 @@ def get_grammars(target_versions: Set[TargetVersion]) -> List[Grammar]:
 
     grammars = []
     # If we have to parse both, try to parse async as a keyword first
-    if not supports_feature(
-        target_versions, Feature.ASYNC_IDENTIFIERS
-    ) and not supports_feature(target_versions, Feature.PATTERN_MATCHING):
+    if not supports_feature(target_versions, Feature.ASYNC_IDENTIFIERS) and not supports_feature(
+        target_versions, Feature.PATTERN_MATCHING
+    ):
         # Python 3.7-3.9
-        grammars.append(
-            pygram.python_grammar_no_print_statement_no_exec_statement_async_keywords
-        )
+        grammars.append(pygram.python_grammar_no_print_statement_no_exec_statement_async_keywords)
     if not supports_feature(target_versions, Feature.ASYNC_KEYWORDS):
         # Python 3.0-3.6
         grammars.append(pygram.python_grammar_no_print_statement_no_exec_statement)
@@ -100,16 +98,12 @@ def lib2to3_parse(src_txt: str, target_versions: Iterable[TargetVersion] = ()) -
                 faulty_line = lines[lineno - 1]
             except IndexError:
                 faulty_line = "<line number missing in source>"
-            errors[grammar.version] = InvalidInput(
-                f"Cannot parse: {lineno}:{column}: {faulty_line}"
-            )
+            errors[grammar.version] = InvalidInput(f"Cannot parse: {lineno}:{column}: {faulty_line}")
 
         except TokenError as te:
             # In edge cases these are raised; and typically don't have a "faulty_line".
             lineno, column = te.args[1]
-            errors[grammar.version] = InvalidInput(
-                f"Cannot parse: {lineno}:{column}: {te.args[0]}"
-            )
+            errors[grammar.version] = InvalidInput(f"Cannot parse: {lineno}:{column}: {te.args[0]}")
 
     else:
         # Choose the latest version when raising the actual parsing error.
@@ -146,9 +140,7 @@ def lib2to3_unparse(node: Node) -> str:
     return code
 
 
-def parse_single_version(
-    src: str, version: Tuple[int, int]
-) -> Union[ast.AST, ast3.AST]:
+def parse_single_version(src: str, version: Tuple[int, int]) -> Union[ast.AST, ast3.AST]:
     filename = "<unknown>"
     # typed-ast is needed because of feature version limitations in the builtin ast 3.8>
     if sys.version_info >= (3, 8) and version >= (3,):
@@ -251,11 +243,7 @@ def stringify_ast(node: Union[ast.AST, ast3.AST], depth: int = 0) -> Iterator[st
             # Constant strings may be indented across newlines, if they are
             # docstrings; fold spaces after newlines when comparing. Similarly,
             # trailing and leading space may be removed.
-            if (
-                isinstance(node, ast.Constant)
-                and field == "value"
-                and isinstance(value, str)
-            ):
+            if isinstance(node, ast.Constant) and field == "value" and isinstance(value, str):
                 normalized = _normalize("\n", value)
             else:
                 normalized = value

@@ -14,9 +14,7 @@ else:
 
 
 STRING_PREFIX_CHARS: Final = "furbFURB"  # All possible string prefix characters.
-STRING_PREFIX_RE: Final = re.compile(
-    r"^([" + STRING_PREFIX_CHARS + r"]*)(.*)$", re.DOTALL
-)
+STRING_PREFIX_RE: Final = re.compile(r"^([" + STRING_PREFIX_CHARS + r"]*)(.*)$", re.DOTALL)
 FIRST_NON_WHITESPACE_RE: Final = re.compile(r"\s*\t+\s*(\S)")
 
 
@@ -51,10 +49,7 @@ def lines_with_leading_tabs_expanded(s: str) -> List[str]:
         if match:
             first_non_whitespace_idx = match.start(1)
 
-            lines.append(
-                line[:first_non_whitespace_idx].expandtabs()
-                + line[first_non_whitespace_idx:]
-            )
+            lines.append(line[:first_non_whitespace_idx].expandtabs() + line[first_non_whitespace_idx:])
         else:
             lines.append(line)
     return lines
@@ -126,9 +121,7 @@ def assert_is_leaf_string(string: str) -> None:
     else:
         quote_idx = min(squote_idx, dquote_idx)
 
-    assert (
-        0 <= quote_idx < len(string) - 1
-    ), f"{string!r} is missing a starting quote character (' or \")."
+    assert 0 <= quote_idx < len(string) - 1, f"{string!r} is missing a starting quote character (' or \")."
     assert string[-1] in (
         "'",
         '"',
@@ -143,12 +136,7 @@ def normalize_string_prefix(s: str) -> str:
     match = STRING_PREFIX_RE.match(s)
     assert match is not None, f"failed to match string {s!r}"
     orig_prefix = match.group(1)
-    new_prefix = (
-        orig_prefix.replace("F", "f")
-        .replace("B", "b")
-        .replace("U", "")
-        .replace("u", "")
-    )
+    new_prefix = orig_prefix.replace("F", "f").replace("B", "b").replace("U", "").replace("u", "")
 
     # Python syntax guarantees max 2 prefixes and that one of them is "r"
     if len(new_prefix) == 2 and "r" != new_prefix[0].lower():

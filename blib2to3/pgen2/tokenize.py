@@ -95,9 +95,7 @@ Octnumber = r"0[oO]?_?[0-7]+(?:_[0-7]+)*[lL]?"
 Decnumber = group(r"[1-9]\d*(?:_\d+)*[lL]?", "0[lL]?")
 Intnumber = group(Binnumber, Hexnumber, Octnumber, Decnumber)
 Exponent = r"[eE][-+]?\d+(?:_\d+)*"
-Pointfloat = group(r"\d+(?:_\d+)*\.(?:\d+(?:_\d+)*)?", r"\.\d+(?:_\d+)*") + maybe(
-    Exponent
-)
+Pointfloat = group(r"\d+(?:_\d+)*\.(?:\d+(?:_\d+)*)?", r"\.\d+(?:_\d+)*") + maybe(Exponent)
 Expfloat = r"\d+(?:_\d+)*" + Exponent
 Floatnumber = group(Pointfloat, Expfloat)
 Imagnumber = group(r"\d+(?:_\d+)*[jJ]", Floatnumber + r"[jJ]")
@@ -151,9 +149,7 @@ single3prog = re.compile(Single3)
 double3prog = re.compile(Double3)
 
 _strprefixes = (
-    _combinations("r", "R", "f", "F")
-    | _combinations("r", "R", "b", "B")
-    | {"u", "U", "ur", "uR", "Ur", "UR"}
+    _combinations("r", "R", "f", "F") | _combinations("r", "R", "b", "B") | {"u", "U", "ur", "uR", "Ur", "UR"}
 )
 
 endprogs: Final = {
@@ -167,14 +163,10 @@ endprogs: Final = {
 }
 
 triple_quoted: Final = (
-    {"'''", '"""'}
-    | {f"{prefix}'''" for prefix in _strprefixes}
-    | {f'{prefix}"""' for prefix in _strprefixes}
+    {"'''", '"""'} | {f"{prefix}'''" for prefix in _strprefixes} | {f'{prefix}"""' for prefix in _strprefixes}
 )
 single_quoted: Final = (
-    {"'", '"'}
-    | {f"{prefix}'" for prefix in _strprefixes}
-    | {f'{prefix}"' for prefix in _strprefixes}
+    {"'", '"'} | {f"{prefix}'" for prefix in _strprefixes} | {f'{prefix}"' for prefix in _strprefixes}
 )
 
 tabsize = 8
@@ -191,9 +183,7 @@ class StopTokenizing(Exception):
 def printtoken(type, token, xxx_todo_changeme, xxx_todo_changeme1, line):  # for testing
     (srow, scol) = xxx_todo_changeme
     (erow, ecol) = xxx_todo_changeme1
-    print(
-        "%d,%d-%d,%d:\t%s\t%s" % (srow, scol, erow, ecol, tok_name[type], repr(token))
-    )
+    print("%d,%d-%d,%d:\t%s\t%s" % (srow, scol, erow, ecol, tok_name[type], repr(token)))
 
 
 Coord = Tuple[int, int]
@@ -252,9 +242,7 @@ class Untokenizer:
             if len(t) == 2:
                 self.compat(cast(Tuple[int, str], t), iterable)
                 break
-            tok_type, token, start, end, line = cast(
-                Tuple[int, Text, Coord, Coord, Text], t
-            )
+            tok_type, token, start, end, line = cast(Tuple[int, Text, Coord, Coord, Text], t)
             self.add_whitespace(start)
             self.tokens.append(token)
             self.prev_row, self.prev_col = end
@@ -302,9 +290,7 @@ def _get_normal_name(orig_enc: str) -> str:
     enc = orig_enc[:12].lower().replace("_", "-")
     if enc == "utf-8" or enc.startswith("utf-8-"):
         return "utf-8"
-    if enc in ("latin-1", "iso-8859-1", "iso-latin-1") or enc.startswith(
-        ("latin-1-", "iso-8859-1-", "iso-latin-1-")
-    ):
+    if enc in ("latin-1", "iso-8859-1", "iso-latin-1") or enc.startswith(("latin-1-", "iso-8859-1-", "iso-latin-1-")):
         return "iso-8859-1"
     return orig_enc
 
@@ -406,9 +392,7 @@ def untokenize(iterable: Iterable[TokenInfo]) -> Text:
     return ut.untokenize(iterable)
 
 
-def generate_tokens(
-    readline: Callable[[], Text], grammar: Optional[Grammar] = None
-) -> Iterator[GoodTokenInfo]:
+def generate_tokens(readline: Callable[[], Text], grammar: Optional[Grammar] = None) -> Iterator[GoodTokenInfo]:
     """
     The generate_tokens() generator requires one argument, readline, which
     must be a callable object which provides the same interface as the
@@ -556,9 +540,7 @@ def generate_tokens(
                 spos, epos, pos = (lnum, start), (lnum, end), end
                 token, initial = line[start:end], line[start]
 
-                if initial in numchars or (
-                    initial == "." and token != "."
-                ):  # ordinary number
+                if initial in numchars or (initial == "." and token != "."):  # ordinary number
                     yield (NUMBER, token, spos, epos, line)
                 elif initial in "\r\n":
                     newline = NEWLINE
@@ -592,18 +574,10 @@ def generate_tokens(
                         contstr = line[start:]
                         contline = line
                         break
-                elif (
-                    initial in single_quoted
-                    or token[:2] in single_quoted
-                    or token[:3] in single_quoted
-                ):
+                elif initial in single_quoted or token[:2] in single_quoted or token[:3] in single_quoted:
                     if token[-1] == "\n":  # continued string
                         strstart = (lnum, start)
-                        endprog = (
-                            endprogs[initial]
-                            or endprogs[token[1]]
-                            or endprogs[token[2]]
-                        )
+                        endprog = endprogs[initial] or endprogs[token[1]] or endprogs[token[2]]
                         contstr, needcont = line[start:], 1
                         contline = line
                         break

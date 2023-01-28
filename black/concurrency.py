@@ -155,9 +155,7 @@ async def schedule_formatting(
         lock = manager.Lock()
     tasks = {
         asyncio.ensure_future(
-            loop.run_in_executor(
-                executor, format_file_in_place, src, fast, mode, write_back, lock
-            )
+            loop.run_in_executor(executor, format_file_in_place, src, fast, mode, write_back, lock)
         ): src
         for src in sorted(sources)
     }
@@ -180,9 +178,7 @@ async def schedule_formatting(
                 changed = Changed.YES if task.result() else Changed.NO
                 # If the file was written back or was successfully checked as
                 # well-formatted, store this information in the cache.
-                if write_back is WriteBack.YES or (
-                    write_back is WriteBack.CHECK and changed is Changed.NO
-                ):
+                if write_back is WriteBack.YES or (write_back is WriteBack.CHECK and changed is Changed.NO):
                     sources_to_cache.append(src)
                 report.done(src, changed)
     if cancelled:

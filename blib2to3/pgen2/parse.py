@@ -50,9 +50,7 @@ def lam_sub(grammar: Grammar, node: RawNode) -> NL:
 DUMMY_NODE = (-1, None, None, None)
 
 
-def stack_copy(
-    stack: List[Tuple[DFAS, int, RawNode]]
-) -> List[Tuple[DFAS, int, RawNode]]:
+def stack_copy(stack: List[Tuple[DFAS, int, RawNode]]) -> List[Tuple[DFAS, int, RawNode]]:
     """Nodeless stack copy."""
     return [(dfa, label, DUMMY_NODE) for dfa, label, _ in stack]
 
@@ -130,12 +128,8 @@ class Recorder:
 class ParseError(Exception):
     """Exception to signal the parser is stuck."""
 
-    def __init__(
-        self, msg: Text, type: Optional[int], value: Optional[Text], context: Context
-    ) -> None:
-        Exception.__init__(
-            self, "%s: type=%r, value=%r, context=%r" % (msg, type, value, context)
-        )
+    def __init__(self, msg: Text, type: Optional[int], value: Optional[Text], context: Context) -> None:
+        Exception.__init__(self, "%s: type=%r, value=%r, context=%r" % (msg, type, value, context))
         self.msg = msg
         self.type = type
         self.value = value

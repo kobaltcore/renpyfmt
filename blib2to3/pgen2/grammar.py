@@ -108,9 +108,7 @@ class Grammar(object):
         else:
             d = self.__getstate__()  # type: ignore
 
-        with tempfile.NamedTemporaryFile(
-            dir=os.path.dirname(filename), delete=False
-        ) as f:
+        with tempfile.NamedTemporaryFile(dir=os.path.dirname(filename), delete=False) as f:
             pickle.dump(d, f, pickle.HIGHEST_PROTOCOL)
         os.replace(f.name, filename)
 

@@ -248,11 +248,7 @@ def whitespace(leaf: Leaf, *, complex_subscript: bool) -> str:  # noqa: C901
             if prevp.parent and prevp.parent.type in {syms.subscript, syms.sliceop}:
                 return SPACE if complex_subscript else NO
 
-        elif (
-            prevp.parent
-            and prevp.parent.type == syms.factor
-            and prevp.type in MATH_OPERATORS
-        ):
+        elif prevp.parent and prevp.parent.type == syms.factor and prevp.type in MATH_OPERATORS:
             return NO
 
         elif prevp.type == token.AT and p.parent and p.parent.type == syms.decorator:
@@ -523,9 +519,7 @@ def is_arith_like(node: LN) -> bool:
 
 
 def is_docstring(leaf: Leaf) -> bool:
-    if prev_siblings_are(
-        leaf.parent, [None, token.NEWLINE, token.INDENT, syms.simple_stmt]
-    ):
+    if prev_siblings_are(leaf.parent, [None, token.NEWLINE, token.INDENT, syms.simple_stmt]):
         return True
 
     # Multiline docstring on the same line as the `def`.
@@ -556,11 +550,7 @@ def is_one_tuple(node: LN) -> bool:
 
         return len(gexp.children) == 2 and gexp.children[1].type == token.COMMA
 
-    return (
-        node.type in IMPLICIT_TUPLE
-        and len(node.children) == 2
-        and node.children[1].type == token.COMMA
-    )
+    return node.type in IMPLICIT_TUPLE and len(node.children) == 2 and node.children[1].type == token.COMMA
 
 
 def is_one_sequence_between(
@@ -609,11 +599,7 @@ def is_walrus_assignment(node: LN) -> bool:
 def is_simple_decorator_trailer(node: LN, last: bool = False) -> bool:
     """Return True iff `node` is a trailer valid in a simple decorator"""
     return node.type == syms.trailer and (
-        (
-            len(node.children) == 2
-            and node.children[0].type == token.DOT
-            and node.children[1].type == token.NAME
-        )
+        (len(node.children) == 2 and node.children[0].type == token.DOT and node.children[1].type == token.NAME)
         # last trailer can be an argument-less parentheses pair
         or (
             last
@@ -648,10 +634,7 @@ def is_simple_decorator_expression(node: LN) -> bool:
             return (
                 node.children[0].type == token.NAME
                 and all(map(is_simple_decorator_trailer, node.children[1:-1]))
-                and (
-                    len(node.children) < 2
-                    or is_simple_decorator_trailer(node.children[-1], last=True)
-                )
+                and (len(node.children) < 2 or is_simple_decorator_trailer(node.children[-1], last=True))
             )
     return False
 
@@ -771,10 +754,7 @@ def is_import(leaf: Leaf) -> bool:
     v = leaf.value
     return bool(
         t == token.NAME
-        and (
-            (v == "import" and p and p.type == syms.import_name)
-            or (v == "from" and p and p.type == syms.import_from)
-        )
+        and ((v == "import" and p and p.type == syms.import_name) or (v == "from" and p and p.type == syms.import_from))
     )
 
 

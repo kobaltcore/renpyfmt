@@ -293,9 +293,7 @@ class CustomSplitMapMixin:
     """
 
     _Key: ClassVar = Tuple[StringID, str]
-    _CUSTOM_SPLIT_MAP: ClassVar[Dict[_Key, Tuple[CustomSplit, ...]]] = defaultdict(
-        tuple
-    )
+    _CUSTOM_SPLIT_MAP: ClassVar[Dict[_Key, Tuple[CustomSplit, ...]]] = defaultdict(tuple)
 
     @staticmethod
     def _get_key(string: str) -> "CustomSplitMapMixin._Key":
@@ -306,9 +304,7 @@ class CustomSplitMapMixin:
         """
         return (id(string), string)
 
-    def add_custom_splits(
-        self, string: str, custom_splits: Iterable[CustomSplit]
-    ) -> None:
+    def add_custom_splits(self, string: str, custom_splits: Iterable[CustomSplit]) -> None:
         """Custom Split Map Setter Method
 
         Side Effects:
@@ -372,11 +368,7 @@ class StringMerger(StringTransformer, CustomSplitMapMixin):
         is_valid_index = is_valid_index_factory(LL)
 
         for i, leaf in enumerate(LL):
-            if (
-                leaf.type == token.STRING
-                and is_valid_index(i + 1)
-                and LL[i + 1].type == token.STRING
-            ):
+            if leaf.type == token.STRING and is_valid_index(i + 1) and LL[i + 1].type == token.STRING:
                 return Ok(i)
 
             if leaf.type == token.STRING and "\\\n" in leaf.value:
@@ -386,9 +378,7 @@ class StringMerger(StringTransformer, CustomSplitMapMixin):
 
     def do_transform(self, line: Line, string_idx: int) -> Iterator[TResult[Line]]:
         new_line = line
-        rblc_result = self._remove_backslash_line_continuation_chars(
-            new_line, string_idx
-        )
+        rblc_result = self._remove_backslash_line_continuation_chars(new_line, string_idx)
         if isinstance(rblc_result, Ok):
             new_line = rblc_result.ok()
 
@@ -399,9 +389,7 @@ class StringMerger(StringTransformer, CustomSplitMapMixin):
         if isinstance(rblc_result, Err) and isinstance(msg_result, Err):
             msg_cant_transform = msg_result.err()
             rblc_cant_transform = rblc_result.err()
-            cant_transform = CannotTransform(
-                "StringMerger failed to merge any strings in this line."
-            )
+            cant_transform = CannotTransform("StringMerger failed to merge any strings in this line.")
 
             # Chain the errors together using `__cause__`.
             msg_cant_transform.__cause__ = rblc_cant_transform
@@ -412,9 +400,7 @@ class StringMerger(StringTransformer, CustomSplitMapMixin):
             yield Ok(new_line)
 
     @staticmethod
-    def _remove_backslash_line_continuation_chars(
-        line: Line, string_idx: int
-    ) -> TResult[Line]:
+    def _remove_backslash_line_continuation_chars(line: Line, string_idx: int) -> TResult[Line]:
         """
         Merge strings that were split across multiple lines using
         line-continuation backslashes.
@@ -433,10 +419,7 @@ class StringMerger(StringTransformer, CustomSplitMapMixin):
             and "\\\n" in string_leaf.value
             and not has_triple_quotes(string_leaf.value)
         ):
-            return TErr(
-                f"String leaf {string_leaf} does not contain any backslash line"
-                " continuation characters."
-            )
+            return TErr(f"String leaf {string_leaf} does not contain any backslash line" " continuation characters.")
 
         new_line = line.clone()
         new_line.comments = line.comments.copy()
@@ -494,9 +477,7 @@ class StringMerger(StringTransformer, CustomSplitMapMixin):
 
             RE_EVEN_BACKSLASHES = r"(?:(?<!\\)(?:\\\\)*)"
             naked_string = string[len(string_prefix) + 1 : -1]
-            naked_string = re.sub(
-                "(" + RE_EVEN_BACKSLASHES + ")" + QUOTE, r"\1\\" + QUOTE, naked_string
-            )
+            naked_string = re.sub("(" + RE_EVEN_BACKSLASHES + ")" + QUOTE, r"\1\\" + QUOTE, naked_string)
             return naked_string
 
         # Holds the CustomSplit objects that will later be added to the custom
@@ -510,11 +491,7 @@ class StringMerger(StringTransformer, CustomSplitMapMixin):
         # string will have.
         next_str_idx = string_idx
         prefix = ""
-        while (
-            not prefix
-            and is_valid_index(next_str_idx)
-            and LL[next_str_idx].type == token.STRING
-        ):
+        while not prefix and is_valid_index(next_str_idx) and LL[next_str_idx].type == token.STRING:
             prefix = get_string_prefix(LL[next_str_idx].value).lower()
             next_str_idx += 1
 
@@ -564,9 +541,7 @@ class StringMerger(StringTransformer, CustomSplitMapMixin):
         temp_string = S_leaf.value[len(prefix) + 1 : -1]
         for has_prefix in prefix_tracker:
             mark_idx = temp_string.find(BREAK_MARK)
-            assert (
-                mark_idx >= 0
-            ), "Logic error while filling the custom string breakpoint cache."
+            assert mark_idx >= 0, "Logic error while filling the custom string breakpoint cache."
 
             temp_string = temp_string[mark_idx + len(BREAK_MARK) :]
             breakpoint_idx = mark_idx + (len(prefix) if has_prefix else 0) + 1
@@ -636,10 +611,7 @@ class StringMerger(StringTransformer, CustomSplitMapMixin):
                 if line.leaves[i].type == STANDALONE_COMMENT:
                     found_sa_comment = True
                 elif found_sa_comment:
-                    return TErr(
-                        "StringMerger does NOT merge string groups which contain "
-                        "stand-alone comments."
-                    )
+                    return TErr("StringMerger does NOT merge string groups which contain " "stand-alone comments.")
 
                 i += inc
 
@@ -671,14 +643,10 @@ class StringMerger(StringTransformer, CustomSplitMapMixin):
                     return TErr("Cannot merge strings which have pragma comments.")
 
         if num_of_strings < 2:
-            return TErr(
-                f"Not enough strings to merge (num_of_strings={num_of_strings})."
-            )
+            return TErr(f"Not enough strings to merge (num_of_strings={num_of_strings}).")
 
         if num_of_inline_string_comments > 1:
-            return TErr(
-                f"Too many inline string comments ({num_of_inline_string_comments})."
-            )
+            return TErr(f"Too many inline string comments ({num_of_inline_string_comments}).")
 
         if len(set_of_prefixes) > 1 and set_of_prefixes != {"", "f"}:
             return TErr(f"Too many different prefixes ({set_of_prefixes}).")
@@ -717,27 +685,17 @@ class StringParenStripper(StringTransformer):
                 continue
 
             # If this is a "pointless" string...
-            if (
-                leaf.parent
-                and leaf.parent.parent
-                and leaf.parent.parent.type == syms.simple_stmt
-            ):
+            if leaf.parent and leaf.parent.parent and leaf.parent.parent.type == syms.simple_stmt:
                 continue
 
             # Should be preceded by a non-empty LPAR...
-            if (
-                not is_valid_index(idx - 1)
-                or LL[idx - 1].type != token.LPAR
-                or is_empty_lpar(LL[idx - 1])
-            ):
+            if not is_valid_index(idx - 1) or LL[idx - 1].type != token.LPAR or is_empty_lpar(LL[idx - 1]):
                 continue
 
             # That LPAR should NOT be preceded by a function name or a closing
             # bracket (which could be a function which returns a function or a
             # list/dictionary that contains a function)...
-            if is_valid_index(idx - 2) and (
-                LL[idx - 2].type == token.NAME or LL[idx - 2].type in CLOSING_BRACKETS
-            ):
+            if is_valid_index(idx - 2) and (LL[idx - 2].type == token.NAME or LL[idx - 2].type in CLOSING_BRACKETS):
                 continue
 
             string_idx = idx
@@ -778,11 +736,7 @@ class StringParenStripper(StringTransformer):
                     continue
 
             # Should be followed by a non-empty RPAR...
-            if (
-                is_valid_index(next_idx)
-                and LL[next_idx].type == token.RPAR
-                and not is_empty_rpar(LL[next_idx])
-            ):
+            if is_valid_index(next_idx) and LL[next_idx].type == token.RPAR and not is_empty_rpar(LL[next_idx]):
                 # That RPAR should NOT be followed by anything with higher
                 # precedence than PERCENT
                 if is_valid_index(next_idx + 1) and LL[next_idx + 1].type in {
@@ -805,9 +759,7 @@ class StringParenStripper(StringTransformer):
 
         for leaf in (LL[string_idx - 1], LL[rpar_idx]):
             if line.comments_after(leaf):
-                yield TErr(
-                    "Will not strip parentheses which have comments attached to them."
-                )
+                yield TErr("Will not strip parentheses which have comments attached to them.")
                 return
 
         new_line = line.clone()
@@ -825,9 +777,7 @@ class StringParenStripper(StringTransformer):
         replace_child(LL[string_idx], string_leaf)
         new_line.append(string_leaf)
 
-        append_leaves(
-            new_line, line, LL[string_idx + 1 : rpar_idx] + LL[rpar_idx + 1 :]
-        )
+        append_leaves(new_line, line, LL[string_idx + 1 : rpar_idx] + LL[rpar_idx + 1 :])
 
         LL[rpar_idx].remove()
 
@@ -908,18 +858,13 @@ class BaseStringSplitter(StringTransformer):
 
         max_string_length = self._get_max_string_length(line, string_idx)
         if len(string_leaf.value) <= max_string_length:
-            return TErr(
-                "The string itself is not what is causing this line to be too long."
-            )
+            return TErr("The string itself is not what is causing this line to be too long.")
 
         if not string_leaf.parent or [L.type for L in string_leaf.parent.children] == [
             token.STRING,
             token.NEWLINE,
         ]:
-            return TErr(
-                f"This string ({string_leaf.value}) appears to be pointless (i.e. has"
-                " no parent)."
-            )
+            return TErr(f"This string ({string_leaf.value}) appears to be pointless (i.e. has" " no parent).")
 
         if id(line.leaves[string_idx]) in line.comments and contains_pragma_comment(
             line.comments[id(line.leaves[string_idx])]
@@ -968,11 +913,7 @@ class BaseStringSplitter(StringTransformer):
 
         if is_valid_index(string_idx - 1):
             p_idx = string_idx - 1
-            if (
-                LL[string_idx - 1].type == token.LPAR
-                and LL[string_idx - 1].value == ""
-                and string_idx >= 2
-            ):
+            if LL[string_idx - 1].type == token.LPAR and LL[string_idx - 1].value == "" and string_idx >= 2:
                 # If the previous leaf is an empty LPAR placeholder, we should skip it.
                 p_idx -= 1
 
@@ -1020,10 +961,7 @@ class BaseStringSplitter(StringTransformer):
                     # WMA4 the '.' character.
                     offset += 1
 
-                    if (
-                        is_valid_index(string_idx + 3)
-                        and LL[string_idx + 3].type == token.LPAR
-                    ):
+                    if is_valid_index(string_idx + 3) and LL[string_idx + 3].type == token.LPAR:
                         # WMA4 the left parenthesis character.
                         offset += 1
 
@@ -1064,18 +1002,11 @@ class BaseStringSplitter(StringTransformer):
             syms.testlist_gexp,
         ]
         # If the string is an immediate child of a list/set/tuple literal...
-        if (
-            parent_type(LL[0]) in matching_nodes
-            or parent_type(LL[0].parent) in matching_nodes
-        ):
+        if parent_type(LL[0]) in matching_nodes or parent_type(LL[0].parent) in matching_nodes:
             # And the string is surrounded by commas (or is the first/last child)...
             prev_sibling = LL[0].prev_sibling
             next_sibling = LL[0].next_sibling
-            if (
-                not prev_sibling
-                and not next_sibling
-                and parent_type(LL[0]) == syms.atom
-            ):
+            if not prev_sibling and not next_sibling and parent_type(LL[0]) == syms.atom:
                 # If it's an atom string, we need to check the parent atom's siblings.
                 parent = LL[0].parent
                 assert parent is not None  # For type checkers.
@@ -1200,9 +1131,7 @@ class StringSplitter(BaseStringSplitter, CustomSplitMapMixin):
             idx += 2
         # Else the first leaf MAY be a string operator symbol or the 'in' keyword...
         elif is_valid_index(idx) and (
-            LL[idx].type in self.STRING_OPERATORS
-            or LL[idx].type == token.NAME
-            and str(LL[idx]) == "in"
+            LL[idx].type in self.STRING_OPERATORS or LL[idx].type == token.NAME and str(LL[idx]) == "in"
         ):
             idx += 1
 
@@ -1248,17 +1177,13 @@ class StringSplitter(BaseStringSplitter, CustomSplitMapMixin):
         # contain any f-expressions, but ONLY if the original f-string
         # contains at least one f-expression. Otherwise, we will alter the AST
         # of the program.
-        drop_pointless_f_prefix = ("f" in prefix) and fstring_contains_expr(
-            LL[string_idx].value
-        )
+        drop_pointless_f_prefix = ("f" in prefix) and fstring_contains_expr(LL[string_idx].value)
 
         first_string_line = True
 
         string_op_leaves = self._get_string_operator_leaves(LL)
         string_op_leaves_length = (
-            sum(len(str(prefix_leaf)) for prefix_leaf in string_op_leaves) + 1
-            if string_op_leaves
-            else 0
+            sum(len(str(prefix_leaf)) for prefix_leaf in string_op_leaves) + 1 if string_op_leaves else 0
         )
 
         def maybe_append_string_operators(new_line: Line) -> None:
@@ -1274,9 +1199,7 @@ class StringSplitter(BaseStringSplitter, CustomSplitMapMixin):
                 replace_child(LL[i], prefix_leaf)
                 new_line.append(prefix_leaf)
 
-        ends_with_comma = (
-            is_valid_index(string_idx + 1) and LL[string_idx + 1].type == token.COMMA
-        )
+        ends_with_comma = is_valid_index(string_idx + 1) and LL[string_idx + 1].type == token.COMMA
 
         def max_last_string() -> int:
             """
@@ -1298,10 +1221,7 @@ class StringSplitter(BaseStringSplitter, CustomSplitMapMixin):
         # Leading whitespace is not present in the string value (e.g. Leaf.value).
         max_break_idx -= line.depth * 4
         if max_break_idx < 0:
-            yield TErr(
-                f"Unable to split {LL[string_idx].value} at such high of a line depth:"
-                f" {line.depth}"
-            )
+            yield TErr(f"Unable to split {LL[string_idx].value} at such high of a line depth:" f" {line.depth}")
             return
 
         # Check if StringMerger registered any custom splits.
@@ -1309,8 +1229,7 @@ class StringSplitter(BaseStringSplitter, CustomSplitMapMixin):
         # We use them ONLY if none of them would produce lines that exceed the
         # line limit.
         use_custom_breakpoints = bool(
-            custom_splits
-            and all(csplit.break_idx <= max_break_idx for csplit in custom_splits)
+            custom_splits and all(csplit.break_idx <= max_break_idx for csplit in custom_splits)
         )
 
         # Temporary storage for the remaining chunk of the string line that
@@ -1427,10 +1346,7 @@ class StringSplitter(BaseStringSplitter, CustomSplitMapMixin):
                     break
 
             # Try to fit them all on the same line with the last substring...
-            if (
-                len(temp_value) <= max_last_string()
-                or LL[string_idx + 1].type == token.COMMA
-            ):
+            if len(temp_value) <= max_last_string() or LL[string_idx + 1].type == token.COMMA:
                 last_line.append(rest_leaf)
                 append_leaves(last_line, line, LL[string_idx + 1 :])
                 yield Ok(last_line)
@@ -1555,16 +1471,8 @@ class StringSplitter(BaseStringSplitter, CustomSplitMapMixin):
                 is_not_escaped = not is_not_escaped
                 j -= 1
 
-            is_big_enough = (
-                len(string[i:]) >= self.MIN_SUBSTR_SIZE
-                and len(string[:i]) >= self.MIN_SUBSTR_SIZE
-            )
-            return (
-                is_space
-                and is_not_escaped
-                and is_big_enough
-                and not breaks_unsplittable_expression(i)
-            )
+            is_big_enough = len(string[i:]) >= self.MIN_SUBSTR_SIZE and len(string[:i]) >= self.MIN_SUBSTR_SIZE
+            return is_space and is_not_escaped and is_big_enough and not breaks_unsplittable_expression(i)
 
         # First, we check all indices BELOW @max_break_idx.
         break_idx = max_break_idx
@@ -1689,9 +1597,7 @@ class StringParenWrapper(BaseStringSplitter, CustomSplitMapMixin):
         LL = line.leaves
 
         if line.leaves[-1].type in OPENING_BRACKETS:
-            return TErr(
-                "Cannot wrap parens around a line that ends in an opening bracket."
-            )
+            return TErr("Cannot wrap parens around a line that ends in an opening bracket.")
 
         string_idx = (
             self._return_match(LL)
@@ -1734,9 +1640,7 @@ class StringParenWrapper(BaseStringSplitter, CustomSplitMapMixin):
         """
         # If this line is apart of a return/yield statement and the first leaf
         # contains either the "return" or "yield" keywords...
-        if parent_type(LL[0]) in [syms.return_stmt, syms.yield_expr] and LL[
-            0
-        ].value in ["return", "yield"]:
+        if parent_type(LL[0]) in [syms.return_stmt, syms.yield_expr] and LL[0].value in ["return", "yield"]:
             is_valid_index = is_valid_index_factory(LL)
 
             idx = 2 if is_valid_index(1) and is_empty_par(LL[1]) else 1
@@ -1759,11 +1663,7 @@ class StringParenWrapper(BaseStringSplitter, CustomSplitMapMixin):
         """
         # If this line is apart of a ternary expression and the first leaf
         # contains the "else" keyword...
-        if (
-            parent_type(LL[0]) == syms.test
-            and LL[0].type == token.NAME
-            and LL[0].value == "else"
-        ):
+        if parent_type(LL[0]) == syms.test and LL[0].type == token.NAME and LL[0].value == "else":
             is_valid_index = is_valid_index_factory(LL)
 
             idx = 2 if is_valid_index(1) and is_empty_par(LL[1]) else 1
@@ -1821,10 +1721,7 @@ class StringParenWrapper(BaseStringSplitter, CustomSplitMapMixin):
         """
         # If this line is apart of an expression statement or is a function
         # argument AND the first leaf contains a variable name...
-        if (
-            parent_type(LL[0]) in [syms.expr_stmt, syms.argument, syms.power]
-            and LL[0].type == token.NAME
-        ):
+        if parent_type(LL[0]) in [syms.expr_stmt, syms.argument, syms.power] and LL[0].type == token.NAME:
             is_valid_index = is_valid_index_factory(LL)
 
             for i, leaf in enumerate(LL):
@@ -1842,11 +1739,7 @@ class StringParenWrapper(BaseStringSplitter, CustomSplitMapMixin):
 
                         # The next leaf MAY be a comma iff this line is apart
                         # of a function argument...
-                        if (
-                            parent_type(LL[0]) == syms.argument
-                            and is_valid_index(idx)
-                            and LL[idx].type == token.COMMA
-                        ):
+                        if parent_type(LL[0]) == syms.argument and is_valid_index(idx) and LL[idx].type == token.COMMA:
                             idx += 1
 
                         # But no more leaves are allowed...

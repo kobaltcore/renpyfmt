@@ -69,16 +69,12 @@ def generate_comments(leaf: LN, *, preview: bool) -> Iterator[Leaf]:
     Inline comments are emitted as regular token.COMMENT leaves.  Standalone
     are emitted with a fake STANDALONE_COMMENT token identifier.
     """
-    for pc in list_comments(
-        leaf.prefix, is_endmarker=leaf.type == token.ENDMARKER, preview=preview
-    ):
+    for pc in list_comments(leaf.prefix, is_endmarker=leaf.type == token.ENDMARKER, preview=preview):
         yield Leaf(pc.type, pc.value, prefix="\n" * pc.newlines)
 
 
 @lru_cache(maxsize=4096)
-def list_comments(
-    prefix: str, *, is_endmarker: bool, preview: bool
-) -> List[ProtoComment]:
+def list_comments(prefix: str, *, is_endmarker: bool, preview: bool) -> List[ProtoComment]:
     """Return a list of :class:`ProtoComment` objects parsed from the given `prefix`."""
     result: List[ProtoComment] = []
     if not prefix or "#" not in prefix:
@@ -105,11 +101,7 @@ def list_comments(
         else:
             comment_type = STANDALONE_COMMENT
         comment = make_comment(line, preview=preview)
-        result.append(
-            ProtoComment(
-                type=comment_type, value=comment, newlines=nlines, consumed=consumed
-            )
-        )
+        result.append(ProtoComment(type=comment_type, value=comment, newlines=nlines, consumed=consumed))
         nlines = 0
     return result
 
@@ -129,11 +121,7 @@ def make_comment(content: str, *, preview: bool) -> str:
     if content[0] == "#":
         content = content[1:]
     NON_BREAKING_SPACE = " "
-    if (
-        content
-        and content[0] == NON_BREAKING_SPACE
-        and not content.lstrip().startswith("type:")
-    ):
+    if content and content[0] == NON_BREAKING_SPACE and not content.lstrip().startswith("type:"):
         content = " " + content[1:]  # Replace NBSP by a simple space
     if content and content[0] not in COMMENT_EXCEPTIONS[preview]:
         content = " " + content
@@ -182,9 +170,7 @@ def convert_one_fmt_off_pair(node: Node, *, preview: bool) -> bool:
                 first.prefix = ""
                 standalone_comment_prefix = prefix
             else:
-                standalone_comment_prefix = (
-                    prefix[:previous_consumed] + "\n" * comment.newlines
-                )
+                standalone_comment_prefix = prefix[:previous_consumed] + "\n" * comment.newlines
             hidden_value = "".join(str(n) for n in ignored_nodes)
             if comment.value in FMT_OFF:
                 hidden_value = comment.value + "\n" + hidden_value
@@ -214,9 +200,7 @@ def convert_one_fmt_off_pair(node: Node, *, preview: bool) -> bool:
     return False
 
 
-def generate_ignored_nodes(
-    leaf: Leaf, comment: ProtoComment, *, preview: bool
-) -> Iterator[LN]:
+def generate_ignored_nodes(leaf: Leaf, comment: ProtoComment, *, preview: bool) -> Iterator[LN]:
     """Starting from the container of `leaf`, generate all leaves until `# fmt: on`.
 
     If comment is skip, returns leaf only.
@@ -253,9 +237,7 @@ def generate_ignored_nodes(
             container = container.next_sibling
 
 
-def _generate_ignored_nodes_from_fmt_skip(
-    leaf: Leaf, comment: ProtoComment, *, preview: bool
-) -> Iterator[LN]:
+def _generate_ignored_nodes_from_fmt_skip(leaf: Leaf, comment: ProtoComment, *, preview: bool) -> Iterator[LN]:
     """Generate all leaves that should be ignored by the `# fmt: skip` from `leaf`."""
     prev_sibling = leaf.prev_sibling
     parent = leaf.parent
@@ -271,9 +253,7 @@ def _generate_ignored_nodes_from_fmt_skip(
             prev_sibling = prev_sibling.prev_sibling
             siblings.insert(0, prev_sibling)
         yield from siblings
-    elif (
-        parent is not None and parent.type == syms.suite and leaf.type == token.NEWLINE
-    ):
+    elif parent is not None and parent.type == syms.suite and leaf.type == token.NEWLINE:
         # The `# fmt: skip` is on the colon line of the if/while/def/class/...
         # statements. The ignored nodes should be previous siblings of the
         # parent suite node.

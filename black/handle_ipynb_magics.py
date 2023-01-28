@@ -412,9 +412,7 @@ class MagicFinder(ast.NodeVisitor):
                     f"Unexpected IPython magic {node.value.func.attr!r} found. "
                     "Please report a bug on https://github.com/psf/black/issues."
                 ) from None
-            self.magics[node.value.lineno].append(
-                OffsetAndMagic(node.value.col_offset, src)
-            )
+            self.magics[node.value.lineno].append(OffsetAndMagic(node.value.col_offset, src))
         self.generic_visit(node)
 
     def visit_Expr(self, node: ast.Expr) -> None:
@@ -453,7 +451,5 @@ class MagicFinder(ast.NodeVisitor):
                 src = f"!!{args[0]}"
             else:
                 raise NothingChanged  # unsupported magic.
-            self.magics[node.value.lineno].append(
-                OffsetAndMagic(node.value.col_offset, src)
-            )
+            self.magics[node.value.lineno].append(OffsetAndMagic(node.value.col_offset, src))
         self.generic_visit(node)

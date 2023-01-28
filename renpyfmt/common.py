@@ -36,7 +36,7 @@ def dedent(text):
         # Find the largest common whitespace between current line and previous
         # winner.
         else:
-            for i, (x, y) in enumerate(zip(margin, indent)):
+            for i, (x, y) in enumerate(zip(margin, indent, strict=True)):
                 if x != y:
                     margin = margin[:i]
                     break
@@ -44,7 +44,7 @@ def dedent(text):
     # sanity check (testing/debugging only)
     if 0 and margin:
         for line in text.split("\n"):
-            assert not line or line.startswith(margin), "line = %r, margin = %r" % (
+            assert not line or line.startswith(margin), "line = {!r}, margin = {!r}".format(
                 line,
                 margin,
             )
