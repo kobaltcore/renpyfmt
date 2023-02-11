@@ -14,9 +14,7 @@ jobs:
           poetry install
       - name: Run pre-commit
         run: |
-          ls -al
           git config --system --add safe.directory /__w/renpyfmt/renpyfmt
-          git status
           poetry run pre-commit run -a
 
   upload-release:
