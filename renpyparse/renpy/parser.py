@@ -1612,14 +1612,13 @@ def parse(fn, filedata=None, linenumber=1):
         nested = group_logical_lines(lines)
     except ParseError as e:
         parse_errors.append(e.message)
-        return None
+
+    if parse_errors:
+        return parse_errors, True
 
     l = Lexer(nested)
 
     rv = parse_block(l)
-
-    if parse_errors:
-        return parse_errors, True
 
     if rv:
         rv.append(ast.Return((rv[-1].filename, rv[-1].linenumber), None))
