@@ -14,6 +14,8 @@ jobs:
           poetry install
       - name: Run pre-commit
         run: |
+          ls -al
+          git status
           poetry run pre-commit run -a
 
   upload-release:
