@@ -41,16 +41,9 @@ def dedent(text):
                     margin = margin[:i]
                     break
 
-    # sanity check (testing/debugging only)
-    if 0 and margin:
-        for line in text.split("\n"):
-            assert not line or line.startswith(margin), "line = {!r}, margin = {!r}".format(
-                line,
-                margin,
-            )
-
     if margin:
         text = re.sub(r"(?m)^" + margin, "", text)
+
     return text, margin
 
 
