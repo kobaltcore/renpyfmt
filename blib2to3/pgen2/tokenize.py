@@ -220,7 +220,6 @@ TokenInfo = Union[Tuple[int, str], GoodTokenInfo]
 
 
 class Untokenizer:
-
     tokens: List[Text]
     prev_row: int
     prev_col: int
@@ -605,7 +604,6 @@ def generate_tokens(readline: Callable[[], Text], grammar: Optional[Grammar] = N
 
                     if token in ("def", "for"):
                         if stashed and stashed[0] == NAME and stashed[1] == "async":
-
                             if token == "def":
                                 async_def = True
                                 async_def_indent = indents[-1]

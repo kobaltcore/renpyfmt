@@ -641,7 +641,6 @@ class LeafPattern(BasePattern):
 
 
 class NodePattern(BasePattern):
-
     wildcards: bool = False
 
     def __init__(

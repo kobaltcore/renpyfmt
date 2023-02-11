@@ -30,7 +30,6 @@ class PgenGrammar(grammar.Grammar):
 
 
 class ParserGenerator(object):
-
     filename: Path
     stream: IO[Text]
     generator: Iterator[GoodTokenInfo]
