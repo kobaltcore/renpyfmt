@@ -126,6 +126,8 @@ def render_statement(stmt, depth=0, indent=4):
             code += f"\n{spaces}return {stmt.expression}"
         else:
             code += f"\n{spaces}return"
+    elif isinstance(stmt, renpy.ast.Comment):
+        code += f"\n{spaces}# {stmt.text}"
     else:
         code += f"{spaces}Unsupported: {stmt}"
 

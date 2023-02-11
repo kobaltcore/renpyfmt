@@ -535,7 +535,7 @@ class ParseTrie:
     def parse(self, l):
         old_pos = l.pos
 
-        word = l.word() or l.match(r"\$")
+        word = l.word() or l.match(r"\$") or l.match(r"#")
 
         if word not in self.words:
             l.pos = old_pos
@@ -565,6 +565,20 @@ def statement(keywords):
 
 ##############################################################################
 # Statement functions.
+
+
+@statement("#")
+def comment_statement(l, loc):
+    l.expect_noblock("return statement")
+
+    rest = l.rest()
+    if not rest:
+        rest = None
+
+    l.expect_eol()
+    l.advance()
+
+    return ast.Comment(loc, rest)
 
 
 @statement("if")

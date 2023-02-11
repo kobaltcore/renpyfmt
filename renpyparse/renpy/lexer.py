@@ -371,8 +371,12 @@ def list_logical_lines(filename, filedata=None, linenumber=1, add_lines=False):
             if c == "#":
                 endpos = pos
 
+                s = []
                 while data[pos] != "\n":
                     pos += 1
+                    s.append(data[pos])
+
+                line.append("#" + "".join(s[:-1]))
 
                 continue
 

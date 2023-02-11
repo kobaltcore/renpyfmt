@@ -1696,6 +1696,25 @@ class Call(Node):
         return rv
 
 
+class Comment(Node):
+    __slots__ = ["text"]
+
+    def __new__(cls, *args, **kwargs):
+        self = Node.__new__(cls)
+        self.text = None
+        return self
+
+    def __init__(self, loc, text):
+        super().__init__(loc)
+        self.text = text
+
+    def diff_info(self):
+        return (Comment,)
+
+    def execute(self):
+        statement_name("comment")
+
+
 class Return(Node):
     __slots__ = ["expression"]
 
