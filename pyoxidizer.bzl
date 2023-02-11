@@ -246,7 +246,7 @@ def make_exe():
     exe.add_python_resources(
         exe.pip_install(
             [
-                "click",
+                "rich-click",
                 "mypy-extensions",
                 "pathspec",
                 "platformdirs",
