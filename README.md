@@ -2,7 +2,7 @@
 
 # renpyfmt
 
-`renpyfmt` is a source code formatter for Ren'Py script.
+`renpyfmt` is an opinionated source code formatter for Ren'Py script.
 
 ```bash
 pip install renpyfmt
