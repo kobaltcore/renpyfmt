@@ -19,40 +19,6 @@ lines = {}
 # The set of files that have been loaded.
 files = set()
 
-
-class Line:
-    """
-    Represents a logical line in a file.
-    """
-
-    def __init__(self, filename, number, start):
-        filename = filename.replace("\\", "/")
-
-        # The full path to the file with the line in it.
-        self.filename = filename
-
-        # The line number.
-        self.number = number
-
-        # The offset inside the file at which the line starts.
-        self.start = start
-
-        # The offset inside the file at which the line ends.
-        self.end = start
-
-        # The offset inside the lime where the line delimiter ends.
-        self.end_delim = start
-
-        # The text of the line.
-        self.text = ""
-
-        # The full text, including any comments or delimiters.
-        self.full_text = ""
-
-    def __repr__(self):
-        return f"<Line {self.filename}:{self.number} {self.text!r}>"
-
-
 sentinels = {}
 
 

@@ -24,12 +24,8 @@
 # game state to some time in the past.
 
 PY2 = False
-basestring = str
-pystr = str
-
 
 # Import the python ast module, not ours.
-# Import the future module itself.
 import __future__
 
 import ast
@@ -205,7 +201,7 @@ def create_store(name):
     d = store_dicts.setdefault(name, StoreDict())
     d.reset()
 
-    pyname = pystr(name)
+    pyname = name
 
     # Set the name.
     d.update(__name__=pyname, __package__=pyname)
@@ -1040,7 +1036,7 @@ def py_eval_bytecode(bytecode, globals=None, locals=None):  # @ReservedAssignmen
 
 
 def py_eval(code, globals=None, locals=None):  # @ReservedAssignment
-    if isinstance(code, basestring):
+    if isinstance(code, str):
         code = py_compile(code, "eval")
 
     return py_eval_bytecode(code, globals, locals)

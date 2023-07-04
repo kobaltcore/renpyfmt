@@ -20,15 +20,13 @@
 # WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 
-basestring = str
-
 import random
 
 import renpy
 from renpy.easy import displayable
 from renpy.py3analysis import GLOBAL_CONST, NOT_CONST, Analysis
 
-from .ast import EMPTY_PARAMETERS, ParameterInfo
+from .renpyast import EMPTY_PARAMETERS, ParameterInfo
 
 
 def compiling(loc):
@@ -348,7 +346,7 @@ def interpolate(t, a, b, type):  # @ReservedAssignment
     """
 
     # Deal with booleans, nones, etc.
-    if b is None or isinstance(b, (bool, basestring, renpy.display.matrix.Matrix)):
+    if b is None or isinstance(b, (bool, str, renpy.display.matrix.Matrix)):
         if t >= 1.0:
             return b
         else:

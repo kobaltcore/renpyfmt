@@ -20,9 +20,6 @@
 # WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 
-basestring = str
-
-
 # Import the Python AST module, instead of the Ren'Py ast module.
 import ast
 import zlib
@@ -234,7 +231,7 @@ def pure(fn):
 
     name = fn
 
-    if not isinstance(name, basestring):
+    if not isinstance(name, str):
         name = fn.__name__
 
         module = fn.__module__

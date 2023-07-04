@@ -1,7 +1,7 @@
 import sys
 
 import renpy
-import renpy.parser as parser
+import renpy.renpyparser as parser
 
 
 def get_imspec(imspec):

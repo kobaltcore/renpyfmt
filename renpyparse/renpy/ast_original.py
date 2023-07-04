@@ -26,10 +26,6 @@
 # When updating this file, consider if lint.py or warp.py also need
 # updating.
 
-PY2 = False
-basestring = str
-bchr = bytes
-
 
 import hashlib
 import re
@@ -455,10 +451,7 @@ class PyCode:
         if isinstance(source, PyExpr):
             loc = (source.filename, source.linenumber, source)
 
-        if PY2:
-            self.py = 2
-        else:
-            self.py = 3
+        self.py = 3
 
         # The source code.
         self.source = source
@@ -488,7 +481,7 @@ class PyCode:
             code = renpy.python.ast.dump(code)  # @UndefinedVariable
 
         self.hash = (
-            bchr(renpy.bytecode_version) + hashlib.md5((repr(self.location) + code).encode("utf-8")).digest()
+            bytes(renpy.bytecode_version) + hashlib.md5((repr(self.location) + code).encode("utf-8")).digest()
         )  # type:ignore
         return self.hash
 
@@ -880,7 +873,7 @@ class Say(Node):
             else:
                 statement_name("say")
 
-            if not ((who is None) or callable(who) or isinstance(who, basestring)):
+            if not ((who is None) or callable(who) or isinstance(who, str)):
                 raise Exception("Sayer %s is not a function or string." % self.who.encode("utf-8"))
 
             what = self.what

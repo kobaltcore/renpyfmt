@@ -20,11 +20,6 @@
 # WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 
-PY2 = False
-
-
-xrange = range
-
 unicode = str  # @ReservedAssignment
 
 python_list = _list = list
@@ -189,6 +184,3 @@ __all__ = [
     "ui",
     "unicode",
 ]
-
-if PY2:
-    __all__ = [bytes(i) for i in __all__]  # type: ignore

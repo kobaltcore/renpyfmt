@@ -21,21 +21,14 @@
 
 """Functions that make the user's life easier."""
 
-PY2 = False
-basestring = str
-
 
 import contextlib
 import time
+from collections.abc import Iterable
 
 import renpy
 
 from .color import Color
-
-if PY2:
-    from collections.abc import Iterable  # type: ignore
-else:
-    from collections.abc import Iterable
 
 
 def lookup_displayable_prefix(d):
@@ -65,7 +58,7 @@ def displayable_or_none(
     if d is None:
         return d
 
-    if isinstance(d, basestring):
+    if isinstance(d, str):
         if not d:
             raise Exception("An empty string cannot be used as a displayable.")
         elif ("[" in d) and renpy.config.dynamic_images and dynamic:
@@ -323,7 +316,7 @@ def displayable(d, scope=None):  # type(d, dict|None=None) -> renpy.display.core
     a string, it converts that string into a displayable using the usual
     rules.
     """
-    if isinstance(d, basestring):
+    if isinstance(d, str):
         if not d:
             raise Exception("An empty string cannot be used as a displayable.")
         elif ("[" in d) and renpy.config.dynamic_images:
@@ -387,7 +380,7 @@ def dynamic_image(
                 return True
 
     for i in d:
-        if not isinstance(i, basestring):
+        if not isinstance(i, str):
             continue
 
         if (prefix is not None) and ("[prefix_" in i):

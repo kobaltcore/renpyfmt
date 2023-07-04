@@ -20,120 +20,115 @@
 # WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 
+import contextlib
 import os
 import re
 
 from .lexersupport import match_logical_word
-from .renpyast import Pass, PyExpr
-from .renpyparser import parse_arguments, parse_statement
 
-KEYWORDS = {
-    "$",
-    "as",
-    "at",
-    "behind",
-    "call",
-    "expression",
-    "hide",
-    "if",
-    "in",
-    "image",
-    "init",
-    "jump",
-    "menu",
-    "onlayer",
-    "python",
-    "return",
-    "scene",
-    "show",
-    "with",
-    "while",
-    "zorder",
-    "transform",
-}
+# The filename that's in the line text cache.
+line_text_filename = ""
 
-OPERATORS = [
-    "<>",
-    "<<",
-    "<=",
-    "<",
-    ">>",
-    ">=",
-    ">",
-    "!=",
-    "==",
-    "|",
-    "^",
-    "&",
-    "+",
-    "-",
-    "**",
-    "*",
-    "//",
-    "/",
-    "%",
-    "~",
-]
-
-ESCAPED_OPERATORS = [
-    r"\bor\b",
-    r"\band\b",
-    r"\bnot\b",
-    r"\bin\b",
-    r"\bis\b",
-]
-
-operator_regexp = "|".join([re.escape(i) for i in OPERATORS] + ESCAPED_OPERATORS)
-
-word_regexp = r"[a-zA-Z_\u00a0-\ufffd][0-9a-zA-Z_\u00a0-\ufffd]*"
-image_word_regexp = r"[-0-9a-zA-Z_\u00a0-\ufffd][-0-9a-zA-Z_\u00a0-\ufffd]*"
+# The content of the line text cache.
+line_text_cache = []
 
 
-class Line:
+def get_line_text(filename, lineno):
     """
-    Represents a logical line in a file.
+    Gets the text of a line, in a best-effort way, for debugging purposes. May
+    return just a newline, if the line doesn't exist.
     """
 
-    def __init__(self, filename, number, start):
-        filename = filename.replace("\\", "/")
+    global line_text_filename
+    global line_text_cache
 
-        # The full path to the file with the line in it.
-        self.filename = filename
+    full_filename = unelide_filename(filename)
 
-        # The line number.
-        self.number = number
+    if full_filename != line_text_filename:
+        line_text_filename = full_filename
 
-        # The offset inside the file at which the line starts.
-        self.start = start
+        try:
+            with open(full_filename, "rb") as f:
+                data = f.read().decode("utf-8", "python_strict")
 
-        # The offset inside the file at which the line ends.
-        self.end = start
+            if full_filename.endswith("_ren.py"):
+                data = ren_py_to_rpy(data, None)
 
-        # The offset inside the lime where the line delimiter ends.
-        self.end_delim = start
+            data += "\n\n"
 
-        # The text of the line.
-        self.text = ""
+            line_text_cache = data.split("\n")
 
-        # The full text, including any comments or delimiters.
-        self.full_text = ""
+        except Exception:
+            line_text_cache = []
 
-    def __repr__(self):
-        return f"<Line {self.filename}:{self.number} {self.text!r}>"
+    if lineno <= len(line_text_cache):
+        return line_text_cache[lineno - 1] + "\n"
+    else:
+        return "\n"
 
 
-def munge_filename(fn):
-    # The prefix that's used when __ is found in the file.
-    rv = os.path.basename(fn)
-    rv = os.path.splitext(rv)[0]
-    rv = rv.replace(" ", "_")
+class ParseError(Exception):
+    def __init__(self, filename, number, msg, line=None, pos=None, first=False):
+        message = 'File "%s", line %d: %s' % (unicode_filename(filename), number, msg)
 
-    def munge_char(m):
-        return hex(ord(m.group(0)))
+        if line:
+            if isinstance(line, list):
+                line = "".join(line)
 
-    rv = re.sub(r"[^a-zA-Z0-9_]", munge_char, rv)
+            lines = line.split("\n")
 
-    return "_m1_" + rv + "__"
+            if len(lines) > 1:
+                open_string = None
+                i = 0
+
+                while i < len(lines[0]):
+                    c = lines[0][i]
+
+                    if c == "\\":
+                        i += 1
+                    elif c == open_string:
+                        open_string = None
+                    elif open_string:
+                        pass
+                    elif c == "`" or c == "'" or c == '"':
+                        open_string = c
+
+                    i += 1
+
+                if open_string:
+                    message += "\n(Perhaps you left out a %s at the end of the first line.)" % open_string
+
+            for l in lines:
+                message += "\n    " + l
+
+                if pos is not None:
+                    if pos <= len(l):
+                        message += "\n    " + " " * pos + "^"
+                        pos = None
+                    else:
+                        pos -= len(l)
+
+                if first:
+                    break
+
+        self.message = message
+
+        Exception.__init__(self, message)
+
+    def __unicode__(self):
+        return self.message
+
+
+# Something to hold the expected line number.
+
+
+class LineNumberHolder:
+    """
+    Holds the expected line number.
+    """
+
+    def __init__(self):
+        self.line = 0
 
 
 def unicode_filename(fn):
@@ -158,6 +153,77 @@ def unicode_filename(fn):
 
     # Insane systems, mojibake.
     return fn.decode("latin-1")
+
+
+# Matches either a word, or something else. Most magic is taken care of
+# before this.
+lllword = re.compile(r"__(\w+)|\w+| +|.", re.S)
+
+
+def munge_filename(fn):
+    # The prefix that's used when __ is found in the file.
+    rv = os.path.basename(fn)
+    rv = os.path.splitext(rv)[0]
+    rv = rv.replace(" ", "_")
+
+    def munge_char(m):
+        return hex(ord(m.group(0)))
+
+    rv = re.sub(r"[^a-zA-Z0-9_]", munge_char, rv)
+
+    return "_m1_" + rv + "__"
+
+
+def elide_filename(fn):
+    """
+    Returns a version of fn that is either relative to the base directory,
+    or relative to the Ren'Py directory.
+    """
+
+    fn = fn.replace("\\", "/")
+
+    basedir = os.path.abspath(renpy.config.basedir).replace("\\", "/") + "/"
+    renpy_base = os.path.abspath(renpy.config.renpy_base).replace("\\", "/") + "/"
+
+    # This is SDK inside the project, for some reason, or it is the same path
+    if renpy_base.startswith(basedir):
+        dirs = [renpy_base, basedir]
+
+    # This is a projects dir inside SDK or it's different paths
+    else:
+        dirs = [basedir, renpy_base]
+
+    for d in dirs:
+        if fn.startswith(d):
+            rv = fn[len(d) :]
+            break
+    else:
+        rv = fn
+
+    return rv
+
+
+def unelide_filename(fn):
+    fn = os.path.normpath(fn)
+
+    if renpy.config.alternate_unelide_path is not None:
+        fn0 = os.path.join(renpy.config.alternate_unelide_path, fn)
+        if os.path.exists(fn0):
+            return fn0
+
+    fn1 = os.path.join(renpy.config.basedir, fn)
+    if os.path.exists(fn1):
+        return fn1
+
+    fn2 = os.path.join(renpy.config.renpy_base, fn)
+    if os.path.exists(fn2):
+        return fn2
+
+    return fn
+
+
+# The filename that the start and end positions are relative to.
+original_filename = ""
 
 
 def list_logical_lines(filename, filedata=None, linenumber=1, add_lines=False):
@@ -215,7 +281,10 @@ def list_logical_lines(filename, filedata=None, linenumber=1, add_lines=False):
     if len(data) and data[0] == "\ufeff":
         pos += 1
 
-    lines = {}
+    if add_lines:
+        lines = renpy.scriptedit.lines
+    else:
+        lines = {}
 
     len_data = len(data)
 
@@ -234,7 +303,7 @@ def list_logical_lines(filename, filedata=None, linenumber=1, add_lines=False):
         parendepth = 0
 
         loc = (filename, start_number)
-        lines[loc] = Line(original_filename, start_number, pos)
+        lines[loc] = renpy.Line(original_filename, start_number, pos)
 
         endpos = None
 
@@ -471,65 +540,72 @@ def group_logical_lines(lines):
     return gll_core(0, 0)[0]
 
 
-class LineNumberHolder:
-    """
-    Holds the expected line number.
-    """
+# A list of keywords which should not be parsed as names, because
+# there is a huge chance of confusion.
+#
+# Note: We need to be careful with what's in here, because these
+# are banned in simple_expressions, where we might want to use
+# some of them.
+KEYWORDS = {
+    "$",
+    "as",
+    "at",
+    "behind",
+    "call",
+    "expression",
+    "hide",
+    "if",
+    "in",
+    "image",
+    "init",
+    "jump",
+    "menu",
+    "onlayer",
+    "python",
+    "return",
+    "scene",
+    "show",
+    "with",
+    "while",
+    "zorder",
+    "transform",
+}
 
-    def __init__(self):
-        self.line = 0
+OPERATORS = [
+    "<>",
+    "<<",
+    "<=",
+    "<",
+    ">>",
+    ">=",
+    ">",
+    "!=",
+    "==",
+    "|",
+    "^",
+    "&",
+    "+",
+    "-",
+    "**",
+    "*",
+    "//",
+    "/",
+    "%",
+    "~",
+]
 
+ESCAPED_OPERATORS = [
+    r"\bor\b",
+    r"\band\b",
+    r"\bnot\b",
+    r"\bin\b",
+    r"\bis\b",
+]
 
-class ParseError(Exception):
-    def __init__(self, filename, number, msg, line=None, pos=None, first=False):
-        message = 'File "%s", line %d: %s' % (unicode_filename(filename), number, msg)
+operator_regexp = "|".join([re.escape(i) for i in OPERATORS] + ESCAPED_OPERATORS)
 
-        if line:
-            if isinstance(line, list):
-                line = "".join(line)
-
-            lines = line.split("\n")
-
-            if len(lines) > 1:
-                open_string = None
-                i = 0
-
-                while i < len(lines[0]):
-                    c = lines[0][i]
-
-                    if c == "\\":
-                        i += 1
-                    elif c == open_string:
-                        open_string = None
-                    elif open_string:
-                        pass
-                    elif c == "`" or c == "'" or c == '"':
-                        open_string = c
-
-                    i += 1
-
-                if open_string:
-                    message += "\n(Perhaps you left out a %s at the end of the first line.)" % open_string
-
-            for l in lines:
-                message += "\n    " + l
-
-                if pos is not None:
-                    if pos <= len(l):
-                        message += "\n    " + " " * pos + "^"
-                        pos = None
-                    else:
-                        pos -= len(l)
-
-                if first:
-                    break
-
-        self.message = message
-
-        Exception.__init__(self, message)
-
-    def __unicode__(self):
-        return self.message
+word_regexp = r"[a-zA-Z_\u00a0-\ufffd][0-9a-zA-Z_\u00a0-\ufffd]*"
+image_word_regexp = r"[-0-9a-zA-Z_\u00a0-\ufffd][-0-9a-zA-Z_\u00a0-\ufffd]*"
 
 
 class SubParse:
@@ -675,6 +751,18 @@ class Lexer:
         self.pos = oldpos
         return ""
 
+    @contextlib.contextmanager
+    def catch_error(self):
+        """
+        Catches errors, then causes the line to advance if it hasn't been
+        advanced already.
+        """
+
+        try:
+            yield
+        except ParseError as e:
+            renpy.parser.parse_errors.append(e.message)
+
     def error(self, msg):
         """
         Convenience function for reporting a parse error at the current
@@ -685,6 +773,22 @@ class Lexer:
             self.filename, self.number, self.text, self.subblock = self.block[0]
 
         raise ParseError(self.filename, self.number, msg, self.text, self.pos)
+
+    def deferred_error(self, queue, msg):
+        """
+        Adds a deferred error to the given queue. This is used for something
+        that might be an error, but could be compat-ed away.
+
+        `queue`
+            A string giving a list of deferred errors to add to.
+        """
+
+        if (self.line == -1) and self.block:
+            self.filename, self.number, self.text, self.subblock = self.block[0]
+
+        renpy.parser.deferred_parse_errors[queue].append(
+            ParseError(self.filename, self.number, msg, self.text, self.pos).message
+        )
 
     def eol(self):
         """
@@ -1088,7 +1192,7 @@ class Lexer:
         if not expr:
             return s
 
-        return PyExpr(s, self.filename, self.number)
+        return renpy.ast.PyExpr(s, self.filename, self.number)
 
     def delimited_python(self, delim, expr=True):
         """
@@ -1215,7 +1319,7 @@ class Lexer:
         if not text:
             return None
 
-        return PyExpr(text, self.filename, self.number)
+        return renpy.ast.PyExpr(text, self.filename, self.number)
 
     def comma_expression(self):
         """
@@ -1237,7 +1341,7 @@ class Lexer:
         passed to revert to back the lexer up.
         """
 
-        return self.line, self.filename, self.number, self.text, self.subblock, self.pos, PyExpr.checkpoint()
+        return self.line, self.filename, self.number, self.text, self.subblock, self.pos, renpy.ast.PyExpr.checkpoint()
 
     def revert(self, state):
         """
@@ -1247,7 +1351,7 @@ class Lexer:
 
         self.line, self.filename, self.number, self.text, self.subblock, self.pos, pyexpr_checkpoint = state
 
-        PyExpr.revert(pyexpr_checkpoint)
+        renpy.ast.PyExpr.revert(pyexpr_checkpoint)
 
         self.word_cache_pos = -1
         if self.line < len(self.block):
@@ -1295,7 +1399,7 @@ class Lexer:
 
         pos = self.pos
         self.pos = len(self.text)
-        return PyExpr(self.text[pos:].strip(), self.filename, self.number)
+        return renpy.ast.PyExpr(self.text[pos:].strip(), self.filename, self.number)
 
     def rest_statement(self):
         """
@@ -1340,7 +1444,7 @@ class Lexer:
         there is not one.
         """
 
-        return parse_arguments(self)
+        return renpy.parser.parse_arguments(self)
 
     def renpy_statement(self):
         """
@@ -1352,7 +1456,7 @@ class Lexer:
         if self.subparses is None:
             raise Exception("A renpy_statement can only be parsed inside a creator-defined statement.")
 
-        block = parse_statement(self)
+        block = renpy.parser.parse_statement(self)
         self.unadvance()
 
         if not isinstance(block, list):
@@ -1373,16 +1477,21 @@ class Lexer:
         block = []
 
         while not self.eob:
-            stmt = parse_statement(self)
+            try:
+                stmt = renpy.parser.parse_statement(self)
 
-            if isinstance(stmt, list):
-                block.extend(stmt)
-            else:
-                block.append(stmt)
+                if isinstance(stmt, list):
+                    block.extend(stmt)
+                else:
+                    block.append(stmt)
+
+            except ParseError as e:
+                renpy.parser.parse_errors.append(e.message)
+                self.advance()
 
         if not block:
             if empty:
-                block.append(Pass(self.get_location()))
+                block.append(renpy.ast.Pass(self.get_location()))
             else:
                 self.error("At least one Ren'Py statement is expected.")
 
