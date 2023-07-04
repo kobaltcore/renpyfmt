@@ -12,13 +12,13 @@ renpyfmt = "renpyfmt:cli"
 
 [tool.poetry.dependencies]
 python = "^3.10,<3.12"
-pathspec = "^0.11.0"
+pathspec = "^0.11.1"
 rich-click = "^1.6.1"
 mypy-extensions = "^1.0.0"
 
 [tool.poetry.group.dev.dependencies]
-pre-commit = "^3.0.4"
-pyinstaller = "^5.8.0"
+pre-commit = "^3.3.3"
+pyinstaller = "^5.13.0"
 
 [build-system]
 requires = ["poetry>=0.12"]

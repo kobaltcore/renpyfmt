@@ -13,11 +13,11 @@ repos:
       - id: mixed-line-ending
         args: ["--fix=lf"]
   - repo: https://github.com/charliermarsh/ruff-pre-commit
-    rev: v0.0.245
+    rev: v0.0.276
     hooks:
       - id: ruff
   - repo: https://github.com/psf/black
-    rev: 23.1.0
+    rev: 23.3.0
     hooks:
       - id: black
   # - repo: https://github.com/pre-commit/mirrors-mypy
