@@ -5,6 +5,7 @@ description = "A Ren'Py formatter."
 authors = ["cobaltcore <cobaltcore@yandex.com>"]
 license = "MIT"
 readme = "README.md"
+repository = "https://github.com/kobaltcore/renpyfmt"
 
 [tool.poetry.scripts]
 renpyfmt = "renpyfmt:cli"
