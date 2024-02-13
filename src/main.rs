@@ -660,7 +660,12 @@ fn main() -> Result<()> {
 
         // print_nodes(ast, 0);
 
-        format_ast(&ast, 0);
+        let lines = format_ast(&ast, 0);
+
+        println!("{}", lines.join("\n"));
+        // for (i, line) in lines.iter().enumerate() {
+        //     println!("{}: {}", i, line);
+        // }
     });
 
     Ok(())

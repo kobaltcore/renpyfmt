@@ -138,7 +138,7 @@ pub struct Jump {
 #[derive(Debug, Clone, Default)]
 pub struct Menu {
     pub loc: (PathBuf, usize),
-    pub items: Vec<(Option<String>, String, Option<Vec<AstNode>>)>,
+    pub items: Vec<(Option<String>, Option<String>, Option<Vec<AstNode>>)>,
     pub set: Option<String>,
     pub with_: Option<String>,
     pub has_caption: bool,
@@ -150,7 +150,7 @@ pub struct Menu {
 #[derive(Debug, Clone, Default)]
 pub struct If {
     pub loc: (PathBuf, usize),
-    pub entries: Vec<(String, Vec<AstNode>)>,
+    pub entries: Vec<(Option<String>, Vec<AstNode>)>,
 }
 
 #[derive(Debug, Clone, Default)]

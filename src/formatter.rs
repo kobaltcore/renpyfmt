@@ -1,5 +1,5 @@
 use crate::{
-    ast::{ArgumentInfo, AstNode, ImageSpecifier, Say, Scene, Show},
+    ast::{ArgumentInfo, AstNode, If, ImageSpecifier, Jump, Menu, PythonOneLine, Say, Scene, Show},
     atl::{AtlStatement, RawBlock},
 };
 
@@ -142,23 +142,6 @@ impl Format for RawBlock {
 
 impl Format for AtlStatement {
     fn format(&self, indent: usize, ctx: &FormatContext) -> String {
-        // ctx = renpy.atl.Context({})
-        // item = atl.compile(ctx)
-        // code = f"unknown: {item}"
-        // if isinstance(item, renpy.atl.Interpolation):
-        //     merged_properties = f"\n{'    ' * depth}".join([f"{k} {v}" for k, v in item.properties])
-        //     if item.warper == "instant":
-        //         code = f"{merged_properties}"
-        //     else:
-        //         code = f"{item.warper} {item.duration} {merged_properties}"
-        // elif isinstance(item, renpy.atl.Child):
-        //     if item.transition:
-        //         code = f"{' '.join(item.child.name)} {item.transition}"
-        //     else:
-        //         code = f"{' '.join(item.child.name)}"
-        // assembled_code = f"{'    ' * depth}{code}\n"
-        // return assembled_code
-
         let indent_spaces = " ".repeat(indent);
 
         match self {
@@ -166,7 +149,14 @@ impl Format for AtlStatement {
             AtlStatement::RawBlock(node) => node.format(indent, ctx),
             AtlStatement::RawContainsExpr(node) => todo!(),
             AtlStatement::RawChild(node) => todo!(),
-            AtlStatement::RawParallel(node) => todo!(),
+            AtlStatement::RawParallel(node) => {
+                let mut ctx = ctx.clone();
+                ctx.atl_direct_parent = true;
+                format!(
+                    "{indent_spaces}parallel:\n{}",
+                    node.block.format(indent + 4, &ctx)
+                )
+            }
             AtlStatement::RawChoice(node) => todo!(),
             AtlStatement::RawOn(node) => todo!(),
             AtlStatement::RawTime(node) => todo!(),
@@ -174,14 +164,6 @@ impl Format for AtlStatement {
             AtlStatement::RawEvent(node) => todo!(),
             AtlStatement::RawMultipurpose(node) => {
                 let mut rv = vec![];
-
-                for (name, with) in &node.expressions {
-                    if let Some(with) = with {
-                        rv.push(format!("{name} with {with}"));
-                    } else {
-                        rv.push(name.clone());
-                    }
-                }
 
                 if let Some(warper) = &node.warper {
                     rv.push(warper.clone());
@@ -191,12 +173,21 @@ impl Format for AtlStatement {
                     rv.push(duration.clone());
                 }
 
+                for (name, with) in &node.expressions {
+                    if let Some(with) = with {
+                        rv.push(format!("{name} with {with}"));
+                    } else {
+                        rv.push(name.clone());
+                    }
+                }
+
                 let mut sorted = node.properties.clone();
                 sorted.sort_by(|a, b| a.0.cmp(&b.0));
 
                 for (name, exprs) in sorted {
                     rv.push(format!("{} {}", name, exprs));
                 }
+
                 format!("{indent_spaces}{}", rv.join(" "))
             }
         }
@@ -241,49 +232,151 @@ impl Format for Scene {
     }
 }
 
-pub fn format_ast(ast: &Vec<AstNode>, indent: usize) {
+impl Format for PythonOneLine {
+    fn format(&self, indent: usize, _ctx: &FormatContext) -> String {
+        let indent_spaces = " ".repeat(indent);
+
+        format!("{indent_spaces}$ {}", self.python_code)
+    }
+}
+
+impl Format for Jump {
+    fn format(&self, indent: usize, _ctx: &FormatContext) -> String {
+        let indent_spaces = " ".repeat(indent);
+
+        if self.expression {
+            format!("{indent_spaces}jump expression {}", self.target)
+        } else {
+            format!("{indent_spaces}jump {}", self.target)
+        }
+    }
+}
+
+impl Format for Menu {
+    fn format(&self, indent: usize, _ctx: &FormatContext) -> String {
+        let indent_spaces = " ".repeat(indent);
+
+        let mut lines = vec![];
+
+        lines.push(format!("{indent_spaces}menu:"));
+        let indent_spaces = " ".repeat(indent + 4);
+        for (i, (label, condition, block)) in self.items.iter().enumerate() {
+            if self.has_caption && i == 0 {
+                lines.push(format!("{indent_spaces}\"{}\"", label.clone().unwrap()));
+            } else {
+                match condition {
+                    Some(condition) => {
+                        lines.push(format!(
+                            "{indent_spaces}\"{}\" if {condition}:",
+                            label.clone().unwrap()
+                        ));
+                    }
+                    None => {
+                        lines.push(format!("{indent_spaces}\"{}\":", label.clone().unwrap()));
+                    }
+                }
+            }
+
+            if let Some(block) = block {
+                lines.extend(format_ast(block, indent + 8));
+            }
+        }
+
+        lines.join("\n")
+    }
+}
+
+impl Format for If {
+    fn format(&self, indent: usize, _ctx: &FormatContext) -> String {
+        let indent_spaces = " ".repeat(indent);
+
+        let mut lines = vec![];
+
+        let last_idx = self.entries.len() - 1;
+
+        for (i, (cond, block)) in self.entries.iter().enumerate() {
+            if i == 0 {
+                lines.push(format!("{indent_spaces}if {}:", cond.as_ref().unwrap()));
+                lines.extend(format_ast(block, indent + 4));
+            } else if i == last_idx {
+                match cond {
+                    Some(cond) => {
+                        lines.push(format!("{indent_spaces}else if {}:", cond));
+                    }
+                    None => {
+                        lines.push(format!("{indent_spaces}else:"));
+                    }
+                }
+                lines.extend(format_ast(block, indent + 4));
+            } else {
+                lines.push(format!("{indent_spaces}elif {}:", cond.as_ref().unwrap()));
+                lines.extend(format_ast(block, indent + 4));
+            }
+        }
+
+        lines.join("\n")
+    }
+}
+
+pub fn format_ast(ast: &Vec<AstNode>, indent: usize) -> Vec<String> {
     let indent_spaces = " ".repeat(indent);
 
     let mut ctx = FormatContext {
         atl_direct_parent: false,
     };
 
-    let mut prev_node = None;
+    // let mut prev_node = None;
+
+    let mut lines = vec![];
 
     for node in ast {
         match node {
             AstNode::Label(node) => {
-                println!("label {}:", node.name);
-                format_ast(&node.block, indent + 4);
+                lines.push(format!("label {}:", node.name));
+                lines.extend(format_ast(&node.block, indent + 4));
             }
             AstNode::Scene(node) => {
                 ctx.atl_direct_parent = true;
-                println!();
-                println!("{}", node.format(indent, &ctx));
+                // TODO: only add newline if previous line wasn't a newline already
+                lines.push(format!(""));
+                lines.push(format!("{}", node.format(indent, &ctx)));
             }
             AstNode::Show(node) => {
                 ctx.atl_direct_parent = true;
-                println!("{}", node.format(indent, &ctx));
+                lines.push(format!("{}", node.format(indent, &ctx)));
             }
             AstNode::With(node) => {
                 if node.expr != "None" {
-                    println!("{indent_spaces}with {}", node.expr);
+                    lines.push(format!("{indent_spaces}with {}", node.expr));
                 }
             }
             AstNode::Say(node) => {
                 // if prev_node.is_some() && !matches!(prev_node.unwrap(), AstNode::Say(_)) {
-                //     println!();
+                // lines.push(format!());
                 // }
-                println!("{}\n", node.format(indent, &ctx));
+                lines.push(format!("{}\n", node.format(indent, &ctx)));
             }
             AstNode::UserStatement(node) => {
-                println!("{indent_spaces}{}", node.line);
+                lines.push(format!("{indent_spaces}{}", node.line));
             }
-            AstNode::Hide(node) => todo!(),
-            AstNode::PythonOneLine(node) => todo!(),
-            AstNode::Jump(node) => todo!(),
-            AstNode::Menu(node) => todo!(),
-            AstNode::If(node) => todo!(),
+            AstNode::Hide(node) => {
+                lines.push(format!(
+                    "{indent_spaces}hide {}",
+                    node.imgspec.format(indent, &ctx)
+                ));
+            }
+            AstNode::PythonOneLine(node) => {
+                lines.push(format!("{}", node.format(indent, &ctx)));
+            }
+            AstNode::Jump(node) => {
+                lines.push(format!("{}", node.format(indent, &ctx)));
+            }
+            AstNode::Menu(node) => {
+                lines.push(format!("{}", node.format(indent, &ctx)));
+            }
+            AstNode::If(node) => {
+                lines.push(format!("{}", node.format(indent, &ctx)));
+            }
             AstNode::Return(node) => todo!(),
             AstNode::Style(node) => todo!(),
             AstNode::Init(node) => todo!(),
@@ -295,6 +388,8 @@ pub fn format_ast(ast: &Vec<AstNode>, indent: usize) {
             AstNode::Pass(node) => todo!(),
         }
 
-        prev_node = Some(node.clone());
+        // prev_node = Some(node.clone());
     }
+
+    lines
 }

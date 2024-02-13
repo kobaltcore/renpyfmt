@@ -1286,11 +1286,9 @@ impl Parser for PythonOneLine {
         lex.expect_noblock();
         lex.advance();
 
-        Ok(vec![AstNode::Python(Python {
+        Ok(vec![AstNode::PythonOneLine(PythonOneLine {
             loc,
-            python_code: python_code.unwrap(),
-            hide: false,
-            store: Some("store".into()),
+            python_code: python_code.unwrap().trim().into(),
         })])
     }
 }
@@ -1346,7 +1344,7 @@ fn parse_menu(
     let mut with_ = None;
     let mut set = None;
 
-    let mut items: Vec<(Option<String>, String, Option<Vec<AstNode>>)> = vec![];
+    let mut items: Vec<(Option<String>, Option<String>, Option<Vec<AstNode>>)> = vec![];
     let mut item_arguments = vec![];
 
     while l.advance() {
@@ -1435,7 +1433,7 @@ fn parse_menu(
                 has_caption = true;
             }
 
-            items.push((label, "True".into(), None));
+            items.push((label, None, None));
             item_arguments.push(None);
 
             continue;
@@ -1443,14 +1441,14 @@ fn parse_menu(
 
         has_choice = true;
 
-        let mut condition = "True".into();
+        let mut condition = None;
 
         item_arguments.push(parse_arguments(&mut l));
 
         if l.keyword("if".into()).is_some() {
-            condition = l
+            condition = Some(l
                 .require(LexerType::Type(LexerTypeOptions::PythonExpression), None)
-                .unwrap();
+                .unwrap());
         }
 
         l.require(LexerType::String(":".into()), None).unwrap();
@@ -1548,7 +1546,7 @@ impl Parser for If {
 
         let block = parse_block(&mut lex.subblock_lexer(false)).unwrap();
 
-        entries.push((condition, block));
+        entries.push((Some(condition), block));
 
         lex.advance();
 
@@ -1562,7 +1560,7 @@ impl Parser for If {
 
             let block = parse_block(&mut lex.subblock_lexer(false)).unwrap();
 
-            entries.push((condition, block));
+            entries.push((Some(condition), block));
 
             lex.advance();
         }
@@ -1574,7 +1572,7 @@ impl Parser for If {
 
             let block = parse_block(&mut lex.subblock_lexer(false)).unwrap();
 
-            entries.push(("True".into(), block));
+            entries.push((None, block));
 
             lex.advance();
         }
