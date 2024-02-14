@@ -34,19 +34,6 @@ pub struct Lexer {
     pub global_label: Option<String>,
     pub monologue_delimiter: Option<String>,
     pub subparses: Vec<SubParse>,
-    // internal state
-    // re_operator: Regex,
-    // re_word: Regex,
-    // re_whitespace: Regex,
-    // re_string_double: Regex,
-    // re_string_single: Regex,
-    // re_string_back: Regex,
-    // re_string_triple_double: Regex,
-    // re_string_triple_single: Regex,
-    // re_string_triple_back: Regex,
-    // re_image_name: Regex,
-    // re_float: Regex,
-    // re_python_string: Regex,
     pub eob: bool,
     pub line: Option<usize>,
     pub filename: PathBuf,
@@ -90,9 +77,13 @@ lazy_static! {
     static ref RE_STRING_TRIPLE_BACK: Regex = RegexBuilder::new(r"^r?```([^\\`]|\\.|`{1,2}[^`])*```").dot_matches_new_line(true).build().unwrap();
     static ref RE_IMAGE_NAME: Regex = RegexBuilder::new("^[-0-9a-zA-Z_\u{00a0}-\u{fffd}][-0-9a-zA-Z_\u{00a0}-\u{fffd}]*").dot_matches_new_line(true).build().unwrap();
     static ref RE_FLOAT: Regex = RegexBuilder::new(r"^(\+|\-)?(\d+\.?\d*|\.\d+)([eE][-+]?\d+)?").dot_matches_new_line(true).build().unwrap();
+    static ref RE_INTEGER: Regex = RegexBuilder::new(r"^(\+|\-)?\d+").dot_matches_new_line(true).build().unwrap();
     static ref RE_PYTHON_STRING: Regex = RegexBuilder::new("^[urfURF]*(\"\"\"|\'\'\'|\"|\')").dot_matches_new_line(true).build().unwrap();
     static ref RE_STRING_NEWLINE_REPLACE: Regex = Regex::new(r"[ \n]+").unwrap();
     static ref RE_STRING_INTERNAL_1: Regex = Regex::new(r"\\(u([0-9a-fA-F]{1,4})|.)").unwrap();
+    static ref RE_NEWLINES: Regex = Regex::new(r" *\n *").unwrap();
+    static ref RE_SPACES: Regex = Regex::new(r" +").unwrap();
+    static ref RE_PYTHON_STRING_INTERNAL_1: Regex = Regex::new(r#"^.[^'"\\]*"#).unwrap();
 }
 
 pub enum GlobalRegex {
@@ -107,8 +98,10 @@ pub enum GlobalRegex {
     StringTripleBack,
     ImageName,
     Float,
+    Integer,
     PythonString,
     StringNewLineReplace,
+    PythonStringInternal1,
 }
 
 pub enum RegexType {
@@ -143,18 +136,6 @@ impl Lexer {
     pub fn new(block: Vec<Block>) -> Lexer {
         Lexer {
             block,
-            // re_operator,
-            // re_word,
-            // re_whitespace,
-            // re_string_double,
-            // re_string_single,
-            // re_string_back,
-            // re_string_triple_double,
-            // re_string_triple_single,
-            // re_string_triple_back,
-            // re_image_name,
-            // re_float,
-            // re_python_string,
             init: false,
             init_offset: 0,
             global_label: None,
@@ -298,6 +279,8 @@ impl Lexer {
                 GlobalRegex::Float => RE_FLOAT.clone(),
                 GlobalRegex::PythonString => RE_PYTHON_STRING.clone(),
                 GlobalRegex::StringNewLineReplace => RE_STRING_NEWLINE_REPLACE.clone(),
+                GlobalRegex::PythonStringInternal1 => RE_PYTHON_STRING_INTERNAL_1.clone(),
+                GlobalRegex::Integer => RE_INTEGER.clone(),
             },
         };
         // println!("matching '{}' against '{}'", substr, regexp);
@@ -463,7 +446,7 @@ impl Lexer {
             s = s[3..s.len() - 3].into();
 
             if !raw {
-                let re = Regex::new(r" *\n *").unwrap();
+                let re = RE_NEWLINES.clone();
                 re.replace(&s, "\n");
 
                 let sl = match &self.monologue_delimiter {
@@ -481,8 +464,11 @@ impl Lexer {
                     }
 
                     let s: String = match &self.monologue_delimiter {
-                        Some(_) => RE_STRING_NEWLINE_REPLACE.clone().replace_all(&s, " ").into(),
-                        None => Regex::new(r" +").unwrap().replace_all(&s, " ").into(),
+                        Some(_) => RE_STRING_NEWLINE_REPLACE
+                            .clone()
+                            .replace_all(&s, " ")
+                            .into(),
+                        None => RE_SPACES.clone().replace_all(&s, " ").into(),
                     };
 
                     let re = RE_STRING_INTERNAL_1.clone();
@@ -591,7 +577,7 @@ impl Lexer {
 
         match global_name {
             Some(ref global_name) => {
-                if self.rmatch(r"\.".into()).is_some() {
+                if self.rmatch(RegexType::Simple(".".into())).is_some() {
                     if declare && Some(global_name) != self.global_label.as_ref() {
                         self.pos = old_pos;
                         return None;
@@ -605,7 +591,9 @@ impl Lexer {
                 }
             }
             None => {
-                if self.rmatch(r"\.".into()).is_none() || self.global_label.is_none() {
+                if self.rmatch(RegexType::Simple(".".into())).is_none()
+                    || self.global_label.is_none()
+                {
                     self.pos = old_pos;
                     return None;
                 }
@@ -654,12 +642,13 @@ impl Lexer {
                 break;
             }
 
-            if self.rmatch(r"\\".into()).is_some() {
+            if self.rmatch(RegexType::Simple(r"\\".into())).is_some() {
                 self.pos += 1;
                 break;
             }
 
-            self.rmatch(r#"^.[^'"\\]*"#.into()).unwrap();
+            self.rmatch(RegexType::GlobalRegex(GlobalRegex::PythonStringInternal1))
+                .unwrap();
         }
 
         true
@@ -903,7 +892,7 @@ impl Lexer {
     }
 
     pub fn integer(&mut self) -> Option<String> {
-        self.rmatch(r"(\+|\-)?\d+".into())
+        self.rmatch(RegexType::GlobalRegex(GlobalRegex::Integer).into())
     }
 
     pub fn dotted_name(&mut self) -> Option<String> {
@@ -913,7 +902,7 @@ impl Lexer {
             return None;
         }
 
-        while self.rmatch(r"\.".into()).is_some() {
+        while self.rmatch(RegexType::Simple(".".into())).is_some() {
             let n = self.name();
             if n.is_none() {
                 panic!("expecting name.");
