@@ -1,7 +1,7 @@
 use crate::{
     ast::{
-        ArgumentInfo, AstNode, Call, Define, If, ImageSpecifier, Init, Jump, Menu, PythonOneLine,
-        Return, Say, Scene, Show, Style,
+        ArgumentInfo, AstNode, Call, Define, If, ImageSpecifier, Init, Jump, Menu, Python,
+        PythonOneLine, Return, Say, Scene, Show, Style,
     },
     atl::{AtlStatement, RawBlock},
 };
@@ -426,6 +426,29 @@ impl Format for Call {
     }
 }
 
+impl Format for Python {
+    fn format(&self, indent: usize, _ctx: &FormatContext) -> String {
+        let indent_spaces_outer = " ".repeat(indent);
+        let indent_spaces_inner = " ".repeat(indent + 4);
+
+        let mut lines = vec![];
+
+        if self.store != "store" {
+            lines.push(format!(
+                "{indent_spaces_outer}init python in {}:",
+                self.store
+            ));
+        } else {
+            lines.push(format!("{indent_spaces_outer}init python:"));
+        }
+
+        // TODO: format python with ruff
+        lines.push(format!("{indent_spaces_inner}{}", self.python_code));
+
+        lines.join("\n")
+    }
+}
+
 pub fn format_ast(ast: &Vec<AstNode>, indent: usize) -> Vec<String> {
     let indent_spaces = " ".repeat(indent);
 
@@ -494,7 +517,9 @@ pub fn format_ast(ast: &Vec<AstNode>, indent: usize) -> Vec<String> {
             AstNode::Init(node) => {
                 lines.push(format!("{}\n", node.format(indent, &ctx)));
             }
-            AstNode::Python(node) => todo!(),
+            AstNode::Python(node) => {
+                lines.push(node.format(indent, &ctx));
+            }
             AstNode::EarlyPython(node) => todo!("early python"),
             AstNode::Define(node) => {
                 lines.push(node.format(indent, &ctx));

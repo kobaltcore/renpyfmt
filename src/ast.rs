@@ -115,7 +115,7 @@ pub struct PythonOneLine {
 pub struct Python {
     pub loc: (PathBuf, usize),
     pub python_code: String,
-    pub store: Option<String>,
+    pub store: String,
     pub hide: bool,
 }
 
@@ -123,7 +123,7 @@ pub struct Python {
 pub struct EarlyPython {
     pub loc: (PathBuf, usize),
     pub python_code: String,
-    pub store: Option<String>,
+    pub store: String,
     pub hide: bool,
 }
 

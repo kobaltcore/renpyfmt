@@ -3207,7 +3207,7 @@ impl Parser for Python {
 
         lex.expect_block();
 
-        let python_code = lex.python_block().unwrap();
+        let python_code = lex.python_block().unwrap().trim().into();
 
         lex.advance();
 
@@ -3216,14 +3216,14 @@ impl Parser for Python {
                 loc,
                 python_code,
                 hide,
-                store: Some(store),
+                store: store,
             })])
         } else {
             Ok(vec![AstNode::Python(Python {
                 loc,
                 python_code,
                 hide,
-                store: Some(store),
+                store: store,
             })])
         }
     }
