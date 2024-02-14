@@ -1,5 +1,8 @@
 use crate::{
-    ast::{ArgumentInfo, AstNode, If, ImageSpecifier, Jump, Menu, PythonOneLine, Say, Scene, Show},
+    ast::{
+        ArgumentInfo, AstNode, Call, Define, If, ImageSpecifier, Init, Jump, Menu, PythonOneLine,
+        Return, Say, Scene, Show, Style,
+    },
     atl::{AtlStatement, RawBlock},
 };
 
@@ -145,7 +148,13 @@ impl Format for AtlStatement {
         let indent_spaces = " ".repeat(indent);
 
         match self {
-            AtlStatement::RawRepeat(node) => todo!(),
+            AtlStatement::RawRepeat(node) => {
+                if let Some(repeats) = &node.repeats {
+                    format!("{indent_spaces}repeat {repeats}")
+                } else {
+                    format!("{indent_spaces}repeat")
+                }
+            }
             AtlStatement::RawBlock(node) => node.format(indent, ctx),
             AtlStatement::RawContainsExpr(node) => todo!(),
             AtlStatement::RawChild(node) => todo!(),
@@ -318,6 +327,105 @@ impl Format for If {
     }
 }
 
+impl Format for Return {
+    fn format(&self, indent: usize, _ctx: &FormatContext) -> String {
+        let indent_spaces = " ".repeat(indent);
+
+        if let Some(expr) = &self.expression {
+            format!("{indent_spaces}return expression {expr}")
+        } else {
+            format!("{indent_spaces}return")
+        }
+    }
+}
+
+impl Format for Init {
+    fn format(&self, indent: usize, _ctx: &FormatContext) -> String {
+        let indent_spaces = " ".repeat(indent);
+
+        let mut lines = vec![];
+
+        if self.block.len() > 1 {
+            if self.priority != 0 {
+                lines.push(format!("{indent_spaces}init {}:", self.priority));
+            } else {
+                lines.push(format!("{indent_spaces}init:"));
+            }
+
+            lines.extend(format_ast(&self.block, indent + 4));
+        } else {
+            lines.extend(format_ast(&self.block, indent));
+        }
+
+        lines.join("\n")
+    }
+}
+
+impl Format for Style {
+    fn format(&self, indent: usize, _ctx: &FormatContext) -> String {
+        let indent_spaces_outer = " ".repeat(indent);
+        let indent_spaces_inner = " ".repeat(indent + 4);
+
+        let mut lines = vec![];
+
+        if let Some(parent) = &self.parent {
+            lines.push(format!(
+                "{indent_spaces_outer}style {} is {}:",
+                self.name, parent
+            ));
+        } else {
+            lines.push(format!("{indent_spaces_outer}style {}:", self.name));
+        }
+
+        for (name, expr) in &self.properties {
+            lines.push(format!("{indent_spaces_inner}{} {}", name, expr));
+        }
+
+        lines.join("\n")
+    }
+}
+
+impl Format for Define {
+    fn format(&self, indent: usize, _ctx: &FormatContext) -> String {
+        let indent_spaces = " ".repeat(indent);
+
+        let name = if let Some(index) = &self.index {
+            format!("{}[{}]", self.name, index)
+        } else {
+            self.name.clone()
+        };
+
+        if self.store == "store" {
+            format!("{indent_spaces}define {} = {}", name, self.expr)
+        } else {
+            format!(
+                "{indent_spaces}define {}.{} = {}",
+                self.store.trim_start_matches("store."),
+                name,
+                self.expr
+            )
+        }
+    }
+}
+
+impl Format for Call {
+    fn format(&self, indent: usize, _ctx: &FormatContext) -> String {
+        let indent_spaces = " ".repeat(indent);
+
+        let label = if let Some(global_label) = &self.global_label {
+            format!("{}.{}", global_label, self.label)
+        } else {
+            self.label.clone()
+        };
+
+        if self.expression {
+            format!("{indent_spaces}call expression {}", label)
+        } else {
+            format!("{indent_spaces}call {}", label)
+        }
+    }
+}
+
 pub fn format_ast(ast: &Vec<AstNode>, indent: usize) -> Vec<String> {
     let indent_spaces = " ".repeat(indent);
 
@@ -339,11 +447,11 @@ pub fn format_ast(ast: &Vec<AstNode>, indent: usize) -> Vec<String> {
                 ctx.atl_direct_parent = true;
                 // TODO: only add newline if previous line wasn't a newline already
                 lines.push(format!(""));
-                lines.push(format!("{}", node.format(indent, &ctx)));
+                lines.push(node.format(indent, &ctx));
             }
             AstNode::Show(node) => {
                 ctx.atl_direct_parent = true;
-                lines.push(format!("{}", node.format(indent, &ctx)));
+                lines.push(node.format(indent, &ctx));
             }
             AstNode::With(node) => {
                 if node.expr != "None" {
@@ -366,26 +474,36 @@ pub fn format_ast(ast: &Vec<AstNode>, indent: usize) -> Vec<String> {
                 ));
             }
             AstNode::PythonOneLine(node) => {
-                lines.push(format!("{}", node.format(indent, &ctx)));
+                lines.push(node.format(indent, &ctx));
             }
             AstNode::Jump(node) => {
-                lines.push(format!("{}", node.format(indent, &ctx)));
+                lines.push(node.format(indent, &ctx));
             }
             AstNode::Menu(node) => {
-                lines.push(format!("{}", node.format(indent, &ctx)));
+                lines.push(node.format(indent, &ctx));
             }
             AstNode::If(node) => {
-                lines.push(format!("{}", node.format(indent, &ctx)));
+                lines.push(node.format(indent, &ctx));
             }
-            AstNode::Return(node) => todo!(),
-            AstNode::Style(node) => todo!(),
-            AstNode::Init(node) => todo!(),
+            AstNode::Return(node) => {
+                lines.push(format!("{}\n", node.format(indent, &ctx)));
+            }
+            AstNode::Style(node) => {
+                lines.push(node.format(indent, &ctx));
+            }
+            AstNode::Init(node) => {
+                lines.push(format!("{}\n", node.format(indent, &ctx)));
+            }
             AstNode::Python(node) => todo!(),
-            AstNode::EarlyPython(node) => todo!(),
-            AstNode::Define(node) => todo!(),
-            AstNode::Default(node) => todo!(),
-            AstNode::Call(node) => todo!(),
-            AstNode::Pass(node) => todo!(),
+            AstNode::EarlyPython(node) => todo!("early python"),
+            AstNode::Define(node) => {
+                lines.push(node.format(indent, &ctx));
+            }
+            AstNode::Default(node) => todo!("default"),
+            AstNode::Call(node) => {
+                lines.push(node.format(indent, &ctx));
+            }
+            AstNode::Pass(node) => todo!("pass"),
         }
 
         // prev_node = Some(node.clone());
