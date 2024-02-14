@@ -156,8 +156,8 @@ impl Format for AtlStatement {
                 }
             }
             AtlStatement::RawBlock(node) => node.format(indent, ctx),
-            AtlStatement::RawContainsExpr(node) => todo!(),
-            AtlStatement::RawChild(node) => todo!(),
+            AtlStatement::RawContainsExpr(node) => todo!("raw contains expr"),
+            AtlStatement::RawChild(node) => todo!("raw child"),
             AtlStatement::RawParallel(node) => {
                 let mut ctx = ctx.clone();
                 ctx.atl_direct_parent = true;
@@ -166,11 +166,18 @@ impl Format for AtlStatement {
                     node.block.format(indent + 4, &ctx)
                 )
             }
-            AtlStatement::RawChoice(node) => todo!(),
-            AtlStatement::RawOn(node) => todo!(),
-            AtlStatement::RawTime(node) => todo!(),
-            AtlStatement::RawFunction(node) => todo!(),
-            AtlStatement::RawEvent(node) => todo!(),
+            AtlStatement::RawChoice(node) => {
+                let mut ctx = ctx.clone();
+                ctx.atl_direct_parent = true;
+                format!(
+                    "{indent_spaces}choice:\n{}",
+                    node.block.format(indent, &ctx)
+                )
+            }
+            AtlStatement::RawOn(node) => todo!("raw on"),
+            AtlStatement::RawTime(node) => todo!("raw time"),
+            AtlStatement::RawFunction(node) => todo!("raw function"),
+            AtlStatement::RawEvent(node) => todo!("raw event"),
             AtlStatement::RawMultipurpose(node) => {
                 let mut rv = vec![];
 
@@ -500,7 +507,7 @@ pub fn format_ast(ast: &Vec<AstNode>, indent: usize) -> Vec<String> {
                 lines.push(node.format(indent, &ctx));
             }
             AstNode::Jump(node) => {
-                lines.push(node.format(indent, &ctx));
+                lines.push(format!("{}\n", node.format(indent, &ctx)));
             }
             AstNode::Menu(node) => {
                 lines.push(node.format(indent, &ctx));

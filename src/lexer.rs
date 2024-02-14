@@ -658,6 +658,10 @@ impl Lexer {
         // println!("parenthesised python");
         let chars = self.text.chars().collect::<Vec<_>>();
 
+        if self.pos >= chars.len() {
+            return false;
+        }
+
         let c = chars[self.pos];
 
         match c {

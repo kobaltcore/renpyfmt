@@ -135,6 +135,7 @@ impl ParseTrie {
         // println!("keys: {:?}", self.words.keys());
 
         if word.is_none() || !self.words.contains_key(&word.clone().unwrap()) {
+            // println!("parsing {:?}", lex.text);
             // println!("no match, defaulting");
             lex.pos = old_pos;
             match self.default.as_ref() {
