@@ -1,3 +1,4 @@
+use lazy_static::lazy_static;
 use std::{collections::HashSet, path::PathBuf};
 
 use regex::{Regex, RegexBuilder};
@@ -34,6 +35,18 @@ pub struct Lexer {
     pub monologue_delimiter: Option<String>,
     pub subparses: Vec<SubParse>,
     // internal state
+    // re_operator: Regex,
+    // re_word: Regex,
+    // re_whitespace: Regex,
+    // re_string_double: Regex,
+    // re_string_single: Regex,
+    // re_string_back: Regex,
+    // re_string_triple_double: Regex,
+    // re_string_triple_single: Regex,
+    // re_string_triple_back: Regex,
+    // re_image_name: Regex,
+    // re_float: Regex,
+    // re_python_string: Regex,
     pub eob: bool,
     pub line: Option<usize>,
     pub filename: PathBuf,
@@ -65,10 +78,83 @@ pub enum LexerType {
     Type(LexerTypeOptions),
 }
 
+lazy_static! {
+    static ref RE_OPERATOR: Regex = RegexBuilder::new(r#"^(<>|<<|<=|<|>>|>=|>|!=|==|\||\^|&|\+|\-|\*\*|\*|\/\/|\/|%|~|@|:=|\bor\b|\band\b|\bnot\b|\bin\b|\bis\b)"#).dot_matches_new_line(true).build().unwrap();
+    static ref RE_WORD: Regex = RegexBuilder::new("^[a-zA-Z_\u{00a0}-\u{fffd}][0-9a-zA-Z_\u{00a0}-\u{fffd}]*").dot_matches_new_line(true).build().unwrap();
+    static ref RE_WHITESPACE: Regex = RegexBuilder::new(r"^(\s+|\\\n)+").dot_matches_new_line(true).build().unwrap();
+    static ref RE_STRING_DOUBLE: Regex = RegexBuilder::new("^r?\"([^\\\"]|\\.)*\"").dot_matches_new_line(true).build().unwrap();
+    static ref RE_STRING_SINGLE: Regex = RegexBuilder::new(r"^r?'([^\\']|\\.)*'").dot_matches_new_line(true).build().unwrap();
+    static ref RE_STRING_BACK: Regex = RegexBuilder::new(r"^r?`([^\\`]|\\.)*`").dot_matches_new_line(true).build().unwrap();
+    static ref RE_STRING_TRIPLE_DOUBLE: Regex = RegexBuilder::new("^r?\"\"\"([^\\\"]|\\.|\"{1,2}[^\"])*\"\"\"").dot_matches_new_line(true).build().unwrap();
+    static ref RE_STRING_TRIPLE_SINGLE: Regex = RegexBuilder::new(r"^r?'''([^\\']|\\.|'{1,2}[^'])*'''").dot_matches_new_line(true).build().unwrap();
+    static ref RE_STRING_TRIPLE_BACK: Regex = RegexBuilder::new(r"^r?```([^\\`]|\\.|`{1,2}[^`])*```").dot_matches_new_line(true).build().unwrap();
+    static ref RE_IMAGE_NAME: Regex = RegexBuilder::new("^[-0-9a-zA-Z_\u{00a0}-\u{fffd}][-0-9a-zA-Z_\u{00a0}-\u{fffd}]*").dot_matches_new_line(true).build().unwrap();
+    static ref RE_FLOAT: Regex = RegexBuilder::new(r"^(\+|\-)?(\d+\.?\d*|\.\d+)([eE][-+]?\d+)?").dot_matches_new_line(true).build().unwrap();
+    static ref RE_PYTHON_STRING: Regex = RegexBuilder::new("^[urfURF]*(\"\"\"|\'\'\'|\"|\')").dot_matches_new_line(true).build().unwrap();
+    static ref RE_STRING_NEWLINE_REPLACE: Regex = Regex::new(r"[ \n]+").unwrap();
+    static ref RE_STRING_INTERNAL_1: Regex = Regex::new(r"\\(u([0-9a-fA-F]{1,4})|.)").unwrap();
+}
+
+pub enum GlobalRegex {
+    Operator,
+    Word,
+    Whitespace,
+    StringDouble,
+    StringSingle,
+    StringBack,
+    StringTripleDouble,
+    StringTripleSingle,
+    StringTripleBack,
+    ImageName,
+    Float,
+    PythonString,
+    StringNewLineReplace,
+}
+
+pub enum RegexType {
+    /// Will be matched as-is
+    Simple(String),
+    /// Will be parsed into a Regex
+    String(String),
+    /// Will be matched as-is
+    Regex(Regex),
+    GlobalRegex(GlobalRegex),
+}
+
+impl Into<RegexType> for String {
+    fn into(self) -> RegexType {
+        RegexType::String(self)
+    }
+}
+
+impl Into<RegexType> for &str {
+    fn into(self) -> RegexType {
+        RegexType::String(self.into())
+    }
+}
+
+impl Into<RegexType> for Regex {
+    fn into(self) -> RegexType {
+        RegexType::Regex(self)
+    }
+}
+
 impl Lexer {
     pub fn new(block: Vec<Block>) -> Lexer {
         Lexer {
             block,
+            // re_operator,
+            // re_word,
+            // re_whitespace,
+            // re_string_double,
+            // re_string_single,
+            // re_string_back,
+            // re_string_triple_double,
+            // re_string_triple_single,
+            // re_string_triple_back,
+            // re_image_name,
+            // re_float,
+            // re_python_string,
             init: false,
             init_offset: 0,
             global_label: None,
@@ -175,7 +261,7 @@ impl Lexer {
         self.word_cache_pos = None;
     }
 
-    pub fn match_regexp(&mut self, regexp: String) -> Option<String> {
+    pub fn match_regexp(&mut self, regexp: RegexType) -> Option<String> {
         if self.eob {
             return None;
         }
@@ -185,10 +271,35 @@ impl Lexer {
         }
 
         let substr = &self.text[self.pos..];
-        let pattern = RegexBuilder::new(&format!("^{regexp}"))
-            .dot_matches_new_line(true)
-            .build()
-            .unwrap();
+        let pattern = match regexp {
+            RegexType::Simple(s) => {
+                if substr.starts_with(&s) {
+                    self.pos += s.len();
+                    return Some(s.clone());
+                }
+                return None;
+            }
+            RegexType::String(s) => RegexBuilder::new(&format!("^{s}"))
+                .dot_matches_new_line(true)
+                .build()
+                .unwrap(),
+            RegexType::Regex(r) => r.clone(),
+            RegexType::GlobalRegex(r) => match r {
+                GlobalRegex::Operator => RE_OPERATOR.clone(),
+                GlobalRegex::Word => RE_WORD.clone(),
+                GlobalRegex::Whitespace => RE_WHITESPACE.clone(),
+                GlobalRegex::StringDouble => RE_STRING_DOUBLE.clone(),
+                GlobalRegex::StringSingle => RE_STRING_SINGLE.clone(),
+                GlobalRegex::StringBack => RE_STRING_BACK.clone(),
+                GlobalRegex::StringTripleDouble => RE_STRING_TRIPLE_DOUBLE.clone(),
+                GlobalRegex::StringTripleSingle => RE_STRING_TRIPLE_SINGLE.clone(),
+                GlobalRegex::StringTripleBack => RE_STRING_TRIPLE_BACK.clone(),
+                GlobalRegex::ImageName => RE_IMAGE_NAME.clone(),
+                GlobalRegex::Float => RE_FLOAT.clone(),
+                GlobalRegex::PythonString => RE_PYTHON_STRING.clone(),
+                GlobalRegex::StringNewLineReplace => RE_STRING_NEWLINE_REPLACE.clone(),
+            },
+        };
         // println!("matching '{}' against '{}'", substr, regexp);
         if let Some(m) = pattern.find(substr) {
             if m.end() == 0 {
@@ -209,10 +320,10 @@ impl Lexer {
     }
 
     pub fn skip_whitespace(&mut self) {
-        self.match_regexp(r"(\s+|\\\n)+".into());
+        self.match_regexp(RegexType::GlobalRegex(GlobalRegex::Whitespace));
     }
 
-    pub fn rmatch(&mut self, regexp: String) -> Option<String> {
+    pub fn rmatch(&mut self, regexp: RegexType) -> Option<String> {
         self.skip_whitespace();
         self.match_regexp(regexp)
     }
@@ -238,7 +349,7 @@ impl Lexer {
         }
 
         self.word_cache_pos = Some(self.pos);
-        let rv = self.rmatch("[a-zA-Z_\u{00a0}-\u{fffd}][0-9a-zA-Z_\u{00a0}-\u{fffd}]*".into());
+        let rv = self.rmatch(RegexType::GlobalRegex(GlobalRegex::Word));
         self.word_cache = rv.clone().unwrap_or("".into());
         self.word_cache_newpos = Some(self.pos);
 
@@ -267,14 +378,14 @@ impl Lexer {
     }
 
     pub fn string(&mut self) -> Option<String> {
-        let mut s = self.rmatch("r?\"([^\\\"]|\\.)*\"".into());
+        let mut s = self.rmatch(RegexType::GlobalRegex(GlobalRegex::StringDouble));
 
         if s.is_none() {
-            s = self.rmatch(r"r?'([^\\']|\\.)*'".into());
+            s = self.rmatch(RegexType::GlobalRegex(GlobalRegex::StringSingle));
         }
 
         if s.is_none() {
-            s = self.rmatch(r"r?`([^\\`]|\\.)*`".into());
+            s = self.rmatch(RegexType::GlobalRegex(GlobalRegex::StringBack));
         }
 
         if let Some(s) = s {
@@ -288,10 +399,10 @@ impl Lexer {
             s = s[1..s.len() - 1].into();
 
             if !raw {
-                let re = Regex::new(r"[ \n]+").unwrap();
+                let re = RE_STRING_NEWLINE_REPLACE.clone();
                 re.replace(&s, " ");
 
-                let re = Regex::new(r"\\(u([0-9a-fA-F]{1,4})|.)").unwrap();
+                let re = RE_STRING_INTERNAL_1.clone();
                 let mut caps = re.captures_iter(&s).collect::<Vec<_>>();
                 caps.reverse();
                 let mut s = s.clone();
@@ -331,14 +442,14 @@ impl Lexer {
     }
 
     pub fn triple_string(&mut self) -> Option<Vec<String>> {
-        let mut s = self.rmatch("r?\"\"\"([^\\\"]|\\.|\"{1,2}[^\"])*\"\"\"".into());
+        let mut s = self.rmatch(RegexType::GlobalRegex(GlobalRegex::StringTripleDouble));
 
         if s.is_none() {
-            s = self.rmatch(r"r?'''([^\\']|\\.|'{1,2}[^'])*'''".into());
+            s = self.rmatch(RegexType::GlobalRegex(GlobalRegex::StringTripleSingle));
         }
 
         if s.is_none() {
-            s = self.rmatch(r"r?```([^\\`]|\\.|`{1,2}[^`])*```".into());
+            s = self.rmatch(RegexType::GlobalRegex(GlobalRegex::StringTripleBack));
         }
 
         if let Some(s) = s {
@@ -370,11 +481,11 @@ impl Lexer {
                     }
 
                     let s: String = match &self.monologue_delimiter {
-                        Some(_) => Regex::new(r"[ \n]+").unwrap().replace_all(&s, " ").into(),
+                        Some(_) => RE_STRING_NEWLINE_REPLACE.clone().replace_all(&s, " ").into(),
                         None => Regex::new(r" +").unwrap().replace_all(&s, " ").into(),
                     };
 
-                    let re = Regex::new(r"\\(u([0-9a-fA-F]{1,4})|.)").unwrap();
+                    let re = RE_STRING_INTERNAL_1.clone();
                     let mut caps = re.captures_iter(&s).collect::<Vec<_>>();
                     caps.reverse();
                     let mut s = s.clone();
@@ -422,9 +533,9 @@ impl Lexer {
         (self.filename.clone(), self.number)
     }
 
-    pub fn require(&mut self, thing: LexerType, name: Option<String>) -> Option<String> {
+    pub fn require(&mut self, thing: LexerType) -> Option<String> {
         match thing {
-            LexerType::String(s) => self.rmatch(s),
+            LexerType::String(s) => self.rmatch(s.into()),
             LexerType::Type(t) => match t {
                 LexerTypeOptions::Name => self.name(),
                 LexerTypeOptions::Hash => todo!(),
@@ -525,7 +636,7 @@ impl Lexer {
 
         let old_pos = self.pos;
 
-        let start = self.rmatch("[urfURF]*(\"\"\"|\'\'\'|\"|\')".into());
+        let start = self.rmatch(RegexType::GlobalRegex(GlobalRegex::PythonString));
 
         if start.is_none() {
             self.pos = old_pos;
@@ -539,7 +650,7 @@ impl Lexer {
                 panic!("end of line reached while parsing string.");
             }
 
-            if self.rmatch(delim.clone()).is_some() {
+            if self.rmatch(delim.clone().into()).is_some() {
                 break;
             }
 
@@ -583,7 +694,7 @@ impl Lexer {
         }
     }
 
-    pub fn delimited_python(&mut self, delim: String, expr: bool) -> Option<String> {
+    pub fn delimited_python(&mut self, delim: String, _expr: bool) -> Option<String> {
         let start = self.pos;
 
         let chars = self.text.chars().collect::<Vec<_>>();
@@ -611,7 +722,7 @@ impl Lexer {
 
     pub fn float(&mut self) -> Option<String> {
         // println!("float");
-        self.rmatch(r"(\+|\-)?(\d+\.?\d*|\.\d+)([eE][-+]?\d+)?".into())
+        self.rmatch(RegexType::GlobalRegex(GlobalRegex::Float))
     }
 
     pub fn simple_expression(&mut self, comma: bool, operator: bool) -> Option<String> {
@@ -619,7 +730,10 @@ impl Lexer {
         let start = self.pos;
 
         loop {
-            while self.rmatch(r#"(<>|<<|<=|<|>>|>=|>|!=|==|\||\^|&|\+|\-|\*\*|\*|\/\/|\/|%|~|@|:=|\bor\b|\band\b|\bnot\b|\bin\b|\bis\b)"#.into()).is_some() {
+            while self
+                .rmatch(RegexType::GlobalRegex(GlobalRegex::Operator))
+                .is_some()
+            {
                 // println!("operator skip");
                 continue;
             }
@@ -648,7 +762,7 @@ impl Lexer {
                     break;
                 }
 
-                if self.rmatch(r"\.".into()).is_some() {
+                if self.rmatch(RegexType::Simple(".".into())).is_some() {
                     let n = self.word();
                     if n.is_none() {
                         panic!("expecting name after dot.");
@@ -663,11 +777,15 @@ impl Lexer {
                 break;
             }
 
-            if operator && self.rmatch(r#"(<>|<<|<=|<|>>|>=|>|!=|==|\||\^|&|\+|\-|\*\*|\*|\/\/|\/|%|~|@|:=|\bor\b|\band\b|\bnot\b|\bin\b|\bis\b)"#.into()).is_some() {
+            if operator
+                && self
+                    .rmatch(RegexType::GlobalRegex(GlobalRegex::Operator))
+                    .is_some()
+            {
                 continue;
             }
 
-            if comma && self.rmatch(r",".into()).is_some() {
+            if comma && self.rmatch(RegexType::Simple(",".into())).is_some() {
                 continue;
             }
 
@@ -699,8 +817,7 @@ impl Lexer {
 
     pub fn image_name_component(&mut self) -> Option<String> {
         let oldpos = self.pos;
-        let rv =
-            self.rmatch("[-0-9a-zA-Z_\u{00a0}-\u{fffd}][-0-9a-zA-Z_\u{00a0}-\u{fffd}]*".into());
+        let rv = self.rmatch(RegexType::GlobalRegex(GlobalRegex::ImageName));
 
         if rv == Some("r".into()) || rv == Some("u".into()) {
             if ['"', '\'', '`'].contains(&self.text.chars().nth(self.pos).unwrap()) {

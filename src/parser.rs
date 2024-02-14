@@ -67,7 +67,7 @@ fn parse_parameters(lex: &mut Lexer) -> Option<ParameterSignature> {
     while lex.rmatch(r"\)".into()).is_none() {
         if lex.rmatch(r"\*\*".into()).is_some() {
             let extrakw = lex
-                .require(LexerType::Type(LexerTypeOptions::Name), None)
+                .require(LexerType::Type(LexerTypeOptions::Name))
                 .unwrap();
 
             if parameters.contains_key(&extrakw) {
@@ -154,7 +154,7 @@ fn parse_parameters(lex: &mut Lexer) -> Option<ParameterSignature> {
             got_slash = true;
         } else {
             let name = lex
-                .require(LexerType::Type(LexerTypeOptions::Name), None)
+                .require(LexerType::Type(LexerTypeOptions::Name))
                 .unwrap();
 
             missing_kwonly = false;
@@ -191,7 +191,7 @@ fn parse_parameters(lex: &mut Lexer) -> Option<ParameterSignature> {
             break;
         }
 
-        lex.require(LexerType::String(",".into()), None);
+        lex.require(LexerType::String(",".into()));
     }
 
     if missing_kwonly {
@@ -204,7 +204,7 @@ fn parse_parameters(lex: &mut Lexer) -> Option<ParameterSignature> {
 impl Parser for Label {
     fn parse(&self, lex: &mut Lexer, loc: (PathBuf, usize)) -> Result<Vec<AstNode>> {
         let name = lex
-            .require(LexerType::Type(LexerTypeOptions::LabelNameDeclare), None)
+            .require(LexerType::Type(LexerTypeOptions::LabelNameDeclare))
             .unwrap();
         lex.set_global_label(Some(name.clone()));
         let parameters = parse_parameters(lex);
@@ -214,7 +214,7 @@ impl Parser for Label {
             None => false,
         };
 
-        lex.require(LexerType::String(":".into()), None);
+        lex.require(LexerType::String(":".into()));
         lex.expect_eol();
 
         let block = parse_block(&mut lex.subblock_lexer(false))?;
@@ -235,7 +235,7 @@ impl Parser for Label {
 fn parse_image_name(lex: &mut Lexer, string: bool, nodash: bool) -> Option<Vec<String>> {
     let mut points = vec![lex.checkpoint()];
     let mut rv = vec![lex
-        .require(LexerType::Type(LexerTypeOptions::ImageNameComponent), None)
+        .require(LexerType::Type(LexerTypeOptions::ImageNameComponent))
         .unwrap()];
 
     loop {
@@ -279,7 +279,7 @@ fn parse_image_name(lex: &mut Lexer, string: bool, nodash: bool) -> Option<Vec<S
 
 fn parse_simple_expression_list(lex: &mut Lexer) -> Vec<String> {
     let mut rv = vec![lex
-        .require(LexerType::Type(LexerTypeOptions::SimpleExpression), None)
+        .require(LexerType::Type(LexerTypeOptions::SimpleExpression))
         .unwrap()];
 
     loop {
@@ -309,7 +309,7 @@ fn parse_image_specifier(lex: &mut Lexer) -> ImageSpecifier {
     let image_name: Option<Vec<String>>;
 
     if lex.keyword("expression".into()).is_some() || lex.keyword("image".into()).is_some() {
-        expression = lex.require(LexerType::Type(LexerTypeOptions::SimpleExpression), None);
+        expression = lex.require(LexerType::Type(LexerTypeOptions::SimpleExpression));
         image_name = Some(vec![expression.clone().unwrap().trim().into()]);
     } else {
         image_name = parse_image_name(lex, true, false);
@@ -321,7 +321,7 @@ fn parse_image_specifier(lex: &mut Lexer) -> ImageSpecifier {
             if layer.is_some() {
                 panic!("multiple onlayer clauses are prohibited.");
             } else {
-                layer = lex.require(LexerType::Type(LexerTypeOptions::Name), None);
+                layer = lex.require(LexerType::Type(LexerTypeOptions::Name));
             }
             continue;
         }
@@ -342,7 +342,7 @@ fn parse_image_specifier(lex: &mut Lexer) -> ImageSpecifier {
             if tag.is_some() {
                 panic!("multiple as clauses are prohibited.");
             } else {
-                tag = lex.require(LexerType::Type(LexerTypeOptions::Name), None);
+                tag = lex.require(LexerType::Type(LexerTypeOptions::Name));
             }
             continue;
         }
@@ -351,7 +351,7 @@ fn parse_image_specifier(lex: &mut Lexer) -> ImageSpecifier {
             if zorder.is_some() {
                 panic!("multiple zorder clauses are prohibited.");
             } else {
-                zorder = lex.require(LexerType::Type(LexerTypeOptions::SimpleExpression), None);
+                zorder = lex.require(LexerType::Type(LexerTypeOptions::SimpleExpression));
             }
             continue;
         }
@@ -362,7 +362,7 @@ fn parse_image_specifier(lex: &mut Lexer) -> ImageSpecifier {
             }
 
             loop {
-                let bhtag = lex.require(LexerType::Type(LexerTypeOptions::Name), None);
+                let bhtag = lex.require(LexerType::Type(LexerTypeOptions::Name));
                 behind.push(bhtag.unwrap());
                 if lex.rmatch(",".into()).is_none() {
                     break;
@@ -393,7 +393,7 @@ fn parse_with(lex: &mut Lexer, node: AstNode) -> Vec<AstNode> {
         return vec![node];
     }
 
-    let expr = lex.require(LexerType::Type(LexerTypeOptions::SimpleExpression), None);
+    let expr = lex.require(LexerType::Type(LexerTypeOptions::SimpleExpression));
 
     vec![
         AstNode::With(With {
@@ -556,7 +556,7 @@ fn parse_atl(lex: &mut Lexer) -> Option<RawBlock> {
             let repeats = lex.simple_expression(false, true);
             statements.push(Some(AtlStatement::RawRepeat(RawRepeat { loc, repeats })));
         } else if lex.keyword("block".into()).is_some() {
-            lex.require(LexerType::String(":".into()), None).unwrap();
+            lex.require(LexerType::String(":".into())).unwrap();
             lex.expect_eol();
             lex.expect_block();
 
@@ -572,7 +572,7 @@ fn parse_atl(lex: &mut Lexer) -> Option<RawBlock> {
                     })));
                 }
                 None => {
-                    lex.require(LexerType::String(":".into()), None).unwrap();
+                    lex.require(LexerType::String(":".into())).unwrap();
                     lex.expect_eol();
                     lex.expect_block();
 
@@ -581,7 +581,7 @@ fn parse_atl(lex: &mut Lexer) -> Option<RawBlock> {
                 }
             }
         } else if lex.keyword("parallel".into()).is_some() {
-            lex.require(LexerType::String(":".into()), None).unwrap();
+            lex.require(LexerType::String(":".into())).unwrap();
             lex.expect_eol();
             lex.expect_block();
 
@@ -594,7 +594,7 @@ fn parse_atl(lex: &mut Lexer) -> Option<RawBlock> {
                 chance = Some("1.0".into());
             }
 
-            lex.require(LexerType::String(":".into()), None).unwrap();
+            lex.require(LexerType::String(":".into())).unwrap();
             lex.expect_eol();
             lex.expect_block();
 
@@ -605,10 +605,10 @@ fn parse_atl(lex: &mut Lexer) -> Option<RawBlock> {
                 block,
             })));
         } else if lex.keyword("on".into()).is_some() {
-            let mut names = vec![lex.require(LexerType::Type(LexerTypeOptions::Word), None)?];
+            let mut names = vec![lex.require(LexerType::Type(LexerTypeOptions::Word))?];
 
             while lex.rmatch(",".into()).is_some() {
-                let name = lex.require(LexerType::Type(LexerTypeOptions::Word), None);
+                let name = lex.require(LexerType::Type(LexerTypeOptions::Word));
 
                 if name.is_none() {
                     break;
@@ -617,7 +617,7 @@ fn parse_atl(lex: &mut Lexer) -> Option<RawBlock> {
                 names.push(name.unwrap());
             }
 
-            lex.require(LexerType::String(":".into()), None).unwrap();
+            lex.require(LexerType::String(":".into())).unwrap();
             lex.expect_eol();
             lex.expect_block();
 
@@ -625,21 +625,21 @@ fn parse_atl(lex: &mut Lexer) -> Option<RawBlock> {
             statements.push(Some(AtlStatement::RawOn(RawOn { loc, names, block })));
         } else if lex.keyword("time".into()).is_some() {
             let time = lex
-                .require(LexerType::Type(LexerTypeOptions::SimpleExpression), None)
+                .require(LexerType::Type(LexerTypeOptions::SimpleExpression))
                 .unwrap();
             lex.expect_noblock();
 
             statements.push(Some(AtlStatement::RawTime(RawTime { loc, time })));
         } else if lex.keyword("function".into()).is_some() {
             let expr = lex
-                .require(LexerType::Type(LexerTypeOptions::SimpleExpression), None)
+                .require(LexerType::Type(LexerTypeOptions::SimpleExpression))
                 .unwrap();
             lex.expect_noblock();
 
             statements.push(Some(AtlStatement::RawFunction(RawFunction { loc, expr })));
         } else if lex.keyword("event".into()).is_some() {
             let name = lex
-                .require(LexerType::Type(LexerTypeOptions::Word), None)
+                .require(LexerType::Type(LexerTypeOptions::Word))
                 .unwrap();
             lex.expect_noblock();
 
@@ -664,18 +664,18 @@ fn parse_atl(lex: &mut Lexer) -> Option<RawBlock> {
 
             if warper.is_some() && warpers.contains(&warper.clone().unwrap()) {
                 duration = Some(
-                    lex.require(LexerType::Type(LexerTypeOptions::SimpleExpression), None)
+                    lex.require(LexerType::Type(LexerTypeOptions::SimpleExpression))
                         .unwrap(),
                 );
                 warp_function = None;
             } else if warper == Some("warp".into()) {
                 warper = None;
                 warp_function = Some(
-                    lex.require(LexerType::Type(LexerTypeOptions::SimpleExpression), None)
+                    lex.require(LexerType::Type(LexerTypeOptions::SimpleExpression))
                         .unwrap(),
                 );
                 duration = Some(
-                    lex.require(LexerType::Type(LexerTypeOptions::SimpleExpression), None)
+                    lex.require(LexerType::Type(LexerTypeOptions::SimpleExpression))
                         .unwrap(),
                 );
             } else {
@@ -741,7 +741,7 @@ fn parse_atl(lex: &mut Lexer) -> Option<RawBlock> {
                 if ll.keyword("circles".into()).is_some() {
                     // println!("circles");
                     let expr = lex
-                        .require(LexerType::Type(LexerTypeOptions::SimpleExpression), None)
+                        .require(LexerType::Type(LexerTypeOptions::SimpleExpression))
                         .unwrap();
                     rm.add_circles(expr.into());
                     continue;
@@ -754,18 +754,15 @@ fn parse_atl(lex: &mut Lexer) -> Option<RawBlock> {
                         // println!("try parsing as property: {:?}", prop);
                         if properties.contains(&prop) || prop.starts_with("u_") {
                             let expr = ll
-                                .require(LexerType::Type(LexerTypeOptions::SimpleExpression), None)
+                                .require(LexerType::Type(LexerTypeOptions::SimpleExpression))
                                 .unwrap();
 
                             let mut knots = vec![];
 
                             while ll.keyword("knot".into()).is_some() {
                                 knots.push(
-                                    ll.require(
-                                        LexerType::Type(LexerTypeOptions::SimpleExpression),
-                                        None,
-                                    )
-                                    .unwrap(),
+                                    ll.require(LexerType::Type(LexerTypeOptions::SimpleExpression))
+                                        .unwrap(),
                                 );
                             }
 
@@ -820,7 +817,7 @@ fn parse_atl(lex: &mut Lexer) -> Option<RawBlock> {
                 if ll.keyword("with".into()).is_some() {
                     // println!("with");
                     with_expr = Some(
-                        ll.require(LexerType::Type(LexerTypeOptions::SimpleExpression), None)
+                        ll.require(LexerType::Type(LexerTypeOptions::SimpleExpression))
                             .unwrap(),
                     );
                 }
@@ -846,7 +843,7 @@ fn parse_atl(lex: &mut Lexer) -> Option<RawBlock> {
             continue;
         }
 
-        lex.require(LexerType::String(",".into()), None)
+        lex.require(LexerType::String(",".into()))
             .expect("comma or end of line");
     }
 
@@ -864,7 +861,7 @@ impl Parser for Scene {
         let mut layer = None;
 
         if lex.keyword("onlayer".into()).is_some() {
-            layer = lex.require(LexerType::Type(LexerTypeOptions::Name), None);
+            layer = lex.require(LexerType::Type(LexerTypeOptions::Name));
             lex.expect_eol();
         }
 
@@ -911,7 +908,7 @@ impl Parser for Scene {
 impl Parser for With {
     fn parse(&self, lex: &mut Lexer, loc: (PathBuf, usize)) -> Result<Vec<AstNode>> {
         let expr = lex
-            .require(LexerType::Type(LexerTypeOptions::SimpleExpression), None)
+            .require(LexerType::Type(LexerTypeOptions::SimpleExpression))
             .unwrap();
         lex.expect_eol();
         lex.expect_noblock();
@@ -985,7 +982,7 @@ fn parse_arguments(lex: &mut Lexer) -> Option<ArgumentInfo> {
             break;
         }
 
-        lex.require(LexerType::String(",".into()), None);
+        lex.require(LexerType::String(",".into()));
         index += 1;
     }
 
@@ -1021,9 +1018,9 @@ fn finish_say(
             if with.is_some() {
                 panic!("say can only take a single with clause");
             }
-            with = lex.require(LexerType::Type(LexerTypeOptions::SimpleExpression), None);
+            with = lex.require(LexerType::Type(LexerTypeOptions::SimpleExpression));
         } else if lex.keyword("id".into()).is_some() {
-            identifier = lex.require(LexerType::Type(LexerTypeOptions::Name), None);
+            identifier = lex.require(LexerType::Type(LexerTypeOptions::Name));
         } else {
             let args = parse_arguments(lex);
 
@@ -1302,12 +1299,12 @@ impl Parser for Jump {
         if lex.keyword("expression".into()).is_some() {
             expression = true;
             target = lex
-                .require(LexerType::Type(LexerTypeOptions::SimpleExpression), None)
+                .require(LexerType::Type(LexerTypeOptions::SimpleExpression))
                 .unwrap();
         } else {
             expression = false;
             target = lex
-                .require(LexerType::Type(LexerTypeOptions::LabelName), None)
+                .require(LexerType::Type(LexerTypeOptions::LabelName))
                 .unwrap();
         }
 
@@ -1350,7 +1347,7 @@ fn parse_menu(
     while l.advance() {
         if l.keyword("with".into()).is_some() {
             with_ = Some(
-                l.require(LexerType::Type(LexerTypeOptions::SimpleExpression), None)
+                l.require(LexerType::Type(LexerTypeOptions::SimpleExpression))
                     .unwrap(),
             );
             l.expect_eol();
@@ -1360,7 +1357,7 @@ fn parse_menu(
 
         if l.keyword("set".into()).is_some() {
             set = Some(
-                l.require(LexerType::Type(LexerTypeOptions::SimpleExpression), None)
+                l.require(LexerType::Type(LexerTypeOptions::SimpleExpression))
                     .unwrap(),
             );
             l.expect_eol();
@@ -1446,12 +1443,13 @@ fn parse_menu(
         item_arguments.push(parse_arguments(&mut l));
 
         if l.keyword("if".into()).is_some() {
-            condition = Some(l
-                .require(LexerType::Type(LexerTypeOptions::PythonExpression), None)
-                .unwrap());
+            condition = Some(
+                l.require(LexerType::Type(LexerTypeOptions::PythonExpression))
+                    .unwrap(),
+            );
         }
 
-        l.require(LexerType::String(":".into()), None).unwrap();
+        l.require(LexerType::String(":".into())).unwrap();
         l.expect_eol();
         l.expect_block();
 
@@ -1493,7 +1491,7 @@ impl Parser for Menu {
 
         let arguments = parse_arguments(lex);
 
-        lex.require(LexerType::String(":".into()), None).unwrap();
+        lex.require(LexerType::String(":".into())).unwrap();
         lex.expect_eol();
 
         let menu = parse_menu(lex, loc.clone(), arguments);
@@ -1538,9 +1536,9 @@ impl Parser for If {
         let mut entries = vec![];
 
         let condition = lex
-            .require(LexerType::Type(LexerTypeOptions::PythonExpression), None)
+            .require(LexerType::Type(LexerTypeOptions::PythonExpression))
             .unwrap();
-        lex.require(LexerType::String(":".into()), None).unwrap();
+        lex.require(LexerType::String(":".into())).unwrap();
         lex.expect_eol();
         lex.expect_block();
 
@@ -1552,9 +1550,9 @@ impl Parser for If {
 
         while lex.keyword("elif".into()).is_some() {
             let condition = lex
-                .require(LexerType::Type(LexerTypeOptions::PythonExpression), None)
+                .require(LexerType::Type(LexerTypeOptions::PythonExpression))
                 .unwrap();
-            lex.require(LexerType::String(":".into()), None).unwrap();
+            lex.require(LexerType::String(":".into())).unwrap();
             lex.expect_eol();
             lex.expect_block();
 
@@ -1566,7 +1564,7 @@ impl Parser for If {
         }
 
         if lex.keyword("else".into()).is_some() {
-            lex.require(LexerType::String(":".into()), None).unwrap();
+            lex.require(LexerType::String(":".into())).unwrap();
             lex.expect_eol();
             lex.expect_block();
 
@@ -3026,7 +3024,7 @@ fn parse_clause(rv: &mut Style, lex: &mut Lexer) -> bool {
             panic!("parent clause appears twice.");
         }
         rv.parent = Some(
-            lex.require(LexerType::Type(LexerTypeOptions::Word), None)
+            lex.require(LexerType::Type(LexerTypeOptions::Word))
                 .unwrap(),
         );
         return true;
@@ -3042,7 +3040,7 @@ fn parse_clause(rv: &mut Style, lex: &mut Lexer) -> bool {
             panic!("take clause appears twice.");
         }
         rv.take = Some(
-            lex.require(LexerType::Type(LexerTypeOptions::Name), None)
+            lex.require(LexerType::Type(LexerTypeOptions::Name))
                 .unwrap(),
         );
         return true;
@@ -3050,7 +3048,7 @@ fn parse_clause(rv: &mut Style, lex: &mut Lexer) -> bool {
 
     if lex.keyword("del".into()).is_some() {
         let propname = lex
-            .require(LexerType::Type(LexerTypeOptions::Name), None)
+            .require(LexerType::Type(LexerTypeOptions::Name))
             .unwrap();
 
         if !style_prefixed_all_properties.contains(&propname) {
@@ -3066,7 +3064,7 @@ fn parse_clause(rv: &mut Style, lex: &mut Lexer) -> bool {
             panic!("variant clause appears twice.");
         }
         rv.variant = Some(
-            lex.require(LexerType::Type(LexerTypeOptions::SimpleExpression), None)
+            lex.require(LexerType::Type(LexerTypeOptions::SimpleExpression))
                 .unwrap(),
         );
         return true;
@@ -3086,7 +3084,7 @@ fn parse_clause(rv: &mut Style, lex: &mut Lexer) -> bool {
 
             rv.properties.insert(
                 pname,
-                lex.require(LexerType::Type(LexerTypeOptions::SimpleExpression), None)
+                lex.require(LexerType::Type(LexerTypeOptions::SimpleExpression))
                     .unwrap(),
             );
 
@@ -3101,7 +3099,7 @@ fn parse_clause(rv: &mut Style, lex: &mut Lexer) -> bool {
 impl Parser for Style {
     fn parse(&self, lex: &mut Lexer, loc: (PathBuf, usize)) -> Result<Vec<AstNode>> {
         let name = lex
-            .require(LexerType::Type(LexerTypeOptions::Word), None)
+            .require(LexerType::Type(LexerTypeOptions::Word))
             .unwrap();
 
         let mut style_node = Style {
@@ -3199,12 +3197,12 @@ impl Parser for Python {
 
         if lex.keyword("in".into()).is_some() {
             let s = lex
-                .require(LexerType::Type(LexerTypeOptions::DottedName), None)
+                .require(LexerType::Type(LexerTypeOptions::DottedName))
                 .unwrap();
             store = format!("store.{s}");
         }
 
-        lex.require(LexerType::String(":".into()), None).unwrap();
+        lex.require(LexerType::String(":".into())).unwrap();
         lex.expect_eol();
 
         lex.expect_block();
@@ -3240,17 +3238,17 @@ impl Parser for Default_ {
 
         let mut store = "store".into();
         let mut name = lex
-            .require(LexerType::Type(LexerTypeOptions::Word), None)
+            .require(LexerType::Type(LexerTypeOptions::Word))
             .unwrap();
 
         while lex.rmatch(r"\.".into()).is_some() {
             store = format!("{store}.{name}");
             name = lex
-                .require(LexerType::Type(LexerTypeOptions::Word), None)
+                .require(LexerType::Type(LexerTypeOptions::Word))
                 .unwrap();
         }
 
-        lex.require(LexerType::String("=".into()), None).unwrap();
+        lex.require(LexerType::String("=".into())).unwrap();
         let expr = lex.rest();
 
         if expr.is_none() {
@@ -3291,19 +3289,19 @@ impl Parser for Define {
 
         let mut store = "store".into();
         let name = lex
-            .require(LexerType::Type(LexerTypeOptions::Word), None)
+            .require(LexerType::Type(LexerTypeOptions::Word))
             .unwrap();
 
         while lex.rmatch(r"\.".into()).is_some() {
             store = format!("{store}.{name}");
-            lex.require(LexerType::Type(LexerTypeOptions::Word), None)
+            lex.require(LexerType::Type(LexerTypeOptions::Word))
                 .unwrap();
         }
 
         let mut index = None;
         if lex.rmatch(r"\[".into()).is_some() {
             index = lex.delimited_python("]".into(), true);
-            lex.require(LexerType::String(r"\]".into()), None).unwrap();
+            lex.require(LexerType::String(r"\]".into())).unwrap();
         }
 
         let operator;
@@ -3312,7 +3310,7 @@ impl Parser for Define {
         } else if lex.rmatch(r"\|=".into()).is_some() {
             operator = "|=";
         } else {
-            lex.require(LexerType::String("=".into()), None).unwrap();
+            lex.require(LexerType::String("=".into())).unwrap();
             operator = "=";
         }
 
@@ -3356,10 +3354,10 @@ impl Parser for Call {
         let mut expression = false;
         let target = if lex.keyword("expression".into()).is_some() {
             expression = true;
-            lex.require(LexerType::Type(LexerTypeOptions::SimpleExpression), None)
+            lex.require(LexerType::Type(LexerTypeOptions::SimpleExpression))
                 .unwrap()
         } else {
-            lex.require(LexerType::Type(LexerTypeOptions::LabelName), None)
+            lex.require(LexerType::Type(LexerTypeOptions::LabelName))
                 .unwrap()
         };
 
@@ -3384,7 +3382,7 @@ impl Parser for Call {
 
         if lex.keyword("from".into()).is_some() {
             let name = lex
-                .require(LexerType::Type(LexerTypeOptions::LabelNameDeclare), None)
+                .require(LexerType::Type(LexerTypeOptions::LabelNameDeclare))
                 .unwrap();
             rv.push(AstNode::Label(Label {
                 loc: loc.clone(),
