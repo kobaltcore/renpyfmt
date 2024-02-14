@@ -3288,13 +3288,13 @@ impl Parser for Define {
         };
 
         let mut store = "store".into();
-        let name = lex
+        let mut name = lex
             .require(LexerType::Type(LexerTypeOptions::Word))
             .unwrap();
 
         while lex.rmatch(r"\.".into()).is_some() {
             store = format!("{store}.{name}");
-            lex.require(LexerType::Type(LexerTypeOptions::Word))
+            name = lex.require(LexerType::Type(LexerTypeOptions::Word))
                 .unwrap();
         }
 
@@ -3394,7 +3394,7 @@ impl Parser for Call {
             }));
         }
 
-        rv.push(AstNode::Pass(Pass { loc }));
+        // rv.push(AstNode::Pass(Pass { loc }));
 
         lex.expect_eol();
         lex.advance();
