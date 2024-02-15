@@ -1,4 +1,4 @@
-use crate::{atl::RawBlock, lexer::Block};
+use crate::{atl::RawBlock, lexer::Block, slast};
 use std::{
     collections::{HashMap, HashSet},
     path::PathBuf,
@@ -210,6 +210,29 @@ pub struct Pass {
     pub loc: (PathBuf, usize),
 }
 
+#[derive(Debug, Clone, Default)]
+pub struct Transform {
+    pub loc: (PathBuf, usize),
+    pub store: String,
+    pub name: String,
+    pub atl: Option<RawBlock>,
+    pub parameters: Option<ParameterSignature>,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct Screen {
+    pub loc: (PathBuf, usize),
+    pub screen: slast::Screen,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct Image {
+    pub loc: (PathBuf, usize),
+    pub name: Vec<String>,
+    pub expr: Option<String>,
+    pub atl: Option<RawBlock>,
+}
+
 #[derive(Debug, Clone)]
 pub enum AstNode {
     Label(Label),
@@ -232,6 +255,9 @@ pub enum AstNode {
     Default(Default_),
     Call(Call),
     Pass(Pass),
+    Transform(Transform),
+    Screen(Screen),
+    Image(Image),
 }
 
 impl Default for AstNode {

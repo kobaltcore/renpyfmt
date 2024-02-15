@@ -536,6 +536,9 @@ pub fn format_ast(ast: &Vec<AstNode>, indent: usize) -> Vec<String> {
                 lines.push(node.format(indent, &ctx));
             }
             AstNode::Pass(node) => todo!("pass"),
+            AstNode::Transform(node) => todo!("transform"),
+            AstNode::Screen(node) => todo!("screen"),
+            AstNode::Image(node) => todo!("image"),
         }
 
         // prev_node = Some(node.clone());

@@ -1,6 +1,7 @@
 use crate::{
     ast::{
-        AstNode, Call, Default_, Define, Hide, If, Init, Jump, Label, Menu, Pass, Python, PythonOneLine, Return, Say, Scene, Show, Style, UserStatement, With
+        AstNode, Call, Default_, Define, Hide, If, Image, Init, Jump, Label, Menu, Pass, Python,
+        PythonOneLine, Return, Say, Scene, Screen, Show, Style, Transform, UserStatement, With,
     },
     lexer::Lexer,
     parser::Parser,
@@ -42,10 +43,9 @@ impl ParseTrie {
         self.add(vec!["default".into()], Box::new(Default_::default()));
         self.add(vec!["call".into()], Box::new(Call::default()));
         self.add(vec!["pass".into()], Box::new(Pass::default()));
-
-        // TODO:
-        // - screen
-        // - transform
+        self.add(vec!["transform".into()], Box::new(Transform::default()));
+        self.add(vec!["screen".into()], Box::new(Screen::default()));
+        self.add(vec!["image".into()], Box::new(Image::default()));
 
         let custom_statements = vec![
             // built-in custom statements
@@ -131,20 +131,20 @@ impl ParseTrie {
             None => Some("".into()),
         };
 
-        // println!("word: {:?}", word);
+        println!("word: {:?}", word);
         // println!("keys: {:?}", self.words.keys());
 
         if word.is_none() || !self.words.contains_key(&word.clone().unwrap()) {
-            // println!("parsing {:?}", lex.text);
-            // println!("no match, defaulting");
+            println!("parsing {:?}", lex.text);
+            println!("no match, defaulting");
             lex.pos = old_pos;
             match self.default.as_ref() {
                 Some(parse_cmd) => {
-                    // println!("parsing {:?}", lex.text);
+                    println!("parsing {:?}", lex.text);
                     return parse_cmd.parse(lex, loc);
                 }
                 None => {
-                    // println!("defaulting to say {:?}", lex.text);
+                    println!("defaulting to say {:?}", lex.text);
                     return Say::default().parse(lex, loc);
                     // panic!("unexpected word: {}", word.unwrap());
                     // lex.advance();

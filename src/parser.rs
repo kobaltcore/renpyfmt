@@ -1,14 +1,15 @@
 use crate::{
     ast::{
-        ArgumentInfo, AstNode, Call, Default_, Define, EarlyPython, Hide, If, ImageSpecifier, Init,
-        Jump, Label, Menu, Parameter, ParameterKind, ParameterSignature, Pass, Python,
-        PythonOneLine, Return, Say, Scene, Show, Style, UserStatement, With,
+        ArgumentInfo, AstNode, Call, Default_, Define, EarlyPython, Hide, If, Image,
+        ImageSpecifier, Init, Jump, Label, Menu, Parameter, ParameterKind, ParameterSignature,
+        Pass, Python, PythonOneLine, Return, Say, Scene, Screen, Show, Style, Transform,
+        UserStatement, With,
     },
     atl::{
         AtlStatement, RawBlock, RawChild, RawChoice, RawContainsExpr, RawEvent, RawFunction,
         RawMultipurpose, RawOn, RawParallel, RawRepeat, RawTime,
     },
-    lexer::{Lexer, LexerType, LexerTypeOptions},
+    lexer::{Lexer, LexerType, LexerTypeOptions, RegexType},
     trie::ParseTrie,
 };
 use anyhow::Result;
@@ -3294,7 +3295,8 @@ impl Parser for Define {
 
         while lex.rmatch(r"\.".into()).is_some() {
             store = format!("{store}.{name}");
-            name = lex.require(LexerType::Type(LexerTypeOptions::Word))
+            name = lex
+                .require(LexerType::Type(LexerTypeOptions::Word))
                 .unwrap();
         }
 
@@ -3410,5 +3412,131 @@ impl Parser for Pass {
         lex.advance();
 
         Ok(vec![AstNode::Pass(Pass { loc })])
+    }
+}
+
+impl Parser for Transform {
+    fn parse(&self, lex: &mut Lexer, loc: (PathBuf, usize)) -> Result<Vec<AstNode>> {
+        let priority: isize = match lex.integer() {
+            Some(p) => p.parse()?,
+            None => 0,
+        };
+
+        let mut store = "store".into();
+        let mut name = lex
+            .require(LexerType::Type(LexerTypeOptions::Name))
+            .unwrap();
+
+        while lex.rmatch(r"\.".into()).is_some() {
+            store = format!("{store}.{name}");
+            name = lex
+                .require(LexerType::Type(LexerTypeOptions::Word))
+                .unwrap();
+        }
+
+        let parameters = parse_parameters(lex);
+
+        if let Some(params) = parameters.clone() {
+            let mut found_pos_only = false;
+            for p in params.parameters.values() {
+                match p.kind {
+                    ParameterKind::PositionalOnly => {
+                        if !found_pos_only {
+                            found_pos_only = true;
+                            // panic!("the transform statement does not take positional-only parameters ({p:?} is not allowed)");
+                        }
+                    }
+                    ParameterKind::VarPositional => {
+                        panic!(
+                            "the transform statement does not take *args ({p:?} is not allowed)"
+                        );
+                    }
+                    ParameterKind::VarKeyword => {
+                        panic!(
+                            "the transform statement does not take **kwargs ({p:?} is not allowed)"
+                        )
+                    }
+                    ParameterKind::KeywordOnly => {
+                        panic!("the transform statement does not take required keyword-only parameters ({p:?} is not allowed)")
+                    }
+                    _ => {}
+                }
+            }
+        }
+
+        lex.require(LexerType::String(":".into())).unwrap();
+        lex.expect_eol();
+        lex.expect_block();
+
+        let atl = parse_atl(&mut lex.subblock_lexer(false));
+
+        let mut rv = AstNode::Transform(Transform {
+            loc: loc.clone(),
+            store,
+            name,
+            atl,
+            parameters,
+        });
+
+        if !lex.init {
+            rv = AstNode::Init(Init {
+                loc,
+                block: vec![rv],
+                priority: priority + lex.init_offset,
+            });
+        }
+
+        lex.advance();
+
+        Ok(vec![rv])
+    }
+}
+
+impl Parser for Screen {
+    fn parse(&self, lex: &mut Lexer, loc: (PathBuf, usize)) -> Result<Vec<AstNode>> {
+        todo!("parse screen")
+    }
+}
+
+impl Parser for Image {
+    fn parse(&self, lex: &mut Lexer, loc: (PathBuf, usize)) -> Result<Vec<AstNode>> {
+        let name = parse_image_name(lex, false, false).unwrap();
+
+        let mut atl = None;
+        let mut expr = None;
+        if lex.rmatch(RegexType::Simple(":".into())).is_some() {
+            lex.expect_eol();
+            lex.expect_block();
+            atl = parse_atl(&mut lex.subblock_lexer(false));
+        } else {
+            lex.require(LexerType::String("=".into())).unwrap();
+
+            expr = lex.rest();
+
+            if expr.is_none() {
+                panic!("expected expression");
+            }
+
+            lex.expect_noblock();
+        }
+
+        let mut rv = AstNode::Image(Image {
+            loc: loc.clone(),
+            name,
+            expr,
+            atl,
+        });
+
+        if !lex.init {
+            rv = AstNode::Init(Init {
+                loc,
+                block: vec![rv],
+                priority: 500 + lex.init_offset,
+            });
+        }
+
+        lex.advance();
+
+        Ok(vec![rv])
     }
 }

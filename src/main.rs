@@ -609,6 +609,15 @@ fn print_nodes(nodes: Vec<AstNode>, depth: usize) {
             AstNode::Pass(p) => {
                 println!("Pass: {:?}", p);
             }
+            AstNode::Transform(t) => {
+                println!("Transform: {:?}", t);
+            }
+            AstNode::Screen(s) => {
+                println!("Screen: {:?}", s);
+            }
+            AstNode::Image(i) => {
+                println!("Image: {:?}", i);
+            }
         }
     }
 }
@@ -634,7 +643,7 @@ fn main() -> Result<()> {
         .collect();
     // let files = vec![PathBuf::from("game/magic/mina/middle.rpy")];
 
-    files.par_iter().for_each(|input_file| {
+    files.iter().for_each(|input_file| {
         println!("Processing: {}", input_file.display());
 
         let ctx = LexerContext {
