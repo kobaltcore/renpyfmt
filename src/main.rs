@@ -1,4 +1,4 @@
-use anyhow::{bail, Ok, Result};
+use anyhow::{Ok, Result, bail};
 use renpyfmt::ast::AstNode;
 use renpyfmt::formatter::format_ast;
 use renpyfmt::lexer::{Block, Lexer};
@@ -8,7 +8,6 @@ use renpyfmt::parser::parse_block;
 // use ruff_python_index::tokens_and_ranges;
 // use ruff_python_parser::{parse_tokens, AsMode};
 use glob::glob;
-use rayon::prelude::*;
 use std::fs;
 use std::path::PathBuf;
 

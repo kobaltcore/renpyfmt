@@ -1,17 +1,16 @@
 [package]
 name = "renpyfmt"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
 
 [dependencies]
 # System
+glob = "0.3.1"
 regex = "1.10.3"
 anyhow = "1.0.79"
 pathdiff = "0.2.1"
-derivative = "2.2.0"
-glob = "0.3.1"
-rayon = "1.8.1"
 once_cell = "1.19.0"
+derivative = "2.2.0"
 lazy_static = "1.4.0"
 # Ruff
 # ruff_python_formatter = { git = "https://github.com/astral-sh/ruff.git", tag = "v0.1.14" }
