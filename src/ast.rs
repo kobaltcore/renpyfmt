@@ -304,6 +304,20 @@ pub struct TranslateEarlyBlock {
     pub block: Vec<AstNode>,
 }
 
+#[derive(Debug, Clone, Default)]
+pub struct Testcase {
+    pub loc: (PathBuf, usize),
+    pub name: String,
+    pub block: Vec<Block>,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct Testsuite {
+    pub loc: (PathBuf, usize),
+    pub name: String,
+    pub block: Vec<Block>,
+}
+
 #[derive(Debug, Clone)]
 pub enum AstNode {
     Label(Label),
@@ -339,6 +353,8 @@ pub enum AstNode {
     TranslateString(TranslateString),
     TranslateBlock(TranslateBlock),
     TranslateEarlyBlock(TranslateEarlyBlock),
+    Testcase(Testcase),
+    Testsuite(Testsuite),
 }
 
 impl Default for AstNode {

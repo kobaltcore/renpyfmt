@@ -549,6 +549,8 @@ pub fn format_ast(ast: &Vec<AstNode>, indent: usize) -> Vec<String> {
             AstNode::TranslateString(node) => todo!("translate string"),
             AstNode::TranslateBlock(node) => todo!("translate block"),
             AstNode::TranslateEarlyBlock(node) => todo!("translate early block"),
+            AstNode::Testcase(node) => todo!("testcase"),
+            AstNode::Testsuite(node) => todo!("testsuite"),
         }
 
         // prev_node = Some(node.clone());

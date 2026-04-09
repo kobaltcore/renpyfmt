@@ -1,8 +1,8 @@
 use crate::{
     ast::{
         AstNode, Call, Camera, CompileIf, Default_, Define, Hide, If, Image, Init, Jump, Label,
-        Menu, Pass, Python, PythonOneLine, Return, Say, Scene, Screen, Show, Style, Transform,
-        Translate, UserStatement, While, With, RPY,
+        Menu, Pass, Python, PythonOneLine, Return, Say, Scene, Screen, Show, Style, Testcase,
+        Testsuite, Transform, Translate, UserStatement, While, With, RPY,
     },
     error::Result,
     lexer::Lexer,
@@ -52,6 +52,8 @@ impl ParseTrie {
         self.add(vec!["image".into()], Box::new(Image::default()));
         self.add(vec!["rpy".into()], Box::new(RPY::default()));
         self.add(vec!["translate".into()], Box::new(Translate::default()));
+        self.add(vec!["testcase".into()], Box::new(Testcase::default()));
+        self.add(vec!["testsuite".into()], Box::new(Testsuite::default()));
 
         let custom_statements = vec![
             // built-in custom statements

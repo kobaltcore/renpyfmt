@@ -648,6 +648,12 @@ fn print_nodes(nodes: Vec<AstNode>, depth: usize) {
             AstNode::TranslateEarlyBlock(t) => {
                 println!("TranslateEarlyBlock: {:?}", t);
             }
+            AstNode::Testcase(t) => {
+                println!("Testcase: {:?}", t);
+            }
+            AstNode::Testsuite(t) => {
+                println!("Testsuite: {:?}", t);
+            }
         }
     }
 }

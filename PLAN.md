@@ -43,13 +43,11 @@ Implemented parser coverage already includes:
 
 Core parser gaps still remaining:
 
-1. `testcase`
-2. `testsuite`
+1. Full internal test-language parsing for `testcase` / `testsuite`
 
 Out of those, the most important short-term work for a reliable core parser is:
 
-1. `testcase`
-2. `testsuite`
+1. Decide whether to fully port the Ren'Py test DSL, or keep the current syntax-preserving placeholder support.
 
 `translate`, `testcase`, and `testsuite` should stay on the roadmap, but they can come after the smaller core-statement work and the error-handling conversion.
 
@@ -334,6 +332,14 @@ Recommended approach:
 
 ### 4.3 `testcase` / `testsuite`
 
+Status: completed as syntax-preserving top-level support.
+
+Current behavior:
+
+1. `testcase <name>:` headers are parsed and their nested raw blocks are preserved.
+2. `testsuite <name>:` headers are parsed and their nested raw blocks are preserved.
+3. The internal Ren'Py test-language DSL is not yet ported into a dedicated AST.
+
 Notes:
 
 1. These matter less for general script formatting.
@@ -399,7 +405,7 @@ As statements are added, clean up the parser shape instead of letting `src/parse
 7. Completed for the current core parser path: finish panic-to-error conversion across core statement parsers and parser entry points.
 8. Completed: add `IF` / `ELIF` / `ELSE`.
 9. Completed: add `translate` support.
-10. Next: add `testcase` and `testsuite` or explicitly defer them behind a parser limitation.
+10. Completed as syntax-preserving support; later decide whether to port the internal test DSL fully.
 
 ## Future Goals
 

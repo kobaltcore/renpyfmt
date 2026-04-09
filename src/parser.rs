@@ -3,8 +3,8 @@ use crate::{
         ArgumentInfo, AstNode, Call, Camera, CompileIf, Default_, Define, EarlyPython,
         EndTranslate, Hide, If, Image, ImageSpecifier, Init, Jump, Label, Menu, Parameter,
         ParameterKind, ParameterSignature, Pass, Python, PythonOneLine, Return, Say, Scene, Screen,
-        Show, ShowLayer, Style, Transform, Translate, TranslateBlock, TranslateEarlyBlock,
-        TranslateString, UserStatement, While, With, RPY,
+        Show, ShowLayer, Style, Testcase, Testsuite, Transform, Translate, TranslateBlock,
+        TranslateEarlyBlock, TranslateString, UserStatement, While, With, RPY,
     },
     atl::{
         AtlStatement, RawBlock, RawChild, RawChoice, RawContainsExpr, RawEvent, RawFunction,
@@ -3954,6 +3954,40 @@ impl Parser for Translate {
     }
 }
 
+impl Parser for Testcase {
+    fn parse(&self, lex: &mut Lexer, loc: (PathBuf, usize)) -> Result<Vec<AstNode>> {
+        let name = lex.require_or_error(
+            LexerType::Type(LexerTypeOptions::DottedName),
+            "expected dotted name",
+        )?;
+        lex.require_or_error(LexerType::String(":".into()), "expected ':'")?;
+        lex.expect_eol()?;
+        lex.expect_block()?;
+
+        let block = lex.subblock.clone();
+        lex.advance();
+
+        Ok(vec![AstNode::Testcase(Testcase { loc, name, block })])
+    }
+}
+
+impl Parser for Testsuite {
+    fn parse(&self, lex: &mut Lexer, loc: (PathBuf, usize)) -> Result<Vec<AstNode>> {
+        let name = lex.require_or_error(
+            LexerType::Type(LexerTypeOptions::DottedName),
+            "expected dotted name",
+        )?;
+        lex.require_or_error(LexerType::String(":".into()), "expected ':'")?;
+        lex.expect_eol()?;
+        lex.expect_block()?;
+
+        let block = lex.subblock.clone();
+        lex.advance();
+
+        Ok(vec![AstNode::Testsuite(Testsuite { loc, name, block })])
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::parse_block;
@@ -4225,6 +4259,36 @@ mod tests {
 
         assert!(
             matches!(&ast[0], AstNode::TranslateEarlyBlock(node) if node.language.as_deref() == Some("english") && node.block.len() == 1)
+        );
+    }
+
+    #[test]
+    fn testcase_parses_header_and_raw_block() {
+        let ast = assert_parse(parse(vec![block(
+            1,
+            "testcase foo.bar:",
+            vec![block(2, "assert x", vec![])],
+        )]));
+
+        assert!(
+            matches!(&ast[0], AstNode::Testcase(node) if node.name == "foo.bar" && node.block.len() == 1)
+        );
+    }
+
+    #[test]
+    fn testsuite_parses_header_and_raw_block() {
+        let ast = assert_parse(parse(vec![block(
+            1,
+            "testsuite foo.bar:",
+            vec![block(
+                2,
+                "testcase inner:",
+                vec![block(3, "assert x", vec![])],
+            )],
+        )]));
+
+        assert!(
+            matches!(&ast[0], AstNode::Testsuite(node) if node.name == "foo.bar" && node.block.len() == 1)
         );
     }
 }
