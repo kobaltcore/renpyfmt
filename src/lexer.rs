@@ -970,3 +970,153 @@ fn process(rv: &mut Vec<String>, line: &mut usize, blocks: Vec<Block>, indent: S
         process(rv, line, subblock, format!("{indent}    "));
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn block(number: usize, text: &str, block: Vec<Block>) -> Block {
+        Block {
+            filename: PathBuf::from("test.rpy"),
+            number,
+            text: text.into(),
+            block,
+        }
+    }
+
+    fn single_line_lexer(text: &str) -> Lexer {
+        let mut lex = Lexer::new(vec![block(1, text, vec![])]);
+        lex.advance();
+        lex
+    }
+
+    #[test]
+    fn string_and_triple_string_handle_escapes_and_raw_strings() {
+        let mut lex = single_line_lexer("\"hello\\n\\u0041\\{\"");
+        assert_eq!(lex.string().as_deref(), Some("hello\\n\\u0041\\{"));
+
+        let mut raw = single_line_lexer(r#"r"hello\n""#);
+        assert_eq!(raw.string().as_deref(), Some(r#"hello\n"#));
+
+        let mut triple = single_line_lexer("\"\"\"First\n\nSecond\"\"\"");
+        assert_eq!(
+            triple.triple_string(),
+            Some(vec!["First\n\nSecond".to_string()])
+        );
+
+        let mut triple_raw = single_line_lexer("r'''raw\\ntext'''");
+        assert_eq!(
+            triple_raw.triple_string(),
+            Some(vec![r"raw\ntext".to_string()])
+        );
+    }
+
+    #[test]
+    fn advance_unadvance_checkpoint_and_revert_restore_state() {
+        let mut lex = Lexer::new(vec![block(1, "first", vec![]), block(2, "second", vec![])]);
+        assert!(lex.advance());
+        assert_eq!(lex.text, "first");
+
+        let state = lex.checkpoint();
+        lex.pos = 3;
+        lex.advance();
+        assert_eq!(lex.text, "second");
+
+        lex.unadvance();
+        assert_eq!(lex.text, "first");
+        assert_eq!(lex.pos, lex.text.len());
+
+        lex.revert(state);
+        assert_eq!(lex.text, "first");
+        assert_eq!(lex.pos, 0);
+        assert!(!lex.eob);
+    }
+
+    #[test]
+    fn name_label_and_image_name_rules_respect_keywords_and_global_labels() {
+        let mut keyword = single_line_lexer("show");
+        assert_eq!(keyword.name(), None);
+
+        let mut label = single_line_lexer("start.local");
+        label.set_global_label(Some("start".into()));
+        assert_eq!(label.label_name(true).as_deref(), Some("start.local"));
+
+        let mut relative = single_line_lexer(".branch");
+        relative.set_global_label(Some("start".into()));
+        assert_eq!(relative.label_name(false).as_deref(), Some("start.branch"));
+
+        let mut image = single_line_lexer("r\"not_image\"");
+        assert_eq!(image.image_name_component(), None);
+    }
+
+    #[test]
+    fn python_scanners_handle_strings_parentheses_and_expressions() {
+        let mut lex = single_line_lexer("func(\"a\", [1, 2], {'k': value}) + other.attr");
+        assert_eq!(
+            lex.simple_expression(false, true).as_deref(),
+            Some("func(\"a\", [1, 2], {'k': value}) + other.attr")
+        );
+
+        let mut python = single_line_lexer("value[foo(\"bar\")] : rest");
+        assert_eq!(
+            python.python_expression().as_deref(),
+            Ok("value[foo(\"bar\")]")
+        );
+
+        let mut dotted = single_line_lexer("store.module.value");
+        assert_eq!(dotted.dotted_name().as_deref(), Some("store.module.value"));
+    }
+
+    #[test]
+    fn python_block_and_subblock_lexer_preserve_context() {
+        let blocks = vec![block(
+            10,
+            "python:",
+            vec![
+                block(11, "x = 1", vec![]),
+                block(13, "if True:", vec![block(14, "pass", vec![])]),
+            ],
+        )];
+        let mut lex = Lexer::new(blocks);
+        lex.set_init(true);
+        lex.set_init_offset(7);
+        lex.set_global_label(Some("start".into()));
+        lex.advance();
+
+        let child = lex.subblock_lexer(false);
+        assert!(child.init);
+        assert_eq!(child.init_offset, 7);
+        assert_eq!(child.global_label.as_deref(), Some("start"));
+
+        let code = lex.python_block().expect("expected python block");
+        assert_eq!(code, "\nx = 1\n\nif True:\n    pass\n");
+    }
+
+    #[test]
+    fn block_and_rest_helpers_report_expected_errors() {
+        let mut no_block = single_line_lexer("line");
+        assert_eq!(
+            no_block.expect_block().unwrap_err(),
+            ParseError::at(
+                (PathBuf::from("test.rpy"), 1),
+                "expected a non-empty block."
+            )
+        );
+
+        let mut with_block = Lexer::new(vec![block(1, "line", vec![block(2, "child", vec![])])]);
+        with_block.advance();
+        assert_eq!(
+            with_block.expect_noblock().unwrap_err(),
+            ParseError::at(
+                (PathBuf::from("test.rpy"), 1),
+                "Line is indented, but the preceding statement does not expect a block. Please check this line's indentation. You may have forgotten a colon (:)."
+            )
+        );
+
+        let mut rest = single_line_lexer("   trailing words  ");
+        assert_eq!(rest.rest().as_deref(), Some("trailing words"));
+
+        let mut rest_stmt = single_line_lexer(" code here");
+        assert_eq!(rest_stmt.rest_statement().as_deref(), Some(" code here"));
+    }
+}
