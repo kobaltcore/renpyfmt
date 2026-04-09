@@ -51,11 +51,24 @@ impl Formatter {
             let node = &nodes[i];
 
             let with_suffix = match node {
-                AstNode::Show(_) | AstNode::Scene(_) | AstNode::Hide(_) | AstNode::Say(_) => {
-                    nodes.get(i + 1).and_then(|next| match next {
-                        AstNode::With(w) if w.paired.is_none() && w.expr != "None" => Some(w),
-                        _ => None,
-                    })
+                AstNode::Say(_) => nodes.get(i + 1).and_then(|next| match next {
+                    AstNode::With(w) if w.paired.is_none() && w.expr != "None" => Some(w),
+                    _ => None,
+                }),
+                AstNode::Show(_) | AstNode::Scene(_) | AstNode::Hide(_) => {
+                    let has_paired_with = i > 0
+                        && matches!(
+                            &nodes[i - 1],
+                            AstNode::With(w) if w.paired.is_some()
+                        );
+                    if has_paired_with {
+                        nodes.get(i + 1).and_then(|next| match next {
+                            AstNode::With(w) if w.paired.is_none() && w.expr != "None" => Some(w),
+                            _ => None,
+                        })
+                    } else {
+                        None
+                    }
                 }
                 _ => None,
             };

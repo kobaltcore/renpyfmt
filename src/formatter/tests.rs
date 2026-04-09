@@ -2,7 +2,7 @@ use crate::{
     ast::{
         AstNode, Call, Camera, CompileIf, Default_, EarlyPython, If, Image, ImageSpecifier, Init,
         Jump, Label, Menu, Pass, Python, Say, Scene, Show, ShowLayer, Testcase, Testsuite,
-        Translate, TranslateBlock, TranslateEarlyBlock, TranslateString, While,
+        Translate, TranslateBlock, TranslateEarlyBlock, TranslateString, While, With,
     },
     atl::{
         AtlStatement, RawBlock, RawChoice, RawContainsExpr, RawEvent, RawFunction, RawMultipurpose,
@@ -427,8 +427,33 @@ fn show_scene_hide_with_clause_on_same_line() {
             "show eileen happy with dissolve\n",
             "\n",
             "scene bg room with fade\n",
-            "hide eileen with dissolve"
+            "hide eileen\n",
+            "with dissolve"
         )
+    );
+}
+
+#[test]
+fn ungrouped_with_stays_on_own_line() {
+    let ast = vec![
+        AstNode::Show(Show {
+            imspec: Some(image(&["image1"])),
+            ..Default::default()
+        }),
+        AstNode::Show(Show {
+            imspec: Some(image(&["image2"])),
+            ..Default::default()
+        }),
+        AstNode::With(With {
+            loc: (PathBuf::from("test.rpy"), 1),
+            expr: "exchange".into(),
+            paired: None,
+        }),
+    ];
+
+    assert_eq!(
+        format_ast(&ast),
+        concat!("show image1\n", "show image2\n", "with exchange")
     );
 }
 
