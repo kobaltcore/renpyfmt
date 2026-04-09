@@ -2,9 +2,9 @@ use crate::{
     ast::{
         ArgumentInfo, AstNode, Call, Camera, CompileIf, Default_, Define, EarlyPython,
         EndTranslate, Hide, If, Image, ImageSpecifier, Init, Jump, Label, Menu, Parameter,
-        ParameterKind, ParameterSignature, Pass, Python, PythonOneLine, Return, Say, Scene, Screen,
-        Show, ShowLayer, Style, Testcase, Testsuite, Transform, Translate, TranslateBlock,
-        TranslateEarlyBlock, TranslateString, UserStatement, While, With, RPY,
+        ParameterKind, ParameterSignature, Pass, Python, PythonOneLine, RPY, Return, Say, Scene,
+        Screen, Show, ShowLayer, Style, Testcase, Testsuite, Transform, Translate, TranslateBlock,
+        TranslateEarlyBlock, TranslateString, UserStatement, While, With,
     },
     atl::{
         AtlStatement, RawBlock, RawChild, RawChoice, RawContainsExpr, RawEvent, RawFunction,
@@ -15,7 +15,7 @@ use crate::{
 };
 use std::{
     collections::{HashMap, HashSet},
-    panic::{catch_unwind, AssertUnwindSafe},
+    panic::{AssertUnwindSafe, catch_unwind},
     path::PathBuf,
 };
 
@@ -382,11 +382,13 @@ fn parse_image_specifier(lex: &mut Lexer) -> Result<ImageSpecifier> {
             LexerType::Type(LexerTypeOptions::SimpleExpression),
             "expected simple expression",
         )?);
-        image_name = Some(vec![expression
-            .clone()
-            .expect("expression set above")
-            .trim()
-            .into()]);
+        image_name = Some(vec![
+            expression
+                .clone()
+                .expect("expression set above")
+                .trim()
+                .into(),
+        ]);
     } else {
         image_name = parse_image_name(lex, true, false)?;
         expression = None;
@@ -564,7 +566,7 @@ fn parse_atl(lex: &mut Lexer) -> Result<RawBlock> {
             })));
         } else if lex.keyword("on".into()).is_some() {
             let mut names = vec![
-                lex.require_or_error(LexerType::Type(LexerTypeOptions::Word), "expected word")?
+                lex.require_or_error(LexerType::Type(LexerTypeOptions::Word), "expected word")?,
             ];
 
             while lex.rmatch(",".into()).is_some() {
