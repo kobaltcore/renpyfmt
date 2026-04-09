@@ -219,7 +219,7 @@ impl Parser for Define {
 
         let mut index = None;
         if lex.rmatch(r"\[".into()).is_some() {
-            index = lex.delimited_python("]".into(), true);
+            index = lex.delimited_python("]".into(), true)?;
             lex.require_or_error(LexerType::String(r"\]".into()), "expected ']'")?;
         }
 

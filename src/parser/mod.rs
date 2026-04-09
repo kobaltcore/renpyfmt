@@ -2,9 +2,9 @@ use crate::{
     ast::{
         ArgumentInfo, AstNode, Call, Camera, CompileIf, Default_, Define, EarlyPython,
         EndTranslate, Hide, If, Image, ImageSpecifier, Init, Jump, Label, Menu, Parameter,
-        ParameterKind, ParameterSignature, Pass, Python, PythonOneLine, RPY, Return, Say, Scene,
-        Screen, Show, ShowLayer, Style, Testcase, Testsuite, Transform, Translate, TranslateBlock,
-        TranslateEarlyBlock, TranslateString, UserStatement, While, With,
+        ParameterKind, ParameterSignature, Pass, Python, PythonOneLine, Return, Say, Scene, Screen,
+        Show, ShowLayer, Style, Testcase, Testsuite, Transform, Translate, TranslateBlock,
+        TranslateEarlyBlock, TranslateString, UserStatement, While, With, RPY,
     },
     atl::{
         AtlStatement, RawBlock, RawChild, RawChoice, RawContainsExpr, RawEvent, RawFunction,
@@ -15,7 +15,7 @@ use crate::{
 };
 use std::{
     collections::{HashMap, HashSet},
-    panic::{AssertUnwindSafe, catch_unwind},
+    panic::{catch_unwind, AssertUnwindSafe},
     path::PathBuf,
 };
 
@@ -230,7 +230,7 @@ fn parse_parameters(lex: &mut Lexer) -> Result<Option<ParameterSignature>> {
 
             if lex.rmatch(r"=".into()).is_some() {
                 lex.skip_whitespace();
-                default = lex.delimited_python("),".into(), false);
+                default = lex.delimited_python("),".into(), false)?;
                 now_default = true;
 
                 if default.is_none() {
@@ -301,7 +301,7 @@ fn parse_label(lex: &mut Lexer, loc: (PathBuf, usize), init: bool) -> Result<Vec
 
 fn parse_image_name(lex: &mut Lexer, string: bool, nodash: bool) -> Result<Option<Vec<String>>> {
     let mut points = vec![lex.checkpoint()];
-    let Some(first) = lex.require(LexerType::Type(LexerTypeOptions::ImageNameComponent)) else {
+    let Some(first) = lex.require(LexerType::Type(LexerTypeOptions::ImageNameComponent))? else {
         return Ok(None);
     };
     let mut rv = vec![first];
@@ -322,7 +322,7 @@ fn parse_image_name(lex: &mut Lexer, string: bool, nodash: bool) -> Result<Optio
     if string {
         points.push(lex.checkpoint());
 
-        match lex.simple_expression(false, true) {
+        match lex.simple_expression(false, true)? {
             Some(s) => {
                 rv.push(s);
             }
@@ -356,7 +356,7 @@ fn parse_simple_expression_list(lex: &mut Lexer) -> Result<Vec<String>> {
             break;
         }
 
-        let e = lex.simple_expression(false, true);
+        let e = lex.simple_expression(false, true)?;
 
         if e.is_none() {
             break;
@@ -382,13 +382,11 @@ fn parse_image_specifier(lex: &mut Lexer) -> Result<ImageSpecifier> {
             LexerType::Type(LexerTypeOptions::SimpleExpression),
             "expected simple expression",
         )?);
-        image_name = Some(vec![
-            expression
-                .clone()
-                .expect("expression set above")
-                .trim()
-                .into(),
-        ]);
+        image_name = Some(vec![expression
+            .clone()
+            .expect("expression set above")
+            .trim()
+            .into()]);
     } else {
         image_name = parse_image_name(lex, true, false)?;
         expression = None;
@@ -513,7 +511,7 @@ fn parse_atl(lex: &mut Lexer) -> Result<RawBlock> {
         let loc = lex.get_location();
 
         if lex.keyword("repeat".into()).is_some() {
-            let repeats = lex.simple_expression(false, true);
+            let repeats = lex.simple_expression(false, true)?;
             statements.push(Some(AtlStatement::RawRepeat(RawRepeat { loc, repeats })));
         } else if lex.keyword("block".into()).is_some() {
             lex.require_or_error(LexerType::String(":".into()), "expected ':'")?;
@@ -523,7 +521,7 @@ fn parse_atl(lex: &mut Lexer) -> Result<RawBlock> {
             let block = parse_atl(&mut lex.subblock_lexer(false))?;
             statements.push(Some(AtlStatement::RawBlock(block)));
         } else if lex.keyword("contains".into()).is_some() {
-            match lex.simple_expression(false, true) {
+            match lex.simple_expression(false, true)? {
                 Some(expr) => {
                     lex.expect_noblock()?;
                     statements.push(Some(AtlStatement::RawContainsExpr(RawContainsExpr {
@@ -548,7 +546,7 @@ fn parse_atl(lex: &mut Lexer) -> Result<RawBlock> {
             let block = parse_atl(&mut lex.subblock_lexer(false))?;
             statements.push(Some(AtlStatement::RawParallel(RawParallel { loc, block })));
         } else if lex.keyword("choice".into()).is_some() {
-            let mut chance = lex.simple_expression(false, true);
+            let mut chance = lex.simple_expression(false, true)?;
 
             if chance.is_none() {
                 chance = Some("1.0".into());
@@ -566,11 +564,11 @@ fn parse_atl(lex: &mut Lexer) -> Result<RawBlock> {
             })));
         } else if lex.keyword("on".into()).is_some() {
             let mut names = vec![
-                lex.require_or_error(LexerType::Type(LexerTypeOptions::Word), "expected word")?,
+                lex.require_or_error(LexerType::Type(LexerTypeOptions::Word), "expected word")?
             ];
 
             while lex.rmatch(",".into()).is_some() {
-                let name = lex.require(LexerType::Type(LexerTypeOptions::Word));
+                let name = lex.require(LexerType::Type(LexerTypeOptions::Word))?;
 
                 if name.is_none() {
                     break;
@@ -774,7 +772,7 @@ fn parse_atl(lex: &mut Lexer) -> Result<RawBlock> {
 
                 ll.revert(cp);
 
-                let expr = ll.simple_expression(false, true);
+                let expr = ll.simple_expression(false, true)?;
 
                 if expr.is_none() {
                     // println!("no simple expression");
@@ -891,7 +889,7 @@ fn parse_arguments(lex: &mut Lexer) -> Result<Option<ArgumentInfo>> {
         }
 
         lex.skip_whitespace();
-        arguments.push((name, lex.delimited_python("),".into(), false)));
+        arguments.push((name, lex.delimited_python("),".into(), false)?));
 
         if lex.rmatch(r"\)".into()).is_some() {
             break;
@@ -1075,7 +1073,7 @@ fn parse_menu(
 
         let state = l.checkpoint();
 
-        let who = l.simple_expression(false, true);
+        let who = l.simple_expression(false, true)?;
 
         let attributes = say_attributes(&mut l);
 

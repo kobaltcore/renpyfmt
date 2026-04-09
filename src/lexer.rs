@@ -524,19 +524,19 @@ impl Lexer {
         ParseError::at((self.filename.clone(), self.number), message)
     }
 
-    pub fn require(&mut self, thing: LexerType) -> Option<String> {
+    pub fn require(&mut self, thing: LexerType) -> Result<Option<String>> {
         match thing {
-            LexerType::String(s) => self.rmatch(s.into()),
+            LexerType::String(s) => Ok(self.rmatch(s.into())),
             LexerType::Type(t) => match t {
-                LexerTypeOptions::Name => self.name(),
-                LexerTypeOptions::Hash => self.rmatch(RegexType::String(r"\w+".into())),
-                LexerTypeOptions::Integer => self.integer(),
-                LexerTypeOptions::Word => self.word(),
-                LexerTypeOptions::LabelNameDeclare => self.label_name_declare(),
+                LexerTypeOptions::Name => Ok(self.name()),
+                LexerTypeOptions::Hash => Ok(self.rmatch(RegexType::String(r"\w+".into()))),
+                LexerTypeOptions::Integer => Ok(self.integer()),
+                LexerTypeOptions::Word => Ok(self.word()),
+                LexerTypeOptions::LabelNameDeclare => Ok(self.label_name_declare()),
                 LexerTypeOptions::SimpleExpression => self.simple_expression(false, true),
-                LexerTypeOptions::ImageNameComponent => self.image_name_component(),
-                LexerTypeOptions::LabelName => self.label_name(false),
-                LexerTypeOptions::PythonExpression => self.python_expression().ok(),
+                LexerTypeOptions::ImageNameComponent => Ok(self.image_name_component()),
+                LexerTypeOptions::LabelName => Ok(self.label_name(false)),
+                LexerTypeOptions::PythonExpression => self.python_expression().map(Some),
                 LexerTypeOptions::DottedName => self.dotted_name(),
             },
         }
@@ -547,7 +547,8 @@ impl Lexer {
         thing: LexerType,
         message: impl Into<String>,
     ) -> Result<String> {
-        self.require(thing).ok_or_else(|| self.parse_error(message))
+        self.require(thing)?
+            .ok_or_else(|| self.parse_error(message))
     }
 
     pub fn expect_eol(&mut self) -> Result<()> {
@@ -631,10 +632,10 @@ impl Lexer {
         self.label_name(true)
     }
 
-    pub fn python_string(&mut self) -> bool {
+    pub fn python_string(&mut self) -> Result<bool> {
         // println!("python string");
         if self.eol() {
-            return false;
+            return Ok(false);
         }
 
         let old_pos = self.pos;
@@ -643,14 +644,15 @@ impl Lexer {
 
         if start.is_none() {
             self.pos = old_pos;
-            return false;
+            return Ok(false);
         }
 
         let delim: String = start.unwrap().trim_start_matches("urfURF").into();
 
         loop {
             if self.eol() {
-                panic!("end of line reached while parsing string.");
+                self.pos = old_pos;
+                return Err(self.parse_error("end of line reached while parsing string."));
             }
 
             if self.rmatch(delim.clone().into()).is_some() {
@@ -663,46 +665,56 @@ impl Lexer {
             }
 
             self.rmatch(RegexType::GlobalRegex(GlobalRegex::PythonStringInternal1))
-                .unwrap();
+                .ok_or_else(|| self.parse_error("end of line reached while parsing string."))?;
         }
 
-        true
+        Ok(true)
     }
 
-    pub fn parenthesised_python(&mut self) -> bool {
+    pub fn parenthesised_python(&mut self) -> Result<bool> {
         // println!("parenthesised python");
         let chars = self.text.chars().collect::<Vec<_>>();
 
         if self.pos >= chars.len() {
-            return false;
+            return Ok(false);
         }
 
+        let old_pos = self.pos;
         let c = chars[self.pos];
 
         match c {
             '(' => {
                 self.pos += 1;
-                self.delimited_python(")".into(), false);
+                if let Err(err) = self.delimited_python(")".into(), false) {
+                    self.pos = old_pos;
+                    return Err(err);
+                }
                 self.pos += 1;
-                true
+                Ok(true)
             }
             '[' => {
                 self.pos += 1;
-                self.delimited_python("]".into(), false);
+                if let Err(err) = self.delimited_python("]".into(), false) {
+                    self.pos = old_pos;
+                    return Err(err);
+                }
                 self.pos += 1;
-                true
+                Ok(true)
             }
             '{' => {
                 self.pos += 1;
-                self.delimited_python("}".into(), false);
+                if let Err(err) = self.delimited_python("}".into(), false) {
+                    self.pos = old_pos;
+                    return Err(err);
+                }
                 self.pos += 1;
-                true
+                Ok(true)
             }
-            _ => false,
+            _ => Ok(false),
         }
     }
 
-    pub fn delimited_python(&mut self, delim: String, _expr: bool) -> Option<String> {
+    pub fn delimited_python(&mut self, delim: String, _expr: bool) -> Result<Option<String>> {
         let start = self.pos;
 
         let chars = self.text.chars().collect::<Vec<_>>();
@@ -710,22 +722,22 @@ impl Lexer {
             let c = chars[self.pos];
 
             if delim.contains(c) {
-                return Some(self.text[start..self.pos].to_string());
+                return Ok(Some(self.text[start..self.pos].to_string()));
             }
 
             if ['\'', '"'].contains(&c) {
-                self.python_string();
+                self.python_string()?;
                 continue;
             }
 
-            if self.parenthesised_python() {
+            if self.parenthesised_python()? {
                 continue;
             }
 
             self.pos += 1;
         }
 
-        panic!("reached end of line when expecting '{delim}'");
+        Err(self.parse_error(format!("reached end of line when expecting '{delim}'")))
     }
 
     pub fn float(&mut self) -> Option<String> {
@@ -733,7 +745,7 @@ impl Lexer {
         self.rmatch(RegexType::GlobalRegex(GlobalRegex::Float))
     }
 
-    pub fn simple_expression(&mut self, comma: bool, operator: bool) -> Option<String> {
+    pub fn simple_expression(&mut self, comma: bool, operator: bool) -> Result<Option<String>> {
         // self.skip_whitespace();
         let start = self.pos;
 
@@ -753,10 +765,10 @@ impl Lexer {
                 break;
             }
 
-            if !(self.python_string()
+            if !(self.python_string()?
                 || self.name().is_some()
                 || self.float().is_some()
-                || self.parenthesised_python())
+                || self.parenthesised_python()?)
             {
                 // println!("string/name/float/python skip {}", self.pos);
                 break;
@@ -773,12 +785,12 @@ impl Lexer {
                 if self.rmatch(RegexType::Simple(".".into())).is_some() {
                     let n = self.word();
                     if n.is_none() {
-                        panic!("expecting name after dot.");
+                        return Err(self.parse_error("expecting name after dot."));
                     }
                     continue;
                 }
 
-                if self.parenthesised_python() {
+                if self.parenthesised_python()? {
                     continue;
                 }
 
@@ -806,10 +818,10 @@ impl Lexer {
         // println!("text: {:?}", text);
 
         if text.len() == 0 {
-            return None;
+            return Ok(None);
         }
 
-        Some(text.into())
+        Ok(Some(text.into()))
     }
 
     pub fn checkpoint(&mut self) -> LexerState {
@@ -877,7 +889,7 @@ impl Lexer {
         Ok(())
     }
 
-    pub fn say_expression(&mut self) -> Option<String> {
+    pub fn say_expression(&mut self) -> Result<Option<String>> {
         self.simple_expression(false, false)
     }
 
@@ -892,7 +904,7 @@ impl Lexer {
     }
 
     pub fn python_expression(&mut self) -> Result<String> {
-        let pe = self.delimited_python(":".into(), false);
+        let pe = self.delimited_python(":".into(), false)?;
 
         match pe {
             Some(s) => Ok(s.trim().into()),
@@ -918,22 +930,22 @@ impl Lexer {
         self.rmatch(RegexType::GlobalRegex(GlobalRegex::Integer).into())
     }
 
-    pub fn dotted_name(&mut self) -> Option<String> {
+    pub fn dotted_name(&mut self) -> Result<Option<String>> {
         let mut rv = self.name();
 
         if rv.is_none() {
-            return None;
+            return Ok(None);
         }
 
         while self.rmatch(RegexType::Simple(".".into())).is_some() {
             let n = self.name();
             if n.is_none() {
-                panic!("expecting name.");
+                return Err(self.parse_error("expecting name."));
             }
             rv = Some(format!("{}.{}", rv.unwrap(), n.unwrap()));
         }
 
-        rv
+        Ok(rv)
     }
 
     pub fn python_block(&mut self) -> Option<String> {
@@ -1053,8 +1065,10 @@ mod tests {
     fn python_scanners_handle_strings_parentheses_and_expressions() {
         let mut lex = single_line_lexer("func(\"a\", [1, 2], {'k': value}) + other.attr");
         assert_eq!(
-            lex.simple_expression(false, true).as_deref(),
-            Some("func(\"a\", [1, 2], {'k': value}) + other.attr")
+            lex.simple_expression(false, true),
+            Ok(Some(
+                "func(\"a\", [1, 2], {'k': value}) + other.attr".into()
+            ))
         );
 
         let mut python = single_line_lexer("value[foo(\"bar\")] : rest");
@@ -1064,7 +1078,40 @@ mod tests {
         );
 
         let mut dotted = single_line_lexer("store.module.value");
-        assert_eq!(dotted.dotted_name().as_deref(), Some("store.module.value"));
+        assert_eq!(dotted.dotted_name(), Ok(Some("store.module.value".into())));
+    }
+
+    #[test]
+    fn python_scanners_report_errors_instead_of_panicking() {
+        let mut dotted = single_line_lexer("store.");
+        assert_eq!(
+            dotted.dotted_name().unwrap_err(),
+            ParseError::at((PathBuf::from("test.rpy"), 1), "expecting name.")
+        );
+
+        let mut expr = single_line_lexer("foo.");
+        assert_eq!(
+            expr.simple_expression(false, true).unwrap_err(),
+            ParseError::at((PathBuf::from("test.rpy"), 1), "expecting name after dot.")
+        );
+
+        let mut paren = single_line_lexer("foo(");
+        assert_eq!(
+            paren.simple_expression(false, true).unwrap_err(),
+            ParseError::at(
+                (PathBuf::from("test.rpy"), 1),
+                "reached end of line when expecting ')'"
+            )
+        );
+
+        let mut string = single_line_lexer("\"unterminated");
+        assert_eq!(
+            string.simple_expression(false, true).unwrap_err(),
+            ParseError::at(
+                (PathBuf::from("test.rpy"), 1),
+                "end of line reached while parsing string."
+            )
+        );
     }
 
     #[test]

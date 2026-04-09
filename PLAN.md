@@ -41,20 +41,11 @@ The parser has also already been split into submodules under `src/parser/` and h
 
 ## Immediate Work
 
-### 1. Remove remaining panic-driven lexer failures
-
-The parser no longer relies on `panic!` for most normal syntax errors, but there are still panic sites in `src/lexer.rs` that should be converted to structured errors or otherwise avoided in user-controlled parse paths.
-
-Known remaining hotspots:
-
-1. string scanning
-2. delimited python scanning
-3. dotted-name parsing after `.`
-4. simple-expression dotted access parsing
+The remaining user-input `panic!` sites in `src/lexer.rs` have been removed. Current `panic!` usage in `src/` is limited to test assertions.
 
 ## Remaining Parser Work
 
-### 2. Decide how far to go on `testcase` / `testsuite`
+### 1. Decide how far to go on `testcase` / `testsuite`
 
 Current support preserves headers and nested raw blocks, which is enough for syntax-preserving parsing.
 
@@ -63,7 +54,7 @@ Open decision:
 1. keep the current placeholder/raw-block representation
 2. or port the internal Ren'Py test DSL into a dedicated AST
 
-### 3. Implement `screen` / SL2 parsing properly
+### 2. Implement `screen` / SL2 parsing properly
 
 `screen` is registered in the parser, but `Screen::parse` is still `todo!()`.
 
@@ -77,7 +68,7 @@ Work remaining:
 
 The parser now recognizes substantially more syntax than the formatter can emit.
 
-### 4. Remove formatter `todo!()` coverage gaps for parsed nodes
+### 3. Remove formatter `todo!()` coverage gaps for parsed nodes
 
 Important remaining AST formatter cases include:
 
@@ -107,7 +98,7 @@ Important remaining ATL formatter cases include:
 
 ## Testing And Coverage
 
-### 5. Expand regression coverage around the current weak spots
+### 4. Expand regression coverage around the current weak spots
 
 Priority areas:
 
@@ -117,7 +108,7 @@ Priority areas:
 4. say parsing involving triple-quoted strings and `clear`
 5. remaining panic-to-error conversion paths
 
-### 6. Add broader smoke tests and coverage checks
+### 5. Add broader smoke tests and coverage checks
 
 1. parse representative real-world `.rpy` files
 2. add regression tests for every parser bug fixed
@@ -125,11 +116,11 @@ Priority areas:
 
 ## Lower-Priority Follow-Up
 
-### 7. Custom statement support
+### 6. Custom statement support
 
 Replace the hardcoded custom-statement allowlist in `src/parser/registry.rs` with something closer to a registry model.
 
-### 8. Library/API cleanup
+### 7. Library/API cleanup
 
 Still open:
 
@@ -142,7 +133,6 @@ Still open:
 This stage is complete when:
 
 1. `cargo test` passes cleanly
-2. parser-facing syntax failures no longer depend on residual lexer panics
-3. `screen` support is no longer a stub
-4. formatter coverage exists for the parser features that are already implemented
-5. regression tests and coverage are strong enough to extend the parser without reintroducing old failures
+2. `screen` support is no longer a stub
+3. formatter coverage exists for the parser features that are already implemented
+4. regression tests and coverage are strong enough to extend the parser without reintroducing old failures

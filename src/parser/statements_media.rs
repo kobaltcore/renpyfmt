@@ -5,7 +5,7 @@ impl Parser for Scene {
         let mut layer = None;
 
         if lex.keyword("onlayer".into()).is_some() {
-            layer = lex.require(LexerType::Type(LexerTypeOptions::Name));
+            layer = lex.require(LexerType::Type(LexerTypeOptions::Name))?;
             lex.expect_eol()?;
         }
 
@@ -70,7 +70,7 @@ impl Parser for Say {
 
         lex.revert(state);
 
-        let who = lex.say_expression();
+        let who = lex.say_expression()?;
         let attributes = say_attributes(lex);
 
         let temporary_attributes = if lex.rmatch(r"\@".into()).is_some() {
