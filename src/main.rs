@@ -1,4 +1,4 @@
-use anyhow::{bail, Ok, Result};
+use anyhow::{Ok, Result, bail};
 use renpyfmt::ast::AstNode;
 use renpyfmt::formatter::format_ast;
 use renpyfmt::lexer::{Block, Lexer};
