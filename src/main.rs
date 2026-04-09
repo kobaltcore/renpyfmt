@@ -1,5 +1,6 @@
 use anyhow::Result;
 use clap::{Parser, Subcommand};
+use indicatif::{ProgressBar, ProgressStyle};
 use renpyfmt::project::{format_directory, parse_directory};
 use std::path::PathBuf;
 
@@ -23,15 +24,35 @@ enum Commands {
     },
 }
 
+fn create_progress_bar() -> ProgressBar {
+    let pb = ProgressBar::new(0);
+    pb.set_style(
+        ProgressStyle::with_template(
+            "{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {pos}/{len} {msg}",
+        )
+        .unwrap()
+        .progress_chars("#>-"),
+    );
+    pb
+}
+
 fn run_format(path: PathBuf) -> Result<()> {
-    format_directory(path)
+    let pb = create_progress_bar();
+    pb.set_message("formatting...");
+    format_directory(path, pb)
+}
+
+fn run_parse(path: PathBuf) -> Result<()> {
+    let pb = create_progress_bar();
+    pb.set_message("parsing...");
+    parse_directory(path, pb)
 }
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
 
     match cli.command {
-        Commands::Parse { path } => parse_directory(path),
+        Commands::Parse { path } => run_parse(path),
         Commands::Format { path } => run_format(path),
     }
 }

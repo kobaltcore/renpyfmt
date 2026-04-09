@@ -5,6 +5,7 @@ use crate::{
     lexer::{Block, Lexer},
 };
 use anyhow::{bail, Context, Result};
+use indicatif::ProgressBar;
 use std::fs;
 use std::path::{Path, PathBuf};
 use walkdir::WalkDir;
@@ -524,25 +525,30 @@ fn format_file(input_dir: &Path, input_file: &PathBuf) -> Result<bool> {
     Ok(true)
 }
 
-pub fn parse_directory(path: PathBuf) -> Result<()> {
+pub fn parse_directory(path: PathBuf, pb: ProgressBar) -> Result<()> {
     let files = collect_rpy_files(&path)?;
 
     if files.is_empty() {
-        println!("No .rpy files found under {}", path.display());
+        pb.finish_with_message("No .rpy files found");
         return Ok(());
     }
 
+    pb.set_length(files.len() as u64);
     let mut success_count = 0;
     let mut failures = vec![];
 
     for input_file in &files {
+        pb.set_message(input_file.display().to_string());
         match parse_file(&path, input_file) {
             Ok(()) => {
                 success_count += 1;
             }
             Err(err) => failures.push((input_file.clone(), err)),
         }
+        pb.inc(1);
     }
+
+    pb.finish_and_clear();
 
     for (path, err) in &failures {
         eprintln!("error: {}", path.display());
@@ -564,19 +570,21 @@ pub fn parse_directory(path: PathBuf) -> Result<()> {
     Ok(())
 }
 
-pub fn format_directory(path: PathBuf) -> Result<()> {
+pub fn format_directory(path: PathBuf, pb: ProgressBar) -> Result<()> {
     let files = collect_rpy_files(&path)?;
 
     if files.is_empty() {
-        println!("No .rpy files found under {}", path.display());
+        pb.finish_with_message("No .rpy files found");
         return Ok(());
     }
 
+    pb.set_length(files.len() as u64);
     let mut unchanged_count = 0;
     let mut formatted_count = 0;
     let mut failures = vec![];
 
     for input_file in &files {
+        pb.set_message(input_file.display().to_string());
         match format_file(&path, input_file) {
             Ok(true) => {
                 formatted_count += 1;
@@ -586,7 +594,10 @@ pub fn format_directory(path: PathBuf) -> Result<()> {
             }
             Err(err) => failures.push((input_file.clone(), err)),
         }
+        pb.inc(1);
     }
+
+    pb.finish_and_clear();
 
     for (path, err) in &failures {
         eprintln!("error: {}", path.display());
