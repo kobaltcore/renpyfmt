@@ -340,6 +340,43 @@ fn formats_supported_media_and_atl_statement_variants() {
 }
 
 #[test]
+fn no_trailing_whitespace_on_lines() {
+    use crate::ast::{Python, PythonOneLine, Say};
+
+    let ast = vec![
+        AstNode::Say(Say {
+            what: "hello".into(),
+            interact: true,
+            ..Default::default()
+        }),
+        AstNode::Python(Python {
+            python_code: "x = 1\n\ny = 2".into(),
+            ..Default::default()
+        }),
+        AstNode::PythonOneLine(PythonOneLine {
+            python_code: "z = 3  ".into(),
+            ..Default::default()
+        }),
+        AstNode::Say(Say {
+            what: "world".into(),
+            interact: true,
+            ..Default::default()
+        }),
+    ];
+
+    let formatted = format_ast(&ast);
+    for (i, line) in formatted.lines().enumerate() {
+        assert_eq!(
+            line,
+            line.trim_end(),
+            "trailing whitespace on line {}: {:?}",
+            i + 1,
+            line
+        );
+    }
+}
+
+#[test]
 fn formats_translate_and_raw_block_statements() {
     let ast = vec![
         AstNode::Init(Init {

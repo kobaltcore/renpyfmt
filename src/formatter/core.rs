@@ -36,6 +36,12 @@ impl Formatter {
         while self.out.ends_with('\n') {
             self.out.pop();
         }
+        self.out = self
+            .out
+            .split('\n')
+            .map(|line| line.trim_end())
+            .collect::<Vec<_>>()
+            .join("\n");
         self.out
     }
 
