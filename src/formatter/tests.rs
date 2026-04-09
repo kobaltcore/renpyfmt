@@ -1,7 +1,7 @@
 use crate::{
     ast::{
-        AstNode, Call, Camera, CompileIf, Default_, EarlyPython, If, Image, ImageSpecifier, Init,
-        Jump, Label, Menu, Pass, Python, Say, Scene, Show, ShowLayer, Testcase, Testsuite,
+        AstNode, Call, Camera, CompileIf, Default_, EarlyPython, If, Image, ImageSpecifier,
+        Init, Jump, Label, Menu, Pass, Python, Say, Scene, Show, ShowLayer, Testcase, Testsuite,
         Translate, TranslateBlock, TranslateEarlyBlock, TranslateString, While,
     },
     atl::{
@@ -374,6 +374,81 @@ fn no_trailing_whitespace_on_lines() {
             line
         );
     }
+}
+
+#[test]
+fn show_scene_hide_with_clause_on_same_line() {
+    use crate::ast::{Hide, With};
+
+    let ast = vec![
+        AstNode::With(With {
+            loc: (PathBuf::from("test.rpy"), 1),
+            expr: "None".into(),
+            paired: Some("dissolve".into()),
+        }),
+        AstNode::Show(Show {
+            imspec: Some(image(&["eileen", "happy"])),
+            ..Default::default()
+        }),
+        AstNode::With(With {
+            loc: (PathBuf::from("test.rpy"), 1),
+            expr: "dissolve".into(),
+            paired: None,
+        }),
+        AstNode::With(With {
+            loc: (PathBuf::from("test.rpy"), 2),
+            expr: "None".into(),
+            paired: Some("fade".into()),
+        }),
+        AstNode::Scene(Scene {
+            imspec: Some(image(&["bg", "room"])),
+            ..Default::default()
+        }),
+        AstNode::With(With {
+            loc: (PathBuf::from("test.rpy"), 2),
+            expr: "fade".into(),
+            paired: None,
+        }),
+        AstNode::Hide(Hide {
+            loc: (PathBuf::from("test.rpy"), 3),
+            imgspec: image(&["eileen"]),
+        }),
+        AstNode::With(With {
+            loc: (PathBuf::from("test.rpy"), 3),
+            expr: "dissolve".into(),
+            paired: None,
+        }),
+    ];
+
+    assert_eq!(
+        format_ast(&ast),
+        concat!(
+            "show eileen happy with dissolve\n",
+            "\n",
+            "scene bg room with fade\n",
+            "hide eileen with dissolve"
+        )
+    );
+}
+
+#[test]
+fn standalone_with_on_own_line() {
+    use crate::ast::{Say, With};
+
+    let ast = vec![
+        AstNode::Say(Say {
+            what: "hello".into(),
+            interact: true,
+            ..Default::default()
+        }),
+        AstNode::With(With {
+            loc: (PathBuf::from("test.rpy"), 1),
+            expr: "dissolve".into(),
+            paired: None,
+        }),
+    ];
+
+    assert_eq!(format_ast(&ast), concat!("\"hello\"\n", "with dissolve"));
 }
 
 #[test]

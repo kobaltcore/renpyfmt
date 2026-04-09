@@ -28,14 +28,18 @@ impl Formatter {
         self.indented(|formatter| formatter.nodes(&node.block));
     }
 
-    pub(crate) fn emit_scene(&mut self, node: &Scene) {
-        let line = match &node.imspec {
+    pub(crate) fn emit_scene(&mut self, node: &Scene, with_suffix: Option<&With>) {
+        let mut line = match &node.imspec {
             Some(image) => format!("scene {}", format_image_specifier(image)),
             None => match &node.layer {
                 Some(layer) => format!("scene onlayer {layer}"),
                 None => String::from("scene"),
             },
         };
+
+        if let Some(with) = with_suffix {
+            line.push_str(&format!(" with {}", with.expr));
+        }
 
         if let Some(atl) = &node.atl {
             self.line(&format!("{line}:"));
@@ -49,12 +53,16 @@ impl Formatter {
         }
     }
 
-    pub(crate) fn emit_show(&mut self, node: &Show) {
+    pub(crate) fn emit_show(&mut self, node: &Show, with_suffix: Option<&With>) {
         let image = node
             .imspec
             .as_ref()
             .expect("parser should construct show image specifiers");
-        let line = format!("show {}", format_image_specifier(image));
+        let mut line = format!("show {}", format_image_specifier(image));
+
+        if let Some(with) = with_suffix {
+            line.push_str(&format!(" with {}", with.expr));
+        }
 
         if let Some(atl) = &node.atl {
             self.line(&format!("{line}:"));
@@ -111,8 +119,12 @@ impl Formatter {
         self.line(&parts.join(" "));
     }
 
-    pub(crate) fn emit_hide(&mut self, node: &Hide) {
-        self.line(&format!("hide {}", format_image_specifier(&node.imgspec)));
+    pub(crate) fn emit_hide(&mut self, node: &Hide, with_suffix: Option<&With>) {
+        let mut line = format!("hide {}", format_image_specifier(&node.imgspec));
+        if let Some(with) = with_suffix {
+            line.push_str(&format!(" with {}", with.expr));
+        }
+        self.line(&line);
     }
 
     pub(crate) fn emit_python_one_line(&mut self, node: &PythonOneLine) {

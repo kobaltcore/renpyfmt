@@ -4,3 +4,4 @@
 - [ ] fix comments being removed due to not being parsed
 - [ ] don't wrap transform and define statements (and probably some others) in an init block if they aren't already in one
 - [ ] check if python blocks are being formatted correctly. if not add ruff to format them
+- [ ] say statements should have a newline after them

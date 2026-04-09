@@ -1,4 +1,4 @@
-use crate::ast::AstNode;
+use crate::ast::{AstNode, With};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Mode {
@@ -46,12 +46,35 @@ impl Formatter {
     }
 
     pub(crate) fn nodes(&mut self, nodes: &[AstNode]) {
-        for node in nodes {
-            self.node(node);
+        let mut i = 0;
+        while i < nodes.len() {
+            let node = &nodes[i];
+
+            let with_suffix = match node {
+                AstNode::Show(_) | AstNode::Scene(_) | AstNode::Hide(_) => {
+                    nodes.get(i + 1).and_then(|next| match next {
+                        AstNode::With(w) if w.paired.is_none() && w.expr != "None" => Some(w),
+                        _ => None,
+                    })
+                }
+                _ => None,
+            };
+
+            if with_suffix.is_some() {
+                self.node_with_suffix(node, with_suffix);
+                i += 2;
+            } else {
+                self.node(node);
+                i += 1;
+            }
         }
     }
 
     pub(crate) fn node(&mut self, node: &AstNode) {
+        self.node_with_suffix(node, None);
+    }
+
+    pub(crate) fn node_with_suffix(&mut self, node: &AstNode, with_suffix: Option<&With>) {
         if self.indent == 0 {
             let kind = self.node_kind(node);
             if matches!(kind, NodeKind::Scene) && self.previous_top_level_kind.is_some() {
@@ -62,12 +85,12 @@ impl Formatter {
 
         match node {
             AstNode::Label(node) => self.emit_label(node),
-            AstNode::Scene(node) => self.emit_scene(node),
-            AstNode::Show(node) => self.emit_show(node),
+            AstNode::Scene(node) => self.emit_scene(node, with_suffix),
+            AstNode::Show(node) => self.emit_show(node, with_suffix),
             AstNode::With(node) => self.emit_with(node),
             AstNode::Say(node) => self.emit_say(node),
             AstNode::UserStatement(node) => self.line(&node.line),
-            AstNode::Hide(node) => self.emit_hide(node),
+            AstNode::Hide(node) => self.emit_hide(node, with_suffix),
             AstNode::PythonOneLine(node) => self.emit_python_one_line(node),
             AstNode::Jump(node) => self.emit_jump(node),
             AstNode::Menu(node) => self.emit_menu(node),
