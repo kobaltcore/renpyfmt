@@ -1,7 +1,7 @@
 - [x] Add progress bar to parse and format operations
 - [x] fix trailing whitespace after formatting
-- [ ] if a with statement is already on a line with a show statement, don't put it on a new line
-- [ ] fix comments being removed due to not being parsed
+- [x] if a with statement is already on a line with a show statement, don't put it on a new line
+- [x] say statements should have a newline after them
 - [ ] don't wrap transform and define statements (and probably some others) in an init block if they aren't already in one
+- [ ] fix comments being removed due to not being parsed
 - [ ] check if python blocks are being formatted correctly. if not add ruff to format them
-- [ ] say statements should have a newline after them
