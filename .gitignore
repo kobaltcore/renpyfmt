@@ -1,3 +1,4 @@
+tarpaulin-report.html
 *.rpy
 bin/
 Experiments.ipynb
