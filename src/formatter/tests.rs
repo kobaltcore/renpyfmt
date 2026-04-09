@@ -1,7 +1,15 @@
 use crate::{
-    ast::{AstNode, Call, If, ImageSpecifier, Jump, Label, Menu, Say, Scene, Show},
-    atl::{AtlStatement, RawBlock, RawChoice, RawMultipurpose, RawParallel},
+    ast::{
+        AstNode, Call, Camera, CompileIf, Default_, EarlyPython, If, Image, ImageSpecifier, Init,
+        Jump, Label, Menu, Pass, Python, Say, Scene, Show, ShowLayer, Testcase, Testsuite,
+        Translate, TranslateBlock, TranslateEarlyBlock, TranslateString, While,
+    },
+    atl::{
+        AtlStatement, RawBlock, RawChoice, RawContainsExpr, RawEvent, RawFunction, RawMultipurpose,
+        RawOn, RawParallel, RawRepeat, RawTime,
+    },
     formatter::format_ast,
+    lexer::Block,
 };
 use std::path::PathBuf;
 
@@ -185,4 +193,230 @@ fn inserts_blank_line_before_top_level_scene() {
     ];
 
     assert_eq!(format_ast(&ast), "\"hello\"\n\nscene bg room");
+}
+
+#[test]
+fn formats_supported_flow_and_init_statements() {
+    let ast = vec![
+        AstNode::Init(Init {
+            priority: 5,
+            block: vec![AstNode::Default(Default_ {
+                store: "store.persistent".into(),
+                name: "answer".into(),
+                expr: Some("42".into()),
+                ..Default::default()
+            })],
+            ..Default::default()
+        }),
+        AstNode::EarlyPython(EarlyPython {
+            hide: true,
+            store: "store.mystore".into(),
+            python_code: "total = 1".into(),
+            ..Default::default()
+        }),
+        AstNode::If(If {
+            entries: vec![
+                (
+                    Some("seen_intro".into()),
+                    vec![AstNode::Pass(Pass::default())],
+                ),
+                (
+                    None,
+                    vec![AstNode::While(While {
+                        condition: "waiting".into(),
+                        block: vec![AstNode::Pass(Pass::default())],
+                        ..Default::default()
+                    })],
+                ),
+            ],
+            ..Default::default()
+        }),
+        AstNode::CompileIf(CompileIf {
+            entries: vec![
+                (
+                    Some("renpy.version_tuple >= (8, 0)".into()),
+                    vec![AstNode::Pass(Pass::default())],
+                ),
+                (None, vec![AstNode::Pass(Pass::default())]),
+            ],
+            ..Default::default()
+        }),
+    ];
+
+    assert_eq!(
+        format_ast(&ast),
+        concat!(
+            "init 5:\n",
+            "    default persistent.answer = 42\n",
+            "python early hide in mystore:\n",
+            "    total = 1\n",
+            "if seen_intro:\n",
+            "    pass\n",
+            "else:\n",
+            "    while waiting:\n",
+            "        pass\n",
+            "IF renpy.version_tuple >= (8, 0):\n",
+            "    pass\n",
+            "ELSE:\n",
+            "    pass"
+        )
+    );
+}
+
+#[test]
+fn formats_supported_media_and_atl_statement_variants() {
+    let ast = vec![
+        AstNode::ShowLayer(ShowLayer {
+            layer: "overlay".into(),
+            at_list: vec!["left".into()],
+            atl: Some(RawBlock {
+                animation: true,
+                statements: vec![
+                    Some(AtlStatement::RawContainsExpr(RawContainsExpr {
+                        expr: "icon_idle".into(),
+                        ..Default::default()
+                    })),
+                    Some(AtlStatement::RawOn(RawOn {
+                        names: vec!["show".into(), "hide".into()],
+                        block: RawBlock {
+                            statements: vec![None],
+                            ..Default::default()
+                        },
+                        ..Default::default()
+                    })),
+                    Some(AtlStatement::RawTime(RawTime {
+                        time: "1.0".into(),
+                        ..Default::default()
+                    })),
+                    Some(AtlStatement::RawFunction(RawFunction {
+                        expr: "callback".into(),
+                        ..Default::default()
+                    })),
+                    Some(AtlStatement::RawEvent(RawEvent {
+                        name: "startled".into(),
+                        ..Default::default()
+                    })),
+                    Some(AtlStatement::RawRepeat(RawRepeat {
+                        repeats: Some("2".into()),
+                        ..Default::default()
+                    })),
+                ],
+                ..Default::default()
+            }),
+            ..Default::default()
+        }),
+        AstNode::Camera(Camera {
+            at_list: vec!["wobble".into()],
+            ..Default::default()
+        }),
+        AstNode::Init(Init {
+            priority: 500,
+            block: vec![AstNode::Image(Image {
+                name: vec!["logo".into(), "idle".into()],
+                expr: Some("\"room.webp\"".into()),
+                ..Default::default()
+            })],
+            ..Default::default()
+        }),
+    ];
+
+    assert_eq!(
+        format_ast(&ast),
+        concat!(
+            "show layer overlay at left:\n",
+            "    animation\n",
+            "    contains icon_idle\n",
+            "    on show, hide:\n",
+            "        pass\n",
+            "    time 1.0\n",
+            "    function callback\n",
+            "    event startled\n",
+            "    repeat 2\n",
+            "camera at wobble\n",
+            "init 500:\n",
+            "    image logo idle = \"room.webp\""
+        )
+    );
+}
+
+#[test]
+fn formats_translate_and_raw_block_statements() {
+    let ast = vec![
+        AstNode::Init(Init {
+            block: vec![AstNode::TranslateString(TranslateString {
+                old: "\"Hello\"".into(),
+                new: "\"Hi\"".into(),
+                ..Default::default()
+            })],
+            ..Default::default()
+        }),
+        AstNode::Translate(Translate {
+            language: Some("english".into()),
+            identifier: "start".into(),
+            block: vec![AstNode::Pass(Pass::default())],
+            ..Default::default()
+        }),
+        AstNode::TranslateBlock(TranslateBlock {
+            language: Some("english".into()),
+            block: vec![AstNode::Label(Label {
+                name: "nested".into(),
+                block: vec![],
+                ..Default::default()
+            })],
+            ..Default::default()
+        }),
+        AstNode::TranslateEarlyBlock(TranslateEarlyBlock {
+            language: Some("french".into()),
+            block: vec![AstNode::Python(Python {
+                python_code: "count = 3".into(),
+                ..Default::default()
+            })],
+            ..Default::default()
+        }),
+        AstNode::Testcase(Testcase {
+            name: "foo.bar".into(),
+            block: vec![Block {
+                filename: PathBuf::from("test.rpy"),
+                number: 1,
+                text: "assert x".into(),
+                block: vec![],
+            }],
+            ..Default::default()
+        }),
+        AstNode::Testsuite(Testsuite {
+            name: "foo.bar".into(),
+            block: vec![Block {
+                filename: PathBuf::from("test.rpy"),
+                number: 1,
+                text: "testcase nested:".into(),
+                block: vec![Block {
+                    filename: PathBuf::from("test.rpy"),
+                    number: 2,
+                    text: "assert y".into(),
+                    block: vec![],
+                }],
+            }],
+            ..Default::default()
+        }),
+    ];
+
+    assert_eq!(
+        format_ast(&ast),
+        concat!(
+            "translate None strings:\n",
+            "    old \"Hello\"\n",
+            "    new \"Hi\"\n",
+            "translate english start:\n",
+            "    pass\n",
+            "translate english:\n",
+            "    label nested:\n",
+            "translate french python:\n",
+            "    count = 3\n",
+            "testcase foo.bar:\n",
+            "    assert x\n",
+            "testsuite foo.bar:\n",
+            "    testcase nested:\n",
+            "        assert y"
+        )
+    );
 }

@@ -66,30 +66,30 @@ impl Formatter {
             AstNode::Jump(node) => self.emit_jump(node),
             AstNode::Menu(node) => self.emit_menu(node),
             AstNode::If(node) => self.emit_if(node),
-            AstNode::While(_node) => todo!("while"),
-            AstNode::CompileIf(_node) => todo!("compile if"),
+            AstNode::While(node) => self.emit_while(node),
+            AstNode::CompileIf(node) => self.emit_compile_if(node),
             AstNode::Return(node) => self.emit_return(node),
             AstNode::Style(node) => self.emit_style(node),
             AstNode::Init(node) => self.emit_init(node),
             AstNode::Python(node) => self.emit_python(node),
-            AstNode::EarlyPython(_node) => todo!("early python"),
+            AstNode::EarlyPython(node) => self.emit_early_python(node),
             AstNode::Define(node) => self.emit_define(node),
-            AstNode::Default(_node) => todo!("default"),
+            AstNode::Default(node) => self.emit_default(node),
             AstNode::Call(node) => self.emit_call(node),
-            AstNode::Pass(_node) => todo!("pass"),
-            AstNode::Transform(_node) => todo!("transform"),
-            AstNode::ShowLayer(_node) => todo!("show layer"),
-            AstNode::Camera(_node) => todo!("camera"),
+            AstNode::Pass(node) => self.emit_pass(node),
+            AstNode::Transform(node) => self.emit_transform(node),
+            AstNode::ShowLayer(node) => self.emit_show_layer(node),
+            AstNode::Camera(node) => self.emit_camera(node),
             AstNode::Screen(_node) => todo!("screen"),
-            AstNode::Image(_node) => todo!("image"),
-            AstNode::RPY(_node) => todo!("rpy"),
-            AstNode::Translate(_node) => todo!("translate"),
-            AstNode::EndTranslate(_node) => todo!("end translate"),
-            AstNode::TranslateString(_node) => todo!("translate string"),
-            AstNode::TranslateBlock(_node) => todo!("translate block"),
-            AstNode::TranslateEarlyBlock(_node) => todo!("translate early block"),
-            AstNode::Testcase(_node) => todo!("testcase"),
-            AstNode::Testsuite(_node) => todo!("testsuite"),
+            AstNode::Image(node) => self.emit_image(node),
+            AstNode::RPY(node) => self.emit_rpy(node),
+            AstNode::Translate(node) => self.emit_translate(node),
+            AstNode::EndTranslate(node) => self.emit_end_translate(node),
+            AstNode::TranslateString(node) => self.emit_translate_string(node),
+            AstNode::TranslateBlock(node) => self.emit_translate_block(node),
+            AstNode::TranslateEarlyBlock(node) => self.emit_translate_early_block(node),
+            AstNode::Testcase(node) => self.emit_testcase(node),
+            AstNode::Testsuite(node) => self.emit_testsuite(node),
         }
     }
 
@@ -102,6 +102,12 @@ impl Formatter {
 
     pub(crate) fn line(&mut self, text: &str) {
         self.write_indent();
+        self.out.push_str(text);
+        self.out.push('\n');
+        self.at_line_start = true;
+    }
+
+    pub(crate) fn literal_line(&mut self, text: &str) {
         self.out.push_str(text);
         self.out.push('\n');
         self.at_line_start = true;
@@ -126,6 +132,10 @@ impl Formatter {
         let result = f(self);
         self.mode = previous;
         result
+    }
+
+    pub(crate) fn current_indent(&self) -> usize {
+        self.indent
     }
 
     fn write_indent(&mut self) {

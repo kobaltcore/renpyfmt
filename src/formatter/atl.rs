@@ -4,18 +4,28 @@ use super::core::{Formatter, Mode};
 
 impl Formatter {
     pub(crate) fn emit_atl_block(&mut self, block: &RawBlock) {
+        if block.animation {
+            self.line("animation");
+        }
+
         match self.mode {
             Mode::AtlDirectChild => {
-                for statement in block.statements.iter().flatten() {
-                    self.emit_atl_statement(statement);
+                for statement in &block.statements {
+                    match statement {
+                        Some(statement) => self.emit_atl_statement(statement),
+                        None => self.line("pass"),
+                    }
                 }
             }
             Mode::AtlNestedBlock | Mode::Script => {
                 self.line("block:");
                 self.indented(|formatter| {
                     formatter.with_mode(Mode::AtlDirectChild, |formatter| {
-                        for statement in block.statements.iter().flatten() {
-                            formatter.emit_atl_statement(statement);
+                        for statement in &block.statements {
+                            match statement {
+                                Some(statement) => formatter.emit_atl_statement(statement),
+                                None => formatter.line("pass"),
+                            }
                         }
                     });
                 });
@@ -37,8 +47,15 @@ impl Formatter {
                     formatter.emit_atl_block(node)
                 });
             }
-            AtlStatement::RawContainsExpr(_node) => todo!("raw contains expr"),
-            AtlStatement::RawChild(_node) => todo!("raw child"),
+            AtlStatement::RawContainsExpr(node) => self.line(&format!("contains {}", node.expr)),
+            AtlStatement::RawChild(node) => {
+                self.line("contains:");
+                self.indented(|formatter| {
+                    formatter.with_mode(Mode::AtlDirectChild, |formatter| {
+                        formatter.emit_atl_block(&node.child)
+                    });
+                });
+            }
             AtlStatement::RawParallel(node) => {
                 self.line("parallel:");
                 self.indented(|formatter| {
@@ -59,10 +76,17 @@ impl Formatter {
                     });
                 });
             }
-            AtlStatement::RawOn(_node) => todo!("raw on"),
-            AtlStatement::RawTime(_node) => todo!("raw time"),
-            AtlStatement::RawFunction(_node) => todo!("raw function"),
-            AtlStatement::RawEvent(_node) => todo!("raw event"),
+            AtlStatement::RawOn(node) => {
+                self.line(&format!("on {}:", node.names.join(", ")));
+                self.indented(|formatter| {
+                    formatter.with_mode(Mode::AtlDirectChild, |formatter| {
+                        formatter.emit_atl_block(&node.block)
+                    });
+                });
+            }
+            AtlStatement::RawTime(node) => self.line(&format!("time {}", node.time)),
+            AtlStatement::RawFunction(node) => self.line(&format!("function {}", node.expr)),
+            AtlStatement::RawEvent(node) => self.line(&format!("event {}", node.name)),
             AtlStatement::RawMultipurpose(node) => {
                 let mut parts = vec![];
 
