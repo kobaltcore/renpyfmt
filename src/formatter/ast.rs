@@ -82,7 +82,7 @@ impl Formatter {
         }
     }
 
-    pub(crate) fn emit_say(&mut self, node: &Say) {
+    pub(crate) fn emit_say(&mut self, node: &Say, with_suffix: Option<&With>) {
         let mut parts = vec![];
 
         if let Some(who) = &node.who {
@@ -116,7 +116,12 @@ impl Formatter {
             parts.push(format!("id {identifier}"));
         }
 
+        if let Some(with) = with_suffix {
+            parts.push(format!("with {}", with.expr));
+        }
+
         self.line(&parts.join(" "));
+        self.blank_line();
     }
 
     pub(crate) fn emit_hide(&mut self, node: &Hide, with_suffix: Option<&With>) {

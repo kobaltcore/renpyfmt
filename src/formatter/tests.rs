@@ -1,7 +1,7 @@
 use crate::{
     ast::{
-        AstNode, Call, Camera, CompileIf, Default_, EarlyPython, If, Image, ImageSpecifier,
-        Init, Jump, Label, Menu, Pass, Python, Say, Scene, Show, ShowLayer, Testcase, Testsuite,
+        AstNode, Call, Camera, CompileIf, Default_, EarlyPython, If, Image, ImageSpecifier, Init,
+        Jump, Label, Menu, Pass, Python, Say, Scene, Show, ShowLayer, Testcase, Testsuite,
         Translate, TranslateBlock, TranslateEarlyBlock, TranslateString, While,
     },
     atl::{
@@ -57,7 +57,7 @@ fn formats_label_block_without_embedded_extra_newlines() {
 
     assert_eq!(
         format_ast(&ast),
-        "label start:\n    e \"Hello\"\n    jump next"
+        "label start:\n    e \"Hello\"\n\n    jump next"
     );
 }
 
@@ -96,6 +96,7 @@ fn formats_if_elif_else_blocks() {
         concat!(
             "if flag:\n",
             "    \"yes\"\n",
+            "\n",
             "elif other:\n",
             "    jump other_label\n",
             "else:\n",
@@ -448,7 +449,7 @@ fn standalone_with_on_own_line() {
         }),
     ];
 
-    assert_eq!(format_ast(&ast), concat!("\"hello\"\n", "with dissolve"));
+    assert_eq!(format_ast(&ast), "\"hello\" with dissolve");
 }
 
 #[test]

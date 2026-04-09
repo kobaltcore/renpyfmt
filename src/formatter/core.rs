@@ -51,7 +51,7 @@ impl Formatter {
             let node = &nodes[i];
 
             let with_suffix = match node {
-                AstNode::Show(_) | AstNode::Scene(_) | AstNode::Hide(_) => {
+                AstNode::Show(_) | AstNode::Scene(_) | AstNode::Hide(_) | AstNode::Say(_) => {
                     nodes.get(i + 1).and_then(|next| match next {
                         AstNode::With(w) if w.paired.is_none() && w.expr != "None" => Some(w),
                         _ => None,
@@ -88,7 +88,7 @@ impl Formatter {
             AstNode::Scene(node) => self.emit_scene(node, with_suffix),
             AstNode::Show(node) => self.emit_show(node, with_suffix),
             AstNode::With(node) => self.emit_with(node),
-            AstNode::Say(node) => self.emit_say(node),
+            AstNode::Say(node) => self.emit_say(node, with_suffix),
             AstNode::UserStatement(node) => self.line(&node.line),
             AstNode::Hide(node) => self.emit_hide(node, with_suffix),
             AstNode::PythonOneLine(node) => self.emit_python_one_line(node),
