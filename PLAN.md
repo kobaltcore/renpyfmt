@@ -124,9 +124,7 @@ Replace the hardcoded custom-statement allowlist in `src/parser/registry.rs` wit
 
 Still open:
 
-1. move more preprocessing logic out of `main.rs`
-2. expose reusable `parse_str` / `parse_file` style APIs
-3. separate CLI/demo behavior more cleanly from reusable library code
+1. expose reusable `parse_str` / `parse_file` style APIs
 
 ## Definition Of Done For This Stage
 
