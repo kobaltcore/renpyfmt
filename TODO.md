@@ -1,0 +1,5 @@
+- Add progress bar to parse and format operations
+- if a with statement is already on a line with a show statement, don't put it on a new line
+- fix comments being removed due to not being parsed
+- don't put transform statements into an init block if they aren't already in one
+- check if python blocks are being formatted correctly. if not add ruff to format them
