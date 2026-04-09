@@ -1,6 +1,6 @@
-use anyhow::{Result, bail};
+use anyhow::Result;
 use clap::{Parser, Subcommand};
-use renpyfmt::project::parse_directory;
+use renpyfmt::project::{format_directory, parse_directory};
 use std::path::PathBuf;
 
 #[derive(Parser)]
@@ -24,7 +24,7 @@ enum Commands {
 }
 
 fn run_format(path: PathBuf) -> Result<()> {
-    bail!("format is not implemented yet for {}", path.display())
+    format_directory(path)
 }
 
 fn main() -> Result<()> {

@@ -1,6 +1,10 @@
-use crate::lexer::{Block, Lexer};
 use crate::parser::parse_block;
-use anyhow::{Context, Result, bail};
+use crate::{
+    ast::AstNode,
+    formatter::format_ast,
+    lexer::{Block, Lexer},
+};
+use anyhow::{bail, Context, Result};
 use std::fs;
 use std::path::{Path, PathBuf};
 use walkdir::WalkDir;
@@ -478,7 +482,7 @@ fn collect_rpy_files(path: &Path) -> Result<Vec<PathBuf>> {
     Ok(files)
 }
 
-fn parse_file(input_dir: &Path, input_file: &PathBuf) -> Result<()> {
+fn parse_file_ast(input_dir: &Path, input_file: &PathBuf) -> Result<Vec<AstNode>> {
     let ctx = LexerContext {
         input_dir: input_dir.to_path_buf(),
     };
@@ -489,9 +493,35 @@ fn parse_file(input_dir: &Path, input_file: &PathBuf) -> Result<()> {
         .with_context(|| format!("Failed to group logical lines for {}", input_file.display()))?;
 
     let mut lex = Lexer::new(nested);
-    parse_block(&mut lex).with_context(|| format!("Failed to parse {}", input_file.display()))?;
+    parse_block(&mut lex).with_context(|| format!("Failed to parse {}", input_file.display()))
+}
+
+fn parse_file(input_dir: &Path, input_file: &PathBuf) -> Result<()> {
+    parse_file_ast(input_dir, input_file).map(|_| ())?;
 
     Ok(())
+}
+
+fn format_file(input_dir: &Path, input_file: &PathBuf) -> Result<bool> {
+    let ast = parse_file_ast(input_dir, input_file)?;
+    let formatted = format_ast(&ast);
+    let output = if formatted.is_empty() {
+        String::new()
+    } else {
+        format!("{formatted}\n")
+    };
+
+    let existing = fs::read_to_string(input_file)
+        .with_context(|| format!("Failed to read {}", input_file.display()))?;
+
+    if existing == output {
+        return Ok(false);
+    }
+
+    fs::write(input_file, output)
+        .with_context(|| format!("Failed to write {}", input_file.display()))?;
+
+    Ok(true)
 }
 
 pub fn parse_directory(path: PathBuf) -> Result<()> {
@@ -529,6 +559,51 @@ pub fn parse_directory(path: PathBuf) -> Result<()> {
 
     if !failures.is_empty() {
         bail!("encountered parse errors")
+    }
+
+    Ok(())
+}
+
+pub fn format_directory(path: PathBuf) -> Result<()> {
+    let files = collect_rpy_files(&path)?;
+
+    if files.is_empty() {
+        println!("No .rpy files found under {}", path.display());
+        return Ok(());
+    }
+
+    let mut unchanged_count = 0;
+    let mut formatted_count = 0;
+    let mut failures = vec![];
+
+    for input_file in &files {
+        match format_file(&path, input_file) {
+            Ok(true) => {
+                formatted_count += 1;
+            }
+            Ok(false) => {
+                unchanged_count += 1;
+            }
+            Err(err) => failures.push((input_file.clone(), err)),
+        }
+    }
+
+    for (path, err) in &failures {
+        eprintln!("error: {}", path.display());
+        eprintln!("{err:#}");
+        eprintln!();
+    }
+
+    println!(
+        "Formatted {} .rpy file(s): {} changed, {} unchanged, {} failed",
+        files.len(),
+        formatted_count,
+        unchanged_count,
+        failures.len()
+    );
+
+    if !failures.is_empty() {
+        bail!("encountered format errors")
     }
 
     Ok(())
