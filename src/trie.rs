@@ -1,7 +1,8 @@
 use crate::{
     ast::{
-        AstNode, Call, Default_, Define, Hide, If, Image, Init, Jump, Label, Menu, Pass, Python,
-        PythonOneLine, Return, Say, Scene, Screen, Show, Style, Transform, UserStatement, With,
+        AstNode, Call, Camera, Default_, Define, Hide, If, Image, Init, Jump, Label, Menu, Pass,
+        Python, PythonOneLine, Return, Say, Scene, Screen, Show, Style, Transform, UserStatement,
+        While, With, RPY,
     },
     error::Result,
     lexer::Lexer,
@@ -35,6 +36,7 @@ impl ParseTrie {
         self.add(vec!["jump".into()], Box::new(Jump::default()));
         self.add(vec!["menu".into()], Box::new(Menu::default()));
         self.add(vec!["if".into()], Box::new(If::default()));
+        self.add(vec!["while".into()], Box::new(While::default()));
         self.add(vec!["return".into()], Box::new(Return::default()));
         self.add(vec!["style".into()], Box::new(Style::default()));
         self.add(vec!["init".into()], Box::new(Init::default()));
@@ -44,8 +46,10 @@ impl ParseTrie {
         self.add(vec!["call".into()], Box::new(Call::default()));
         self.add(vec!["pass".into()], Box::new(Pass::default()));
         self.add(vec!["transform".into()], Box::new(Transform::default()));
+        self.add(vec!["camera".into()], Box::new(Camera::default()));
         self.add(vec!["screen".into()], Box::new(Screen::default()));
         self.add(vec!["image".into()], Box::new(Image::default()));
+        self.add(vec!["rpy".into()], Box::new(RPY::default()));
 
         let custom_statements = vec![
             // built-in custom statements

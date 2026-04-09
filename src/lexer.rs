@@ -530,7 +530,7 @@ impl Lexer {
             LexerType::Type(t) => match t {
                 LexerTypeOptions::Name => self.name(),
                 LexerTypeOptions::Hash => todo!(),
-                LexerTypeOptions::Integer => todo!(),
+                LexerTypeOptions::Integer => self.integer(),
                 LexerTypeOptions::Word => self.word(),
                 LexerTypeOptions::LabelNameDeclare => self.label_name_declare(),
                 LexerTypeOptions::SimpleExpression => self.simple_expression(false, true),

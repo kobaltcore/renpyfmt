@@ -515,6 +515,7 @@ pub fn format_ast(ast: &Vec<AstNode>, indent: usize) -> Vec<String> {
             AstNode::If(node) => {
                 lines.push(node.format(indent, &ctx));
             }
+            AstNode::While(node) => todo!("while"),
             AstNode::Return(node) => {
                 lines.push(format!("{}\n", node.format(indent, &ctx)));
             }
@@ -537,8 +538,11 @@ pub fn format_ast(ast: &Vec<AstNode>, indent: usize) -> Vec<String> {
             }
             AstNode::Pass(node) => todo!("pass"),
             AstNode::Transform(node) => todo!("transform"),
+            AstNode::ShowLayer(node) => todo!("show layer"),
+            AstNode::Camera(node) => todo!("camera"),
             AstNode::Screen(node) => todo!("screen"),
             AstNode::Image(node) => todo!("image"),
+            AstNode::RPY(node) => todo!("rpy"),
         }
 
         // prev_node = Some(node.clone());

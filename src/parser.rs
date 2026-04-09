@@ -1,9 +1,9 @@
 use crate::{
     ast::{
-        ArgumentInfo, AstNode, Call, Default_, Define, EarlyPython, Hide, If, Image,
+        ArgumentInfo, AstNode, Call, Camera, Default_, Define, EarlyPython, Hide, If, Image,
         ImageSpecifier, Init, Jump, Label, Menu, Parameter, ParameterKind, ParameterSignature,
-        Pass, Python, PythonOneLine, Return, Say, Scene, Screen, Show, Style, Transform,
-        UserStatement, With,
+        Pass, Python, PythonOneLine, Return, Say, Scene, Screen, Show, ShowLayer, Style, Transform,
+        UserStatement, While, With, RPY,
     },
     atl::{
         AtlStatement, RawBlock, RawChild, RawChoice, RawContainsExpr, RawEvent, RawFunction,
@@ -235,35 +235,36 @@ fn parse_parameters(lex: &mut Lexer) -> Result<Option<ParameterSignature>> {
     Ok(Some(ParameterSignature { parameters }))
 }
 
+fn parse_label(lex: &mut Lexer, loc: (PathBuf, usize), init: bool) -> Result<Vec<AstNode>> {
+    let name = lex.require_or_error(
+        LexerType::Type(LexerTypeOptions::LabelNameDeclare),
+        "expected label name",
+    )?;
+    lex.set_global_label(Some(name.clone()));
+    let parameters = parse_parameters(lex)?;
+
+    let hide = lex.keyword("hide".into()).is_some();
+
+    lex.require_or_error(LexerType::String(":".into()), "expected ':'")?;
+    lex.expect_eol()?;
+
+    let block = parse_block(&mut lex.subblock_lexer(init))?;
+
+    lex.advance();
+
+    Ok(vec![AstNode::Label(Label {
+        loc,
+        name,
+        block,
+        parameters,
+        hide,
+        statement_start: None,
+    })])
+}
+
 impl Parser for Label {
     fn parse(&self, lex: &mut Lexer, loc: (PathBuf, usize)) -> Result<Vec<AstNode>> {
-        let name = lex.require_or_error(
-            LexerType::Type(LexerTypeOptions::LabelNameDeclare),
-            "expected label name",
-        )?;
-        lex.set_global_label(Some(name.clone()));
-        let parameters = parse_parameters(lex)?;
-
-        let hide = match lex.keyword("hide".into()) {
-            Some(_) => true,
-            None => false,
-        };
-
-        lex.require_or_error(LexerType::String(":".into()), "expected ':'")?;
-        lex.expect_eol()?;
-
-        let block = parse_block(&mut lex.subblock_lexer(false))?;
-
-        lex.advance();
-
-        return Ok(vec![AstNode::Label(Label {
-            loc,
-            name,
-            block,
-            parameters,
-            hide,
-            statement_start: None,
-        })]);
+        parse_label(lex, loc, false)
     }
 }
 
@@ -1307,6 +1308,37 @@ impl Parser for UserStatement {
 
 impl Parser for Show {
     fn parse(&self, lex: &mut Lexer, loc: (PathBuf, usize)) -> Result<Vec<AstNode>> {
+        if lex.keyword("layer".into()).is_some() {
+            let layer = lex.require_or_error(
+                LexerType::Type(LexerTypeOptions::ImageNameComponent),
+                "expected image name component",
+            )?;
+
+            let at_list = if lex.keyword("at".into()).is_some() {
+                parse_simple_expression_list(lex)?
+            } else {
+                vec![]
+            };
+
+            let atl = if lex.rmatch(":".into()).is_some() {
+                lex.expect_block()?;
+                Some(parse_atl(&mut lex.subblock_lexer(false))?)
+            } else {
+                lex.expect_noblock()?;
+                None
+            };
+
+            lex.expect_eol()?;
+            lex.advance();
+
+            return Ok(vec![AstNode::ShowLayer(ShowLayer {
+                loc,
+                layer,
+                at_list,
+                atl,
+            })]);
+        }
+
         let imspec = parse_image_specifier(lex)?;
         let stmt = Show {
             loc,
@@ -1663,6 +1695,25 @@ impl Parser for If {
         }
 
         Ok(vec![AstNode::If(If { loc, entries })])
+    }
+}
+
+impl Parser for While {
+    fn parse(&self, lex: &mut Lexer, loc: (PathBuf, usize)) -> Result<Vec<AstNode>> {
+        let condition = lex.python_expression()?;
+        lex.require_or_error(LexerType::String(":".into()), "expected ':'")?;
+        lex.expect_eol()?;
+        lex.expect_block()?;
+
+        let block = parse_block(&mut lex.subblock_lexer(false))?;
+
+        lex.advance();
+
+        Ok(vec![AstNode::While(While {
+            loc,
+            condition,
+            block,
+        })])
     }
 }
 
@@ -3232,6 +3283,28 @@ impl Parser for Style {
 
 impl Parser for Init {
     fn parse(&self, lex: &mut Lexer, loc: (PathBuf, usize)) -> Result<Vec<AstNode>> {
+        if lex.keyword("offset".into()).is_some() {
+            lex.require_or_error(LexerType::String("=".into()), "expected '='")?;
+            let offset = lex.require_or_error(
+                LexerType::Type(LexerTypeOptions::Integer),
+                "expected integer",
+            )?;
+
+            lex.expect_eol()?;
+            lex.expect_noblock()?;
+            lex.advance();
+
+            lex.init_offset = offset
+                .parse()
+                .map_err(|_| lex.parse_error("expected integer"))?;
+
+            return Ok(vec![]);
+        }
+
+        if lex.keyword("label".into()).is_some() {
+            return parse_label(lex, loc, true);
+        }
+
         let priority: isize = match lex.integer() {
             Some(p) => p.parse().map_err(|_| lex.parse_error("expected integer"))?,
             None => 0,
@@ -3580,6 +3653,36 @@ impl Parser for Transform {
     }
 }
 
+impl Parser for Camera {
+    fn parse(&self, lex: &mut Lexer, loc: (PathBuf, usize)) -> Result<Vec<AstNode>> {
+        let layer = lex.image_name_component().unwrap_or("master".into());
+
+        let at_list = if lex.keyword("at".into()).is_some() {
+            parse_simple_expression_list(lex)?
+        } else {
+            vec![]
+        };
+
+        let atl = if lex.rmatch(":".into()).is_some() {
+            lex.expect_block()?;
+            Some(parse_atl(&mut lex.subblock_lexer(false))?)
+        } else {
+            lex.expect_noblock()?;
+            None
+        };
+
+        lex.expect_eol()?;
+        lex.advance();
+
+        Ok(vec![AstNode::Camera(Camera {
+            loc,
+            layer,
+            at_list,
+            atl,
+        })])
+    }
+}
+
 impl Parser for Screen {
     fn parse(&self, lex: &mut Lexer, loc: (PathBuf, usize)) -> Result<Vec<AstNode>> {
         todo!("parse screen")
@@ -3630,10 +3733,64 @@ impl Parser for Image {
     }
 }
 
+impl Parser for RPY {
+    fn parse(&self, lex: &mut Lexer, loc: (PathBuf, usize)) -> Result<Vec<AstNode>> {
+        if lex.keyword("monologue".into()).is_some() {
+            if lex.keyword("double".into()).is_some() {
+                lex.monologue_delimiter = Some("\n\n".into());
+            } else if lex.keyword("single".into()).is_some() {
+                lex.monologue_delimiter = Some("\n".into());
+            } else if lex.keyword("none".into()).is_some() {
+                lex.monologue_delimiter = Some("".into());
+            } else {
+                return Err(lex.parse_error("rpy monologue expects either none, single or double."));
+            }
+
+            lex.expect_eol()?;
+            lex.expect_noblock()?;
+            lex.advance();
+
+            return Ok(vec![]);
+        }
+
+        if lex.keyword("python".into()).is_some() {
+            let mut rv = vec![];
+
+            loop {
+                let name = match lex.rmatch("3".into()) {
+                    Some(name) => name,
+                    None => lex.require_or_error(
+                        LexerType::Type(LexerTypeOptions::Word),
+                        "expected __future__ name",
+                    )?,
+                };
+
+                rv.push(AstNode::RPY(RPY {
+                    loc: loc.clone(),
+                    rest: vec!["python".into(), name],
+                }));
+
+                if lex.rmatch(",".into()).is_none() {
+                    break;
+                }
+            }
+
+            lex.expect_eol()?;
+            lex.expect_noblock()?;
+            lex.advance();
+
+            return Ok(rv);
+        }
+
+        Err(lex.parse_error("expected rpy statement"))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::parse_block;
     use crate::{
+        ast::AstNode,
         error::{ParseError, Result},
         lexer::{Block, Lexer},
     };
@@ -3659,6 +3816,10 @@ mod tests {
             err,
             ParseError::at((PathBuf::from("test.rpy"), line), expected),
         );
+    }
+
+    fn assert_parse(result: Result<Vec<AstNode>>) -> Vec<AstNode> {
+        result.expect("parse should succeed")
     }
 
     #[test]
@@ -3765,5 +3926,85 @@ mod tests {
             "reached end of line when expecting ')'",
             1,
         );
+    }
+
+    #[test]
+    fn while_statement_parses() {
+        let ast = assert_parse(parse(vec![block(
+            1,
+            "while flag:",
+            vec![block(2, "pass", vec![])],
+        )]));
+
+        assert!(
+            matches!(&ast[0], AstNode::While(node) if node.condition == "flag" && node.block.len() == 1)
+        );
+    }
+
+    #[test]
+    fn show_layer_statement_parses() {
+        let ast = assert_parse(parse(vec![block(
+            1,
+            "show layer master at left, right",
+            vec![],
+        )]));
+
+        assert!(
+            matches!(&ast[0], AstNode::ShowLayer(node) if node.layer == "master" && node.at_list == vec!["left", "right"])
+        );
+    }
+
+    #[test]
+    fn camera_statement_defaults_to_master() {
+        let ast = assert_parse(parse(vec![block(1, "camera", vec![])]));
+
+        assert!(
+            matches!(&ast[0], AstNode::Camera(node) if node.layer == "master" && node.at_list.is_empty())
+        );
+    }
+
+    #[test]
+    fn init_offset_updates_following_init_priority() {
+        let ast = assert_parse(parse(vec![
+            block(1, "init offset = 5", vec![]),
+            block(2, "define foo = 1", vec![]),
+        ]));
+
+        assert!(matches!(&ast[0], AstNode::Init(node) if node.priority == 5));
+    }
+
+    #[test]
+    fn init_label_uses_init_subblock() {
+        let ast = assert_parse(parse(vec![block(
+            1,
+            "init label start:",
+            vec![block(2, "define foo = 1", vec![])],
+        )]));
+
+        assert!(
+            matches!(&ast[0], AstNode::Label(node) if node.name == "start" && matches!(&node.block[0], AstNode::Define(_)))
+        );
+    }
+
+    #[test]
+    fn rpy_python_parses_multiple_names() {
+        let ast = assert_parse(parse(vec![block(
+            1,
+            "rpy python __future__, annotations",
+            vec![],
+        )]));
+
+        assert_eq!(ast.len(), 2);
+        assert!(matches!(&ast[0], AstNode::RPY(node) if node.rest == vec!["python", "__future__"]));
+        assert!(
+            matches!(&ast[1], AstNode::RPY(node) if node.rest == vec!["python", "annotations"])
+        );
+    }
+
+    #[test]
+    fn rpy_monologue_none_parses_without_nodes() {
+        let ast = assert_parse(parse(vec![block(1, "rpy monologue none", vec![])]));
+
+        assert!(ast.is_empty());
     }
 }

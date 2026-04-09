@@ -154,6 +154,13 @@ pub struct If {
 }
 
 #[derive(Debug, Clone, Default)]
+pub struct While {
+    pub loc: (PathBuf, usize),
+    pub condition: String,
+    pub block: Vec<AstNode>,
+}
+
+#[derive(Debug, Clone, Default)]
 pub struct Return {
     pub loc: (PathBuf, usize),
     pub expression: Option<String>,
@@ -220,6 +227,22 @@ pub struct Transform {
 }
 
 #[derive(Debug, Clone, Default)]
+pub struct ShowLayer {
+    pub loc: (PathBuf, usize),
+    pub layer: String,
+    pub at_list: Vec<String>,
+    pub atl: Option<RawBlock>,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct Camera {
+    pub loc: (PathBuf, usize),
+    pub layer: String,
+    pub at_list: Vec<String>,
+    pub atl: Option<RawBlock>,
+}
+
+#[derive(Debug, Clone, Default)]
 pub struct Screen {
     pub loc: (PathBuf, usize),
     pub screen: slast::Screen,
@@ -231,6 +254,12 @@ pub struct Image {
     pub name: Vec<String>,
     pub expr: Option<String>,
     pub atl: Option<RawBlock>,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct RPY {
+    pub loc: (PathBuf, usize),
+    pub rest: Vec<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -246,6 +275,7 @@ pub enum AstNode {
     Jump(Jump),
     Menu(Menu),
     If(If),
+    While(While),
     Return(Return),
     Style(Style),
     Init(Init),
@@ -256,8 +286,11 @@ pub enum AstNode {
     Call(Call),
     Pass(Pass),
     Transform(Transform),
+    ShowLayer(ShowLayer),
+    Camera(Camera),
     Screen(Screen),
     Image(Image),
+    RPY(RPY),
 }
 
 impl Default for AstNode {

@@ -1,4 +1,4 @@
-use anyhow::{Ok, Result, bail};
+use anyhow::{bail, Ok, Result};
 use renpyfmt::ast::AstNode;
 use renpyfmt::formatter::format_ast;
 use renpyfmt::lexer::{Block, Lexer};
@@ -581,6 +581,10 @@ fn print_nodes(nodes: Vec<AstNode>, depth: usize) {
             AstNode::If(i) => {
                 println!("If: {:?}", i);
             }
+            AstNode::While(w) => {
+                println!("While: {}", w.condition);
+                print_nodes(w.block, depth + 1);
+            }
             AstNode::Return(r) => {
                 println!("Return: {:?}", r);
             }
@@ -611,11 +615,20 @@ fn print_nodes(nodes: Vec<AstNode>, depth: usize) {
             AstNode::Transform(t) => {
                 println!("Transform: {:?}", t);
             }
+            AstNode::ShowLayer(s) => {
+                println!("ShowLayer: {:?}", s);
+            }
+            AstNode::Camera(c) => {
+                println!("Camera: {:?}", c);
+            }
             AstNode::Screen(s) => {
                 println!("Screen: {:?}", s);
             }
             AstNode::Image(i) => {
                 println!("Image: {:?}", i);
+            }
+            AstNode::RPY(r) => {
+                println!("RPY: {:?}", r);
             }
         }
     }

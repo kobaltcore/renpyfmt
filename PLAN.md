@@ -43,27 +43,17 @@ Implemented parser coverage already includes:
 
 Core parser gaps still remaining:
 
-1. `while`
-2. `IF` / `ELIF` / `ELSE`
-3. `show layer`
-4. `camera`
-5. `init offset`
-6. `init label`
-7. `rpy monologue`
-8. `rpy python`
-9. `translate`
-10. `testcase`
-11. `testsuite`
+1. `IF` / `ELIF` / `ELSE`
+2. `translate`
+3. `testcase`
+4. `testsuite`
 
 Out of those, the most important short-term work for a reliable core parser is:
 
-1. `while`
-2. `show layer`
-3. `camera`
-4. `init offset`
-5. `init label`
-6. `rpy monologue`
-7. `rpy python`
+1. `IF` / `ELIF` / `ELSE`
+2. `translate`
+3. `testcase`
+4. `testsuite`
 
 `translate`, `testcase`, and `testsuite` should stay on the roadmap, but they can come after the smaller core-statement work and the error-handling conversion.
 
@@ -185,6 +175,8 @@ Once the parser error model exists, add the remaining smaller core statements.
 
 ### 3.1 `while`
 
+Status: completed.
+
 Work:
 
 1. add `While` AST node
@@ -200,6 +192,8 @@ Tests:
 4. missing block
 
 ### 3.2 `show layer`
+
+Status: completed.
 
 Work:
 
@@ -217,6 +211,8 @@ Tests:
 
 ### 3.3 `camera`
 
+Status: completed.
+
 Work:
 
 1. add `Camera` AST node
@@ -233,6 +229,8 @@ Tests:
 
 ### 3.4 `init offset`
 
+Status: completed.
+
 Work:
 
 1. add parser support
@@ -248,6 +246,8 @@ Tests:
 
 ### 3.5 `init label`
 
+Status: completed.
+
 Work:
 
 1. register `init label`
@@ -261,6 +261,8 @@ Tests:
 3. parameterized init label if supported by upstream behavior
 
 ### 3.6 `rpy monologue`
+
+Status: completed.
 
 Work:
 
@@ -276,6 +278,8 @@ Tests:
 3. verify say parsing behavior if practical
 
 ### 3.7 `rpy python`
+
+Status: completed.
 
 Work:
 
@@ -382,12 +386,12 @@ As statements are added, clean up the parser shape instead of letting `src/parse
 1. Completed: introduce `ParseError` and convert lexer expectation helpers.
 2. Completed: add parser test helpers and initial error regression tests.
 3. Completed: convert the most panic-heavy parse helpers.
-4. Next: add `while`, `show layer`, and `camera`.
-5. Next: add `init offset` and `init label`.
-6. Next: add `rpy monologue` and `rpy python`.
+4. Completed: add `while`, `show layer`, and `camera`.
+5. Completed: add `init offset` and `init label`.
+6. Completed: add `rpy monologue` and `rpy python`.
 7. Completed for the current core parser path: finish panic-to-error conversion across core statement parsers and parser entry points.
-8. Later: add `IF` / `ELIF` / `ELSE`.
-9. Later: add `translate` support.
+8. Next: add `IF` / `ELIF` / `ELSE`.
+9. Next: add `translate` support.
 10. Later: add `testcase` and `testsuite` or explicitly defer them behind a parser limitation.
 
 ## Future Goals
