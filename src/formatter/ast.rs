@@ -24,7 +24,7 @@ impl Formatter {
         }
         line.push(':');
 
-        self.line(&line);
+        self.line_with_trailing(&line);
         self.indented(|formatter| formatter.nodes(&node.block));
     }
 
@@ -42,14 +42,14 @@ impl Formatter {
         }
 
         if let Some(atl) = &node.atl {
-            self.line(&format!("{line}:"));
+            self.line_with_trailing(&format!("{line}:"));
             self.indented(|formatter| {
                 formatter.with_mode(Mode::AtlDirectChild, |formatter| {
                     formatter.emit_atl_block(atl)
                 });
             });
         } else {
-            self.line(&line);
+            self.line_with_trailing(&line);
         }
     }
 
@@ -65,20 +65,20 @@ impl Formatter {
         }
 
         if let Some(atl) = &node.atl {
-            self.line(&format!("{line}:"));
+            self.line_with_trailing(&format!("{line}:"));
             self.indented(|formatter| {
                 formatter.with_mode(Mode::AtlDirectChild, |formatter| {
                     formatter.emit_atl_block(atl)
                 });
             });
         } else {
-            self.line(&line);
+            self.line_with_trailing(&line);
         }
     }
 
     pub(crate) fn emit_with(&mut self, node: &With) {
         if node.expr != "None" {
-            self.line(&format!("with {}", node.expr));
+            self.line_with_trailing(&format!("with {}", node.expr));
         }
     }
 
@@ -120,7 +120,7 @@ impl Formatter {
             parts.push(format!("with {}", with.expr));
         }
 
-        self.line(&parts.join(" "));
+        self.line_with_trailing(&parts.join(" "));
         self.blank_line();
     }
 
@@ -129,11 +129,11 @@ impl Formatter {
         if let Some(with) = with_suffix {
             line.push_str(&format!(" with {}", with.expr));
         }
-        self.line(&line);
+        self.line_with_trailing(&line);
     }
 
     pub(crate) fn emit_python_one_line(&mut self, node: &PythonOneLine) {
-        self.line(&format!("$ {}", node.python_code));
+        self.line_with_trailing(&format!("$ {}", node.python_code));
     }
 
     pub(crate) fn emit_jump(&mut self, node: &Jump) {
@@ -144,9 +144,9 @@ impl Formatter {
         };
 
         if node.expression {
-            self.line(&format!("jump expression {target}"));
+            self.line_with_trailing(&format!("jump expression {target}"));
         } else {
-            self.line(&format!("jump {target}"));
+            self.line_with_trailing(&format!("jump {target}"));
         }
     }
 
@@ -156,7 +156,7 @@ impl Formatter {
             header.push_str(&format_argument_info(arguments));
         }
         header.push(':');
-        self.line(&header);
+        self.line_with_trailing(&header);
 
         self.indented(|formatter| {
             if let Some(with_clause) = &node.with_ {
@@ -205,7 +205,7 @@ impl Formatter {
     }
 
     pub(crate) fn emit_while(&mut self, node: &While) {
-        self.line(&format!("while {}:", node.condition));
+        self.line_with_trailing(&format!("while {}:", node.condition));
         self.indented(|formatter| formatter.nodes(&node.block));
     }
 
@@ -246,16 +246,16 @@ impl Formatter {
                 )
             };
 
-            self.line(&header);
+            self.line_with_trailing(&header);
             self.indented(|formatter| formatter.nodes(block));
         }
     }
 
     pub(crate) fn emit_return(&mut self, node: &Return) {
         if let Some(expr) = &node.expression {
-            self.line(&format!("return {expr}"));
+            self.line_with_trailing(&format!("return {expr}"));
         } else {
-            self.line("return");
+            self.line_with_trailing("return");
         }
     }
 
@@ -265,9 +265,9 @@ impl Formatter {
         }
 
         if node.priority != 0 {
-            self.line(&format!("init {}:", node.priority));
+            self.line_with_trailing(&format!("init {}:", node.priority));
         } else {
-            self.line("init:");
+            self.line_with_trailing("init:");
         }
 
         self.indented(|formatter| formatter.nodes(&node.block));
@@ -294,7 +294,7 @@ impl Formatter {
         }
 
         let language = first_language.as_deref().unwrap_or("None");
-        self.line(&format!("translate {language} strings:"));
+        self.line_with_trailing(&format!("translate {language} strings:"));
         self.indented(|formatter| {
             for child in &node.block {
                 let crate::ast::AstNode::TranslateString(translate) = child else {
@@ -334,9 +334,9 @@ impl Formatter {
         }
 
         if clauses.is_empty() {
-            self.line(&format!("{line}:"));
+            self.line_with_trailing(&format!("{line}:"));
         } else {
-            self.line(&format!("{line}:"));
+            self.line_with_trailing(&format!("{line}:"));
             self.indented(|formatter| {
                 for clause in clauses {
                     formatter.line(&clause);
@@ -353,11 +353,12 @@ impl Formatter {
         };
 
         if node.store == "store" {
-            self.line(&format!("define {name} {} {}", node.operator, node.expr));
+            self.line_with_trailing(&format!("define {name} {} {}", node.operator, node.expr));
         } else {
-            self.line(&format!(
-                "define {}.{name} {} {}",
+            self.line_with_trailing(&format!(
+                "define {}.{} {} {}",
                 node.store.trim_start_matches("store."),
+                node.name,
                 node.operator,
                 node.expr
             ));
@@ -398,11 +399,11 @@ impl Formatter {
             line.push_str(&format_argument_info(arguments));
         }
 
-        self.line(&line);
+        self.line_with_trailing(&line);
     }
 
     pub(crate) fn emit_pass(&mut self, _node: &Pass) {
-        self.line("pass");
+        self.line_with_trailing("pass");
     }
 
     pub(crate) fn emit_transform(&mut self, node: &Transform) {
@@ -420,7 +421,7 @@ impl Formatter {
             line.push_str(&format_parameter_signature(parameters));
         }
 
-        self.line(&format!("{line}:"));
+        self.line_with_trailing(&format!("{line}:"));
         if let Some(atl) = &node.atl {
             self.indented(|formatter| {
                 formatter.with_mode(Mode::AtlDirectChild, |formatter| {
@@ -437,14 +438,14 @@ impl Formatter {
         }
 
         if let Some(atl) = &node.atl {
-            self.line(&format!("{line}:"));
+            self.line_with_trailing(&format!("{line}:"));
             self.indented(|formatter| {
                 formatter.with_mode(Mode::AtlDirectChild, |formatter| {
                     formatter.emit_atl_block(atl)
                 });
             });
         } else {
-            self.line(&line);
+            self.line_with_trailing(&line);
         }
     }
 
@@ -459,48 +460,48 @@ impl Formatter {
         let line = parts.join(" ");
 
         if let Some(atl) = &node.atl {
-            self.line(&format!("{line}:"));
+            self.line_with_trailing(&format!("{line}:"));
             self.indented(|formatter| {
                 formatter.with_mode(Mode::AtlDirectChild, |formatter| {
                     formatter.emit_atl_block(atl)
                 });
             });
         } else {
-            self.line(&line);
+            self.line_with_trailing(&line);
         }
     }
 
     pub(crate) fn emit_image(&mut self, node: &Image) {
         let line = format!("image {}", node.name.join(" "));
         if let Some(expr) = &node.expr {
-            self.line(&format!("{line} = {expr}"));
+            self.line_with_trailing(&format!("{line} = {expr}"));
         } else if let Some(atl) = &node.atl {
-            self.line(&format!("{line}:"));
+            self.line_with_trailing(&format!("{line}:"));
             self.indented(|formatter| {
                 formatter.with_mode(Mode::AtlDirectChild, |formatter| {
                     formatter.emit_atl_block(atl)
                 });
             });
         } else {
-            self.line(&line);
+            self.line_with_trailing(&line);
         }
     }
 
     pub(crate) fn emit_rpy(&mut self, node: &RPY) {
-        self.line(&format!("rpy {}", node.rest.join(" ")));
+        self.line_with_trailing(&format!("rpy {}", node.rest.join(" ")));
     }
 
     pub(crate) fn emit_translate(&mut self, node: &Translate) {
         let language = node.language.as_deref().unwrap_or("None");
-        self.line(&format!("translate {language} {}:", node.identifier));
+        self.line_with_trailing(&format!("translate {language} {}:", node.identifier));
         self.indented(|formatter| formatter.nodes(&node.block));
     }
 
     pub(crate) fn emit_end_translate(&mut self, _node: &EndTranslate) {}
 
     pub(crate) fn emit_translate_string(&mut self, node: &TranslateString) {
-        self.line(&format!("old {}", node.old));
-        self.line(&format!("new {}", node.new));
+        self.line_with_trailing(&format!("old {}", node.old));
+        self.line_with_trailing(&format!("new {}", node.new));
     }
 
     pub(crate) fn emit_translate_block(&mut self, node: &TranslateBlock) {
@@ -513,7 +514,7 @@ impl Formatter {
                     line.push_str(&format!(" is {parent}"));
                 }
                 line.push(':');
-                self.line(&line);
+                self.line_with_trailing(&line);
 
                 self.indented(|formatter| {
                     let mut clauses = vec![];
@@ -544,7 +545,7 @@ impl Formatter {
             }
         }
 
-        self.line(&format!("translate {language}:"));
+        self.line_with_trailing(&format!("translate {language}:"));
         self.indented(|formatter| formatter.nodes(&node.block));
     }
 
@@ -553,7 +554,7 @@ impl Formatter {
 
         if node.block.len() == 1 {
             if let crate::ast::AstNode::Python(python) = &node.block[0] {
-                self.line(&format!("translate {language} python:"));
+                self.line_with_trailing(&format!("translate {language} python:"));
                 self.indented(|formatter| {
                     for code_line in python.python_code.lines() {
                         formatter.line(code_line);
@@ -563,19 +564,19 @@ impl Formatter {
             }
         }
 
-        self.line(&format!("translate {language}:"));
+        self.line_with_trailing(&format!("translate {language}:"));
         self.indented(|formatter| formatter.nodes(&node.block));
     }
 
     pub(crate) fn emit_testcase(&mut self, node: &Testcase) {
-        self.line(&format!("testcase {}:", node.name));
+        self.line_with_trailing(&format!("testcase {}:", node.name));
         for line in format_raw_block(&node.block, self.current_indent() + 4) {
             self.literal_line(&line);
         }
     }
 
     pub(crate) fn emit_testsuite(&mut self, node: &Testsuite) {
-        self.line(&format!("testsuite {}:", node.name));
+        self.line_with_trailing(&format!("testsuite {}:", node.name));
         for line in format_raw_block(&node.block, self.current_indent() + 4) {
             self.literal_line(&line);
         }
@@ -605,7 +606,7 @@ impl Formatter {
         }
         line.push(':');
 
-        self.line(&line);
+        self.line_with_trailing(&line);
         self.indented(|formatter| {
             for code_line in node.python_code().lines() {
                 formatter.line(code_line);

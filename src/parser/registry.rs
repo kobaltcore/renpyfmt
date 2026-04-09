@@ -1,8 +1,8 @@
 use crate::{
     ast::{
         Call, Camera, CompileIf, Default_, Define, Hide, If, Image, Init, Jump, Label, Menu, Pass,
-        Python, PythonOneLine, RPY, Return, Say, Scene, Screen, Show, Style, Testcase, Testsuite,
-        Transform, Translate, UserStatement, While, With,
+        Python, PythonOneLine, Return, Say, Scene, Screen, Show, Style, Testcase, Testsuite,
+        Transform, Translate, UserStatement, While, With, RPY,
     },
     trie::ParseTrie,
 };

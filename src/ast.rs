@@ -362,3 +362,45 @@ impl Default for AstNode {
         AstNode::Say(Say::default())
     }
 }
+
+impl AstNode {
+    pub fn line_number(&self) -> usize {
+        match self {
+            AstNode::Label(n) => n.loc.1,
+            AstNode::Scene(n) => n.loc.1,
+            AstNode::Show(n) => n.loc.1,
+            AstNode::With(n) => n.loc.1,
+            AstNode::Say(n) => n.loc.1,
+            AstNode::UserStatement(n) => n.loc.1,
+            AstNode::Hide(n) => n.loc.1,
+            AstNode::PythonOneLine(n) => n.loc.1,
+            AstNode::Jump(n) => n.loc.1,
+            AstNode::Menu(n) => n.loc.1,
+            AstNode::If(n) => n.loc.1,
+            AstNode::While(n) => n.loc.1,
+            AstNode::CompileIf(n) => n.loc.1,
+            AstNode::Return(n) => n.loc.1,
+            AstNode::Style(n) => n.loc.1,
+            AstNode::Init(n) => n.loc.1,
+            AstNode::Python(n) => n.loc.1,
+            AstNode::EarlyPython(n) => n.loc.1,
+            AstNode::Define(n) => n.loc.1,
+            AstNode::Default(n) => n.loc.1,
+            AstNode::Call(n) => n.loc.1,
+            AstNode::Pass(n) => n.loc.1,
+            AstNode::Transform(n) => n.loc.1,
+            AstNode::ShowLayer(n) => n.loc.1,
+            AstNode::Camera(n) => n.loc.1,
+            AstNode::Screen(n) => n.loc.1,
+            AstNode::Image(n) => n.loc.1,
+            AstNode::RPY(n) => n.loc.1,
+            AstNode::Translate(n) => n.loc.1,
+            AstNode::EndTranslate(n) => n.loc.1,
+            AstNode::TranslateString(n) => n.loc.1,
+            AstNode::TranslateBlock(n) => n.loc.1,
+            AstNode::TranslateEarlyBlock(n) => n.loc.1,
+            AstNode::Testcase(n) => n.loc.1,
+            AstNode::Testsuite(n) => n.loc.1,
+        }
+    }
+}

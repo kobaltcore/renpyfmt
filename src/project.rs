@@ -1,3 +1,4 @@
+use crate::comments::{Comment, CommentMap, EOF_LINE};
 use crate::parser::parse_block;
 use crate::{
     ast::AstNode,
@@ -6,6 +7,7 @@ use crate::{
 };
 use anyhow::{bail, Context, Result};
 use indicatif::ProgressBar;
+use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 use walkdir::WalkDir;
@@ -168,7 +170,10 @@ fn match_logical_word(s: &Vec<char>, pos: usize) -> (String, bool, usize) {
     (word, false, pos)
 }
 
-fn list_logical_lines(ctx: &LexerContext, path: &PathBuf) -> Result<Vec<(PathBuf, usize, String)>> {
+fn list_logical_lines(
+    ctx: &LexerContext,
+    path: &PathBuf,
+) -> Result<(Vec<(PathBuf, usize, String)>, CommentMap)> {
     let mut data = fs::read_to_string(path)?;
     let stem = path.file_stem().unwrap().to_str().unwrap();
 
@@ -183,6 +188,7 @@ fn list_logical_lines(ctx: &LexerContext, path: &PathBuf) -> Result<Vec<(PathBuf
     data.push('\n');
 
     let mut result: Vec<(PathBuf, usize, String)> = vec![];
+    let mut comment_map: CommentMap = BTreeMap::new();
     let line_number = 1;
     let mut number = line_number;
     let mut pos = 0;
@@ -195,12 +201,14 @@ fn list_logical_lines(ctx: &LexerContext, path: &PathBuf) -> Result<Vec<(PathBuf
     }
 
     let mut start_number;
+    let mut pending_standalone: Vec<Comment> = vec![];
 
     while pos < data_len {
         start_number = number;
         let mut line: Vec<String> = vec![];
         let mut parendepth = 0;
         let mut endpos: Option<usize> = None;
+        let mut trailing_comment: Option<String> = None;
 
         while pos < data_len {
             let startpos = pos;
@@ -216,8 +224,32 @@ fn list_logical_lines(ctx: &LexerContext, path: &PathBuf) -> Result<Vec<(PathBuf
 
             if c == '\n' && parendepth == 0 {
                 let final_line = line.join("");
+
+                if let Some(ref comment_text) = trailing_comment {
+                    comment_map
+                        .entry(start_number)
+                        .or_insert_with(Vec::new)
+                        .push(Comment::Trailing {
+                            text: comment_text.clone(),
+                            line_number: start_number,
+                        });
+                }
+
                 if !final_line.trim().is_empty() {
+                    pending_standalone.iter().for_each(|sc| {
+                        comment_map
+                            .entry(start_number)
+                            .or_insert_with(Vec::new)
+                            .push(sc.clone());
+                    });
+                    if !pending_standalone.is_empty() {
+                        pending_standalone.clear();
+                    }
                     result.push((path.clone(), start_number, final_line));
+                } else if trailing_comment.is_none() && pending_standalone.is_empty() {
+                    // blank line with no preceding standalone comments - skip
+                } else if trailing_comment.is_none() && !pending_standalone.is_empty() {
+                    // blank line between standalone comments - keep accumulating
                 }
 
                 if endpos.is_none() {
@@ -260,10 +292,24 @@ fn list_logical_lines(ctx: &LexerContext, path: &PathBuf) -> Result<Vec<(PathBuf
             }
 
             if c == '#' {
-                endpos = Some(pos);
-                while chars[pos] != '\n' {
+                let comment_start = pos;
+                while pos < data_len && chars[pos] != '\n' {
                     pos += 1;
                 }
+                let comment_text: String = chars[comment_start..pos].iter().collect();
+
+                let line_so_far = line.join("");
+                if line_so_far.trim().is_empty() && parendepth == 0 {
+                    pending_standalone.push(Comment::Standalone {
+                        indent: line_so_far.len() - line_so_far.trim_start().len(),
+                        text: comment_text,
+                        line_number: start_number,
+                    });
+                } else {
+                    trailing_comment = Some(comment_text);
+                }
+
+                endpos = Some(startpos);
                 continue;
             }
 
@@ -373,7 +419,14 @@ fn list_logical_lines(ctx: &LexerContext, path: &PathBuf) -> Result<Vec<(PathBuf
         }
     }
 
-    Ok(result)
+    if !pending_standalone.is_empty() {
+        comment_map
+            .entry(EOF_LINE)
+            .or_insert_with(Vec::new)
+            .extend(pending_standalone);
+    }
+
+    Ok((result, comment_map))
 }
 
 fn depth_split(s: String) -> Result<(usize, String)> {
@@ -483,18 +536,20 @@ fn collect_rpy_files(path: &Path) -> Result<Vec<PathBuf>> {
     Ok(files)
 }
 
-fn parse_file_ast(input_dir: &Path, input_file: &PathBuf) -> Result<Vec<AstNode>> {
+fn parse_file_ast(input_dir: &Path, input_file: &PathBuf) -> Result<(Vec<AstNode>, CommentMap)> {
     let ctx = LexerContext {
         input_dir: input_dir.to_path_buf(),
     };
 
-    let lines = list_logical_lines(&ctx, input_file)
+    let (lines, comments) = list_logical_lines(&ctx, input_file)
         .with_context(|| format!("Failed to list logical lines for {}", input_file.display()))?;
     let nested = group_logical_lines(lines)
         .with_context(|| format!("Failed to group logical lines for {}", input_file.display()))?;
 
     let mut lex = Lexer::new(nested);
-    parse_block(&mut lex).with_context(|| format!("Failed to parse {}", input_file.display()))
+    let ast = parse_block(&mut lex)
+        .with_context(|| format!("Failed to parse {}", input_file.display()))?;
+    Ok((ast, comments))
 }
 
 fn parse_file(input_dir: &Path, input_file: &PathBuf) -> Result<()> {
@@ -504,8 +559,8 @@ fn parse_file(input_dir: &Path, input_file: &PathBuf) -> Result<()> {
 }
 
 fn format_file(input_dir: &Path, input_file: &PathBuf) -> Result<bool> {
-    let ast = parse_file_ast(input_dir, input_file)?;
-    let formatted = format_ast(&ast);
+    let (ast, comments) = parse_file_ast(input_dir, input_file)?;
+    let formatted = format_ast(&ast, &comments);
     let output = if formatted.is_empty() {
         String::new()
     } else {
@@ -624,11 +679,94 @@ pub fn format_directory(path: PathBuf, pb: ProgressBar) -> Result<()> {
 mod tests {
     use std::path::PathBuf;
 
-    use super::munge_filename;
+    use super::*;
+    use crate::comments::Comment;
 
     #[test]
     fn test_filename_munge() {
         let result = munge_filename(&PathBuf::from("test/foo/bar_test -*.txt")).unwrap();
         assert_eq!(result, "_m1_bar_test_0x2d0x2a__")
+    }
+
+    #[test]
+    fn test_list_logical_lines_captures_standalone_comment() {
+        let dir = std::env::temp_dir();
+        let file_path = dir.join("test_standalone_comment.rpy");
+        let content = "# This is a comment\nlabel start:\n    \"Hello\"\n";
+        std::fs::write(&file_path, content).unwrap();
+
+        let ctx = LexerContext {
+            input_dir: dir.clone(),
+        };
+        let (lines, comments) = list_logical_lines(&ctx, &file_path).unwrap();
+
+        assert_eq!(lines.len(), 2);
+        assert!(lines[0].2.contains("label start:"));
+
+        // The standalone comment should be keyed to the line number of "label start:"
+        let label_line_num = lines[0].1;
+        assert!(comments.contains_key(&label_line_num));
+        let comment_list = &comments[&label_line_num];
+        assert_eq!(comment_list.len(), 1);
+        assert!(
+            matches!(&comment_list[0], Comment::Standalone { text, .. } if text == "# This is a comment")
+        );
+
+        let _ = std::fs::remove_file(&file_path);
+    }
+
+    #[test]
+    fn test_list_logical_lines_captures_trailing_comment() {
+        let dir = std::env::temp_dir();
+        let file_path = dir.join("test_trailing_comment.rpy");
+        let content = "label start: # important\n    \"Hello\"\n";
+        std::fs::write(&file_path, content).unwrap();
+
+        let ctx = LexerContext {
+            input_dir: dir.clone(),
+        };
+        let (lines, comments) = list_logical_lines(&ctx, &file_path).unwrap();
+
+        assert_eq!(lines.len(), 2);
+        assert!(lines[0].2.contains("label start:"));
+
+        let label_line_num = lines[0].1;
+        assert!(comments.contains_key(&label_line_num));
+        let comment_list = &comments[&label_line_num];
+        assert_eq!(comment_list.len(), 1);
+        assert!(
+            matches!(&comment_list[0], Comment::Trailing { text, .. } if text == "# important")
+        );
+
+        let _ = std::fs::remove_file(&file_path);
+    }
+
+    #[test]
+    fn test_list_logical_lines_captures_indented_standalone_comment() {
+        let dir = std::env::temp_dir();
+        let file_path = dir.join("test_indented_comment.rpy");
+        let content = "label start:\n    show eileen happy\n    # device sfx\n    \"Hello\"\n";
+        std::fs::write(&file_path, content).unwrap();
+
+        let ctx = LexerContext {
+            input_dir: dir.clone(),
+        };
+        let (lines, comments) = list_logical_lines(&ctx, &file_path).unwrap();
+
+        assert_eq!(lines.len(), 3);
+
+        // Find the line with "Hello"
+        let hello_line = lines.iter().find(|l| l.2.contains("Hello")).unwrap();
+        let hello_line_num = hello_line.1;
+
+        // The indented comment should be a Standalone comment keyed to the line of "Hello"
+        assert!(comments.contains_key(&hello_line_num));
+        let comment_list = &comments[&hello_line_num];
+        assert_eq!(comment_list.len(), 1);
+        assert!(
+            matches!(&comment_list[0], Comment::Standalone { text, .. } if text == "# device sfx")
+        );
+
+        let _ = std::fs::remove_file(&file_path);
     }
 }

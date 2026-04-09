@@ -616,7 +616,7 @@ fn parse_atl(lex: &mut Lexer) -> Result<RawBlock> {
         } else {
             let mut rm = RawMultipurpose::new(loc);
 
-            let mut last_expression = false;
+            let mut last_expression;
             let mut this_expression = false;
 
             let mut cp = lex.checkpoint();

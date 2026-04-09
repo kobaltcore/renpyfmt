@@ -1,4 +1,5 @@
 use crate::ast::{AstNode, With};
+use crate::comments::{Comment, CommentMap, EOF_LINE};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Mode {
@@ -19,20 +20,27 @@ pub(crate) struct Formatter {
     pub(crate) mode: Mode,
     at_line_start: bool,
     previous_top_level_kind: Option<NodeKind>,
+    comments: CommentMap,
+    last_emitted_line: usize,
+    current_trailing_line: Option<usize>,
 }
 
 impl Formatter {
-    pub(crate) fn new() -> Self {
+    pub(crate) fn new(comments: CommentMap) -> Self {
         Self {
             out: String::new(),
             indent: 0,
             mode: Mode::Script,
             at_line_start: true,
             previous_top_level_kind: None,
+            comments,
+            last_emitted_line: 0,
+            current_trailing_line: None,
         }
     }
 
     pub(crate) fn finish(mut self) -> String {
+        self.flush_remaining_comments();
         while self.out.ends_with('\n') {
             self.out.pop();
         }
@@ -49,6 +57,8 @@ impl Formatter {
         let mut i = 0;
         while i < nodes.len() {
             let node = &nodes[i];
+
+            self.emit_leading_comments(node.line_number());
 
             let with_suffix = match node {
                 AstNode::Say(_) => nodes.get(i + 1).and_then(|next| match next {
@@ -74,12 +84,18 @@ impl Formatter {
             };
 
             if with_suffix.is_some() {
+                self.current_trailing_line = Some(node.line_number());
                 self.node_with_suffix(node, with_suffix);
+                self.current_trailing_line = None;
                 i += 2;
             } else {
+                self.current_trailing_line = Some(node.line_number());
                 self.node(node);
+                self.current_trailing_line = None;
                 i += 1;
             }
+
+            self.last_emitted_line = node.line_number();
         }
     }
 
@@ -102,7 +118,10 @@ impl Formatter {
             AstNode::Show(node) => self.emit_show(node, with_suffix),
             AstNode::With(node) => self.emit_with(node),
             AstNode::Say(node) => self.emit_say(node, with_suffix),
-            AstNode::UserStatement(node) => self.line(&node.line),
+            AstNode::UserStatement(node) => {
+                let text = self.take_trailing_comment_for_current_line(&node.line);
+                self.line(&text);
+            }
             AstNode::Hide(node) => self.emit_hide(node, with_suffix),
             AstNode::PythonOneLine(node) => self.emit_python_one_line(node),
             AstNode::Jump(node) => self.emit_jump(node),
@@ -142,9 +161,79 @@ impl Formatter {
         }
     }
 
+    pub(crate) fn emit_leading_comments(&mut self, line_number: usize) {
+        let standalone_texts: Vec<String> =
+            if let Some(comments) = self.comments.get_mut(&line_number) {
+                let mut texts = vec![];
+                let mut i = 0;
+                while i < comments.len() {
+                    if let Comment::Standalone { text, .. } = &comments[i] {
+                        texts.push(text.clone());
+                        comments.remove(i);
+                    } else {
+                        i += 1;
+                    }
+                }
+                if comments.is_empty() {
+                    self.comments.remove(&line_number);
+                }
+                texts
+            } else {
+                vec![]
+            };
+
+        for text in standalone_texts {
+            self.line(&text);
+        }
+    }
+
+    fn take_trailing_comment_for_current_line(&mut self, text: &str) -> String {
+        let line_number = self.current_trailing_line.unwrap_or(0);
+        if let Some(comments) = self.comments.remove(&line_number) {
+            for comment in comments {
+                if let Comment::Trailing {
+                    text: comment_text, ..
+                } = comment
+                {
+                    return format!("{text}  {comment_text}");
+                }
+            }
+        }
+        text.to_string()
+    }
+
+    fn flush_remaining_comments(&mut self) {
+        if let Some(comments) = self.comments.remove(&EOF_LINE) {
+            for comment in comments {
+                if let Comment::Standalone { text, .. } = comment {
+                    self.line(&text);
+                }
+            }
+        }
+
+        let remaining_keys: Vec<usize> = self.comments.keys().copied().collect();
+        for key in remaining_keys {
+            if let Some(comments) = self.comments.remove(&key) {
+                for comment in comments {
+                    if let Comment::Standalone { text, .. } = comment {
+                        self.line(&text);
+                    }
+                }
+            }
+        }
+    }
+
     pub(crate) fn line(&mut self, text: &str) {
         self.write_indent();
         self.out.push_str(text);
+        self.out.push('\n');
+        self.at_line_start = true;
+    }
+
+    pub(crate) fn line_with_trailing(&mut self, text: &str) {
+        let full_text = self.take_trailing_comment_for_current_line(text);
+        self.write_indent();
+        self.out.push_str(&full_text);
         self.out.push('\n');
         self.at_line_start = true;
     }
@@ -188,8 +277,8 @@ impl Formatter {
     }
 }
 
-pub fn format_ast(ast: &[AstNode]) -> String {
-    let mut formatter = Formatter::new();
+pub fn format_ast(ast: &[AstNode], comments: &CommentMap) -> String {
+    let mut formatter = Formatter::new(comments.clone());
     formatter.nodes(ast);
     formatter.finish()
 }

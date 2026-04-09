@@ -1,5 +1,6 @@
 pub mod ast;
 pub mod atl;
+pub mod comments;
 pub mod error;
 pub mod formatter;
 pub mod lexer;

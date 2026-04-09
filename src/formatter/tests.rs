@@ -8,6 +8,7 @@ use crate::{
         AtlStatement, RawBlock, RawChoice, RawContainsExpr, RawEvent, RawFunction, RawMultipurpose,
         RawOn, RawParallel, RawRepeat, RawTime,
     },
+    comments::CommentMap,
     formatter::format_ast,
     lexer::Block,
 };
@@ -56,7 +57,7 @@ fn formats_label_block_without_embedded_extra_newlines() {
     })];
 
     assert_eq!(
-        format_ast(&ast),
+        format_ast(&ast, &CommentMap::new()),
         "label start:\n    e \"Hello\"\n\n    jump next"
     );
 }
@@ -92,7 +93,7 @@ fn formats_if_elif_else_blocks() {
     })];
 
     assert_eq!(
-        format_ast(&ast),
+        format_ast(&ast, &CommentMap::new()),
         concat!(
             "if flag:\n",
             "    \"yes\"\n",
@@ -125,7 +126,7 @@ fn formats_menu_with_caption_and_condition() {
     })];
 
     assert_eq!(
-        format_ast(&ast),
+        format_ast(&ast, &CommentMap::new()),
         concat!(
             "menu:\n",
             "    \"Caption\"\n",
@@ -168,7 +169,7 @@ fn formats_show_with_nested_atl() {
     })];
 
     assert_eq!(
-        format_ast(&ast),
+        format_ast(&ast, &CommentMap::new()),
         concat!(
             "show eileen:\n",
             "    linear xalign 0.5\n",
@@ -193,7 +194,10 @@ fn inserts_blank_line_before_top_level_scene() {
         }),
     ];
 
-    assert_eq!(format_ast(&ast), "\"hello\"\n\nscene bg room");
+    assert_eq!(
+        format_ast(&ast, &CommentMap::new()),
+        "\"hello\"\n\nscene bg room"
+    );
 }
 
 #[test]
@@ -245,7 +249,7 @@ fn formats_supported_flow_and_init_statements() {
     ];
 
     assert_eq!(
-        format_ast(&ast),
+        format_ast(&ast, &CommentMap::new()),
         concat!(
             "init 5:\n",
             "    default persistent.answer = 42\n",
@@ -322,7 +326,7 @@ fn formats_supported_media_and_atl_statement_variants() {
     ];
 
     assert_eq!(
-        format_ast(&ast),
+        format_ast(&ast, &CommentMap::new()),
         concat!(
             "show layer overlay at left:\n",
             "    animation\n",
@@ -365,7 +369,7 @@ fn no_trailing_whitespace_on_lines() {
         }),
     ];
 
-    let formatted = format_ast(&ast);
+    let formatted = format_ast(&ast, &CommentMap::new());
     for (i, line) in formatted.lines().enumerate() {
         assert_eq!(
             line,
@@ -422,7 +426,7 @@ fn show_scene_hide_with_clause_on_same_line() {
     ];
 
     assert_eq!(
-        format_ast(&ast),
+        format_ast(&ast, &CommentMap::new()),
         concat!(
             "show eileen happy with dissolve\n",
             "\n",
@@ -452,7 +456,7 @@ fn ungrouped_with_stays_on_own_line() {
     ];
 
     assert_eq!(
-        format_ast(&ast),
+        format_ast(&ast, &CommentMap::new()),
         concat!("show image1\n", "show image2\n", "with exchange")
     );
 }
@@ -474,7 +478,10 @@ fn standalone_with_on_own_line() {
         }),
     ];
 
-    assert_eq!(format_ast(&ast), "\"hello\" with dissolve");
+    assert_eq!(
+        format_ast(&ast, &CommentMap::new()),
+        "\"hello\" with dissolve"
+    );
 }
 
 #[test]
@@ -539,7 +546,7 @@ fn formats_translate_and_raw_block_statements() {
     ];
 
     assert_eq!(
-        format_ast(&ast),
+        format_ast(&ast, &CommentMap::new()),
         concat!(
             "translate None strings:\n",
             "    old \"Hello\"\n",
@@ -557,4 +564,90 @@ fn formats_translate_and_raw_block_statements() {
             "        assert y"
         )
     );
+}
+
+#[test]
+fn standalone_comment_before_statement() {
+    use crate::comments::Comment;
+
+    let mut comments = CommentMap::new();
+    comments.insert(
+        1,
+        vec![Comment::Standalone {
+            indent: 0,
+            text: "# This is a comment".into(),
+            line_number: 1,
+        }],
+    );
+
+    let ast = vec![AstNode::Label(Label {
+        loc: (PathBuf::from("test.rpy"), 1),
+        name: "start".into(),
+        block: vec![AstNode::Say(Say {
+            loc: (PathBuf::from("test.rpy"), 2),
+            what: "Hello".into(),
+            interact: true,
+            ..Default::default()
+        })],
+        ..Default::default()
+    })];
+
+    let result = format_ast(&ast, &comments);
+    assert_eq!(result, "# This is a comment\nlabel start:\n    \"Hello\"");
+}
+
+#[test]
+fn trailing_comment_on_statement() {
+    use crate::comments::Comment;
+
+    let mut comments = CommentMap::new();
+    comments.insert(
+        1,
+        vec![Comment::Trailing {
+            text: "# important".into(),
+            line_number: 1,
+        }],
+    );
+
+    let ast = vec![AstNode::Label(Label {
+        loc: (PathBuf::from("test.rpy"), 1),
+        name: "start".into(),
+        block: vec![],
+        ..Default::default()
+    })];
+
+    let result = format_ast(&ast, &comments);
+    assert_eq!(result, "label start:  # important");
+}
+
+#[test]
+fn multiple_standalone_comments_before_statement() {
+    use crate::comments::Comment;
+
+    let mut comments = CommentMap::new();
+    comments.insert(
+        1,
+        vec![
+            Comment::Standalone {
+                indent: 0,
+                text: "# Comment one".into(),
+                line_number: 1,
+            },
+            Comment::Standalone {
+                indent: 0,
+                text: "# Comment two".into(),
+                line_number: 2,
+            },
+        ],
+    );
+
+    let ast = vec![AstNode::Label(Label {
+        loc: (PathBuf::from("test.rpy"), 1),
+        name: "start".into(),
+        block: vec![],
+        ..Default::default()
+    })];
+
+    let result = format_ast(&ast, &comments);
+    assert_eq!(result, "# Comment one\n# Comment two\nlabel start:");
 }
