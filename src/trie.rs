@@ -1,9 +1,5 @@
 use crate::{
-    ast::{
-        Call, Camera, CompileIf, Default_, Define, Hide, If, Image, Init, Jump, Label, Menu, Pass,
-        Python, PythonOneLine, Return, Say, Scene, Screen, Show, Style, Testcase, Testsuite,
-        Transform, Translate, UserStatement, While, With, RPY,
-    },
+    ast::Say,
     error::Result,
     lexer::Lexer,
     parser::{ParseNodes, Parser},
@@ -23,90 +19,6 @@ impl ParseTrie {
         };
 
         parser
-    }
-
-    pub fn init(&mut self) {
-        self.add(vec!["label".into()], Box::new(Label::default()));
-        self.add(vec!["scene".into()], Box::new(Scene::default()));
-        self.add(vec!["with".into()], Box::new(With::default()));
-        self.add(vec!["".into()], Box::new(Say::default()));
-        self.add(vec!["show".into()], Box::new(Show::default()));
-        self.add(vec!["hide".into()], Box::new(Hide::default()));
-        self.add(vec!["$".into()], Box::new(PythonOneLine::default()));
-        self.add(vec!["jump".into()], Box::new(Jump::default()));
-        self.add(vec!["menu".into()], Box::new(Menu::default()));
-        self.add(vec!["if".into()], Box::new(If::default()));
-        self.add(vec!["IF".into()], Box::new(CompileIf::default()));
-        self.add(vec!["while".into()], Box::new(While::default()));
-        self.add(vec!["return".into()], Box::new(Return::default()));
-        self.add(vec!["style".into()], Box::new(Style::default()));
-        self.add(vec!["init".into()], Box::new(Init::default()));
-        self.add(vec!["python".into()], Box::new(Python::default()));
-        self.add(vec!["define".into()], Box::new(Define::default()));
-        self.add(vec!["default".into()], Box::new(Default_::default()));
-        self.add(vec!["call".into()], Box::new(Call::default()));
-        self.add(vec!["pass".into()], Box::new(Pass::default()));
-        self.add(vec!["transform".into()], Box::new(Transform::default()));
-        self.add(vec!["camera".into()], Box::new(Camera::default()));
-        self.add(vec!["screen".into()], Box::new(Screen::default()));
-        self.add(vec!["image".into()], Box::new(Image::default()));
-        self.add(vec!["rpy".into()], Box::new(RPY::default()));
-        self.add(vec!["translate".into()], Box::new(Translate::default()));
-        self.add(vec!["testcase".into()], Box::new(Testcase::default()));
-        self.add(vec!["testsuite".into()], Box::new(Testsuite::default()));
-
-        let custom_statements = vec![
-            // built-in custom statements
-            "play music",
-            "queue music",
-            "stop music",
-            "play sound",
-            "queue sound",
-            "stop sound",
-            "play",
-            "queue",
-            "stop",
-            "pause",
-            "show screen",
-            "call screen",
-            "hide screen",
-            "nvl show",
-            "nvl hide",
-            "nvl clear",
-            "window show",
-            "window hide",
-            "window auto",
-            // user-defined custom statements, fill these in automatically somehow
-            "resumeaudio",
-            "pauseaudio",
-            "timedchoice",
-            "gameover",
-            "text",
-            "msg",
-            "title",
-            "outfit",
-            "accessory",
-            "body",
-            "swap",
-            "clone",
-            "morph",
-            "exspirit",
-            "possess",
-            "scry",
-            "placeholder",
-            "routename",
-            "unlock",
-            "resetstate",
-            "FIXME",
-            "phone_call",
-        ];
-
-        for stmt in custom_statements {
-            self.add(
-                stmt.split(" ").map(|s| s.to_string()).collect(),
-                Box::new(UserStatement::default()),
-            );
-        }
     }
 
     pub fn add(&mut self, name: Vec<String>, parser: Box<dyn Parser>) {
