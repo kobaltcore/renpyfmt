@@ -1,12 +1,12 @@
 use crate::{
     ast::{
-        AstNode, Call, Camera, CompileIf, Default_, Define, Hide, If, Image, Init, Jump, Label,
-        Menu, Pass, Python, PythonOneLine, Return, Say, Scene, Screen, Show, Style, Testcase,
-        Testsuite, Transform, Translate, UserStatement, While, With, RPY,
+        Call, Camera, CompileIf, Default_, Define, Hide, If, Image, Init, Jump, Label, Menu, Pass,
+        Python, PythonOneLine, Return, Say, Scene, Screen, Show, Style, Testcase, Testsuite,
+        Transform, Translate, UserStatement, While, With, RPY,
     },
     error::Result,
     lexer::Lexer,
-    parser::Parser,
+    parser::{ParseNodes, Parser},
 };
 use std::collections::HashMap;
 
@@ -126,7 +126,7 @@ impl ParseTrie {
         }
     }
 
-    pub fn parse(&self, lex: &mut Lexer) -> Result<Vec<AstNode>> {
+    pub fn parse(&self, lex: &mut Lexer) -> Result<ParseNodes> {
         // println!("parse trie call");
         let loc = lex.get_location();
         let old_pos = lex.pos;

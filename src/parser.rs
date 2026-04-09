@@ -41,10 +41,43 @@ fn with_parse_error_boundary<T>(
 }
 
 pub trait Parser {
-    fn parse(&self, lex: &mut Lexer, loc: (PathBuf, usize)) -> Result<Vec<AstNode>>;
+    fn parse(&self, lex: &mut Lexer, loc: (PathBuf, usize)) -> Result<ParseNodes>;
 }
 
-pub fn parse_statement(lex: &mut Lexer) -> Result<Vec<AstNode>> {
+#[derive(Debug, Clone)]
+pub enum ParseNodes {
+    None,
+    One(AstNode),
+    Many(Vec<AstNode>),
+}
+
+impl ParseNodes {
+    pub fn into_vec(self) -> Vec<AstNode> {
+        match self {
+            ParseNodes::None => vec![],
+            ParseNodes::One(node) => vec![node],
+            ParseNodes::Many(nodes) => nodes,
+        }
+    }
+}
+
+impl From<AstNode> for ParseNodes {
+    fn from(value: AstNode) -> Self {
+        ParseNodes::One(value)
+    }
+}
+
+impl From<Vec<AstNode>> for ParseNodes {
+    fn from(value: Vec<AstNode>) -> Self {
+        match value.len() {
+            0 => ParseNodes::None,
+            1 => ParseNodes::One(value.into_iter().next().expect("length checked above")),
+            _ => ParseNodes::Many(value),
+        }
+    }
+}
+
+pub fn parse_statement(lex: &mut Lexer) -> Result<ParseNodes> {
     let mut parser = ParseTrie::new();
     parser.init();
 
@@ -63,12 +96,7 @@ pub fn parse_block(lex: &mut Lexer) -> Result<Vec<AstNode>> {
     while !lex.eob {
         // println!("parsing: {:?}", lex.text);
         let stmt = with_parse_error_boundary(lex, |lex| parser.parse(lex))?;
-
-        if stmt.len() == 1 {
-            result.push(stmt[0].clone());
-        } else {
-            result.extend(stmt);
-        }
+        result.extend(stmt.into_vec());
     }
 
     Ok(result)
@@ -264,8 +292,8 @@ fn parse_label(lex: &mut Lexer, loc: (PathBuf, usize), init: bool) -> Result<Vec
 }
 
 impl Parser for Label {
-    fn parse(&self, lex: &mut Lexer, loc: (PathBuf, usize)) -> Result<Vec<AstNode>> {
-        parse_label(lex, loc, false)
+    fn parse(&self, lex: &mut Lexer, loc: (PathBuf, usize)) -> Result<ParseNodes> {
+        parse_label(lex, loc, false).map(Into::into)
     }
 }
 
@@ -932,7 +960,7 @@ fn parse_atl(lex: &mut Lexer) -> Result<RawBlock> {
 }
 
 impl Parser for Scene {
-    fn parse(&self, lex: &mut Lexer, loc: (PathBuf, usize)) -> Result<Vec<AstNode>> {
+    fn parse(&self, lex: &mut Lexer, loc: (PathBuf, usize)) -> Result<ParseNodes> {
         let mut layer = None;
 
         if lex.keyword("onlayer".into()).is_some() {
@@ -947,7 +975,8 @@ impl Parser for Scene {
                 imspec: None,
                 layer,
                 atl: None,
-            })]);
+            })]
+            .into());
         }
 
         let imspec = parse_image_specifier(lex)?;
@@ -976,12 +1005,12 @@ impl Parser for Scene {
         lex.expect_eol()?;
         lex.advance();
 
-        Ok(rv)
+        Ok(rv.into())
     }
 }
 
 impl Parser for With {
-    fn parse(&self, lex: &mut Lexer, loc: (PathBuf, usize)) -> Result<Vec<AstNode>> {
+    fn parse(&self, lex: &mut Lexer, loc: (PathBuf, usize)) -> Result<ParseNodes> {
         let expr = lex.require_or_error(
             LexerType::Type(LexerTypeOptions::SimpleExpression),
             "expected simple expression",
@@ -994,7 +1023,8 @@ impl Parser for With {
             loc,
             expr,
             paired: None,
-        })])
+        })]
+        .into())
     }
 }
 
@@ -1193,7 +1223,7 @@ fn say_attributes(lex: &mut Lexer) -> Option<Vec<String>> {
 }
 
 impl Parser for Say {
-    fn parse(&self, lex: &mut Lexer, loc: (PathBuf, usize)) -> Result<Vec<AstNode>> {
+    fn parse(&self, lex: &mut Lexer, loc: (PathBuf, usize)) -> Result<ParseNodes> {
         let state = lex.checkpoint();
         // println!("{} {}", lex.pos, lex.text);
 
@@ -1210,7 +1240,7 @@ impl Parser for Say {
         if let Some(rv) = rv {
             lex.expect_noblock()?;
             lex.advance();
-            return Ok(rv);
+            return Ok(rv.into());
         }
 
         lex.revert(state);
@@ -1251,7 +1281,7 @@ impl Parser for Say {
             lex.expect_noblock()?;
             lex.advance();
 
-            return Ok(rv);
+            return Ok(rv.into());
         }
 
         Err(lex.parse_error("expected statement."))
@@ -1265,7 +1295,7 @@ enum UserStatementBlock {
 }
 
 impl Parser for UserStatement {
-    fn parse(&self, lex: &mut Lexer, loc: (PathBuf, usize)) -> Result<Vec<AstNode>> {
+    fn parse(&self, lex: &mut Lexer, loc: (PathBuf, usize)) -> Result<ParseNodes> {
         let old_subparses = lex.subparses.clone();
 
         lex.subparses = vec![];
@@ -1303,12 +1333,12 @@ impl Parser for UserStatement {
             code_block,
         };
 
-        Ok(vec![AstNode::UserStatement(rv)])
+        Ok(vec![AstNode::UserStatement(rv)].into())
     }
 }
 
 impl Parser for Show {
-    fn parse(&self, lex: &mut Lexer, loc: (PathBuf, usize)) -> Result<Vec<AstNode>> {
+    fn parse(&self, lex: &mut Lexer, loc: (PathBuf, usize)) -> Result<ParseNodes> {
         if lex.keyword("layer".into()).is_some() {
             let layer = lex.require_or_error(
                 LexerType::Type(LexerTypeOptions::ImageNameComponent),
@@ -1337,7 +1367,8 @@ impl Parser for Show {
                 layer,
                 at_list,
                 atl,
-            })]);
+            })]
+            .into());
         }
 
         let imspec = parse_image_specifier(lex)?;
@@ -1368,12 +1399,12 @@ impl Parser for Show {
         // println!("show {} {}", lex.pos, lex.text);
         // println!("stmts: {:?}", rv);
 
-        Ok(rv)
+        Ok(rv.into())
     }
 }
 
 impl Parser for Hide {
-    fn parse(&self, lex: &mut Lexer, loc: (PathBuf, usize)) -> Result<Vec<AstNode>> {
+    fn parse(&self, lex: &mut Lexer, loc: (PathBuf, usize)) -> Result<ParseNodes> {
         let imspec = parse_image_specifier(lex)?;
         let rv = parse_with(
             lex,
@@ -1387,12 +1418,12 @@ impl Parser for Hide {
         lex.expect_noblock()?;
         lex.advance();
 
-        Ok(rv)
+        Ok(rv.into())
     }
 }
 
 impl Parser for PythonOneLine {
-    fn parse(&self, lex: &mut Lexer, loc: (PathBuf, usize)) -> Result<Vec<AstNode>> {
+    fn parse(&self, lex: &mut Lexer, loc: (PathBuf, usize)) -> Result<ParseNodes> {
         let python_code = lex.rest_statement();
 
         if python_code.is_none() {
@@ -1408,12 +1439,13 @@ impl Parser for PythonOneLine {
                 .expect("python code checked above")
                 .trim()
                 .into(),
-        })])
+        })]
+        .into())
     }
 }
 
 impl Parser for Jump {
-    fn parse(&self, lex: &mut Lexer, loc: (PathBuf, usize)) -> Result<Vec<AstNode>> {
+    fn parse(&self, lex: &mut Lexer, loc: (PathBuf, usize)) -> Result<ParseNodes> {
         lex.expect_noblock()?;
 
         let target;
@@ -1446,7 +1478,8 @@ impl Parser for Jump {
             target,
             expression,
             global_label,
-        })])
+        })]
+        .into())
     }
 }
 
@@ -1608,7 +1641,7 @@ fn parse_menu(
 }
 
 impl Parser for Menu {
-    fn parse(&self, lex: &mut Lexer, loc: (PathBuf, usize)) -> Result<Vec<AstNode>> {
+    fn parse(&self, lex: &mut Lexer, loc: (PathBuf, usize)) -> Result<ParseNodes> {
         lex.expect_block()?;
         let label = lex.label_name_declare();
         lex.set_global_label(label.clone());
@@ -1651,12 +1684,12 @@ impl Parser for Menu {
             }
         }
 
-        Ok(rv)
+        Ok(rv.into())
     }
 }
 
 impl Parser for If {
-    fn parse(&self, lex: &mut Lexer, loc: (PathBuf, usize)) -> Result<Vec<AstNode>> {
+    fn parse(&self, lex: &mut Lexer, loc: (PathBuf, usize)) -> Result<ParseNodes> {
         let mut entries = vec![];
 
         let condition = lex.python_expression()?;
@@ -1695,12 +1728,12 @@ impl Parser for If {
             lex.advance();
         }
 
-        Ok(vec![AstNode::If(If { loc, entries })])
+        Ok(vec![AstNode::If(If { loc, entries })].into())
     }
 }
 
 impl Parser for While {
-    fn parse(&self, lex: &mut Lexer, loc: (PathBuf, usize)) -> Result<Vec<AstNode>> {
+    fn parse(&self, lex: &mut Lexer, loc: (PathBuf, usize)) -> Result<ParseNodes> {
         let condition = lex.python_expression()?;
         lex.require_or_error(LexerType::String(":".into()), "expected ':'")?;
         lex.expect_eol()?;
@@ -1714,14 +1747,17 @@ impl Parser for While {
             loc,
             condition,
             block,
-        })])
+        })]
+        .into())
     }
 }
 
 impl Parser for CompileIf {
-    fn parse(&self, lex: &mut Lexer, loc: (PathBuf, usize)) -> Result<Vec<AstNode>> {
+    fn parse(&self, lex: &mut Lexer, loc: (PathBuf, usize)) -> Result<ParseNodes> {
         let mut entries = vec![];
 
+        // Unlike upstream execution-oriented parsing, the formatter must retain
+        // every compile-time branch so all source can round-trip.
         let condition = lex.python_expression()?;
         lex.require_or_error(LexerType::String(":".into()), "expected ':'")?;
         lex.expect_eol()?;
@@ -1749,12 +1785,12 @@ impl Parser for CompileIf {
             lex.advance();
         }
 
-        Ok(vec![AstNode::CompileIf(CompileIf { loc, entries })])
+        Ok(vec![AstNode::CompileIf(CompileIf { loc, entries })].into())
     }
 }
 
 impl Parser for Return {
-    fn parse(&self, lex: &mut Lexer, loc: (PathBuf, usize)) -> Result<Vec<AstNode>> {
+    fn parse(&self, lex: &mut Lexer, loc: (PathBuf, usize)) -> Result<ParseNodes> {
         lex.expect_noblock()?;
 
         let rest = lex.rest();
@@ -1765,7 +1801,8 @@ impl Parser for Return {
         Ok(vec![AstNode::Return(Return {
             loc,
             expression: rest,
-        })])
+        })]
+        .into())
     }
 }
 
@@ -3268,7 +3305,7 @@ fn parse_clause(rv: &mut Style, lex: &mut Lexer) -> Result<bool> {
 }
 
 impl Parser for Style {
-    fn parse(&self, lex: &mut Lexer, loc: (PathBuf, usize)) -> Result<Vec<AstNode>> {
+    fn parse(&self, lex: &mut Lexer, loc: (PathBuf, usize)) -> Result<ParseNodes> {
         let name =
             lex.require_or_error(LexerType::Type(LexerTypeOptions::Word), "expected word")?;
 
@@ -3313,12 +3350,12 @@ impl Parser for Style {
 
         lex.advance();
 
-        Ok(vec![rv])
+        Ok(vec![rv].into())
     }
 }
 
 impl Parser for Init {
-    fn parse(&self, lex: &mut Lexer, loc: (PathBuf, usize)) -> Result<Vec<AstNode>> {
+    fn parse(&self, lex: &mut Lexer, loc: (PathBuf, usize)) -> Result<ParseNodes> {
         if lex.keyword("offset".into()).is_some() {
             lex.require_or_error(LexerType::String("=".into()), "expected '='")?;
             let offset = lex.require_or_error(
@@ -3334,11 +3371,11 @@ impl Parser for Init {
                 .parse()
                 .map_err(|_| lex.parse_error("expected integer"))?;
 
-            return Ok(vec![]);
+            return Ok(ParseNodes::None);
         }
 
         if lex.keyword("label".into()).is_some() {
-            return parse_label(lex, loc, true);
+            return parse_label(lex, loc, true).map(Into::into);
         }
 
         let priority: isize = match lex.integer() {
@@ -3360,7 +3397,7 @@ impl Parser for Init {
 
             lex.init = true;
 
-            block = parse_statement(lex)?;
+            block = parse_statement(lex)?.into_vec();
 
             lex.init = old_init;
         }
@@ -3369,12 +3406,13 @@ impl Parser for Init {
             loc,
             block,
             priority: priority + lex.init_offset,
-        })])
+        })]
+        .into())
     }
 }
 
 impl Parser for Python {
-    fn parse(&self, lex: &mut Lexer, loc: (PathBuf, usize)) -> Result<Vec<AstNode>> {
+    fn parse(&self, lex: &mut Lexer, loc: (PathBuf, usize)) -> Result<ParseNodes> {
         let mut hide = false;
         let mut early = false;
         let mut store = "store".into();
@@ -3414,20 +3452,22 @@ impl Parser for Python {
                 python_code,
                 hide,
                 store: store,
-            })])
+            })]
+            .into())
         } else {
             Ok(vec![AstNode::Python(Python {
                 loc,
                 python_code,
                 hide,
                 store: store,
-            })])
+            })]
+            .into())
         }
     }
 }
 
 impl Parser for Default_ {
-    fn parse(&self, lex: &mut Lexer, loc: (PathBuf, usize)) -> Result<Vec<AstNode>> {
+    fn parse(&self, lex: &mut Lexer, loc: (PathBuf, usize)) -> Result<ParseNodes> {
         let priority: isize = match lex.integer() {
             Some(p) => p.parse().map_err(|_| lex.parse_error("expected integer"))?,
             None => 0,
@@ -3471,12 +3511,12 @@ impl Parser for Default_ {
 
         lex.advance();
 
-        Ok(res)
+        Ok(res.into())
     }
 }
 
 impl Parser for Define {
-    fn parse(&self, lex: &mut Lexer, loc: (PathBuf, usize)) -> Result<Vec<AstNode>> {
+    fn parse(&self, lex: &mut Lexer, loc: (PathBuf, usize)) -> Result<ParseNodes> {
         let priority: isize = match lex.integer() {
             Some(p) => p.parse().map_err(|_| lex.parse_error("expected integer"))?,
             None => 0,
@@ -3537,12 +3577,12 @@ impl Parser for Define {
 
         lex.advance();
 
-        Ok(res)
+        Ok(res.into())
     }
 }
 
 impl Parser for Call {
-    fn parse(&self, lex: &mut Lexer, loc: (PathBuf, usize)) -> Result<Vec<AstNode>> {
+    fn parse(&self, lex: &mut Lexer, loc: (PathBuf, usize)) -> Result<ParseNodes> {
         lex.expect_noblock()?;
 
         let mut expression = false;
@@ -3598,22 +3638,22 @@ impl Parser for Call {
         lex.expect_eol()?;
         lex.advance();
 
-        Ok(rv)
+        Ok(rv.into())
     }
 }
 
 impl Parser for Pass {
-    fn parse(&self, lex: &mut Lexer, loc: (PathBuf, usize)) -> Result<Vec<AstNode>> {
+    fn parse(&self, lex: &mut Lexer, loc: (PathBuf, usize)) -> Result<ParseNodes> {
         lex.expect_noblock()?;
         lex.expect_eol()?;
         lex.advance();
 
-        Ok(vec![AstNode::Pass(Pass { loc })])
+        Ok(vec![AstNode::Pass(Pass { loc })].into())
     }
 }
 
 impl Parser for Transform {
-    fn parse(&self, lex: &mut Lexer, loc: (PathBuf, usize)) -> Result<Vec<AstNode>> {
+    fn parse(&self, lex: &mut Lexer, loc: (PathBuf, usize)) -> Result<ParseNodes> {
         let priority: isize = match lex.integer() {
             Some(p) => p.parse().map_err(|_| lex.parse_error("expected integer"))?,
             None => 0,
@@ -3685,12 +3725,12 @@ impl Parser for Transform {
 
         lex.advance();
 
-        Ok(vec![rv])
+        Ok(vec![rv].into())
     }
 }
 
 impl Parser for Camera {
-    fn parse(&self, lex: &mut Lexer, loc: (PathBuf, usize)) -> Result<Vec<AstNode>> {
+    fn parse(&self, lex: &mut Lexer, loc: (PathBuf, usize)) -> Result<ParseNodes> {
         let layer = lex.image_name_component().unwrap_or("master".into());
 
         let at_list = if lex.keyword("at".into()).is_some() {
@@ -3715,18 +3755,19 @@ impl Parser for Camera {
             layer,
             at_list,
             atl,
-        })])
+        })]
+        .into())
     }
 }
 
 impl Parser for Screen {
-    fn parse(&self, lex: &mut Lexer, loc: (PathBuf, usize)) -> Result<Vec<AstNode>> {
+    fn parse(&self, lex: &mut Lexer, loc: (PathBuf, usize)) -> Result<ParseNodes> {
         todo!("parse screen")
     }
 }
 
 impl Parser for Image {
-    fn parse(&self, lex: &mut Lexer, loc: (PathBuf, usize)) -> Result<Vec<AstNode>> {
+    fn parse(&self, lex: &mut Lexer, loc: (PathBuf, usize)) -> Result<ParseNodes> {
         let name = parse_image_name(lex, false, false)?
             .ok_or_else(|| lex.parse_error("expected image name"))?;
 
@@ -3765,12 +3806,12 @@ impl Parser for Image {
 
         lex.advance();
 
-        Ok(vec![rv])
+        Ok(vec![rv].into())
     }
 }
 
 impl Parser for RPY {
-    fn parse(&self, lex: &mut Lexer, loc: (PathBuf, usize)) -> Result<Vec<AstNode>> {
+    fn parse(&self, lex: &mut Lexer, loc: (PathBuf, usize)) -> Result<ParseNodes> {
         if lex.keyword("monologue".into()).is_some() {
             if lex.keyword("double".into()).is_some() {
                 lex.monologue_delimiter = Some("\n\n".into());
@@ -3786,7 +3827,7 @@ impl Parser for RPY {
             lex.expect_noblock()?;
             lex.advance();
 
-            return Ok(vec![]);
+            return Ok(ParseNodes::None);
         }
 
         if lex.keyword("python".into()).is_some() {
@@ -3815,7 +3856,7 @@ impl Parser for RPY {
             lex.expect_noblock()?;
             lex.advance();
 
-            return Ok(rv);
+            return Ok(rv.into());
         }
 
         Err(lex.parse_error("expected rpy statement"))
@@ -3889,7 +3930,7 @@ fn parse_translate_strings(
 }
 
 impl Parser for Translate {
-    fn parse(&self, lex: &mut Lexer, loc: (PathBuf, usize)) -> Result<Vec<AstNode>> {
+    fn parse(&self, lex: &mut Lexer, loc: (PathBuf, usize)) -> Result<ParseNodes> {
         let mut language = Some(lex.require_or_error(
             LexerType::Type(LexerTypeOptions::Name),
             "expected language name",
@@ -3905,7 +3946,7 @@ impl Parser for Translate {
         )?;
 
         if identifier == "strings" {
-            return parse_translate_strings(lex, loc, language);
+            return parse_translate_strings(lex, loc, language).map(Into::into);
         }
 
         if identifier == "python" {
@@ -3913,12 +3954,13 @@ impl Parser for Translate {
             lex.init = true;
             let block = Python::default().parse(lex, loc.clone());
             lex.init = old_init;
-            let block = block?;
+            let block = block?.into_vec();
             return Ok(vec![AstNode::TranslateEarlyBlock(TranslateEarlyBlock {
                 loc,
                 language,
                 block,
-            })]);
+            })]
+            .into());
         }
 
         if identifier == "style" {
@@ -3926,12 +3968,13 @@ impl Parser for Translate {
             lex.init = true;
             let block = Style::default().parse(lex, loc.clone());
             lex.init = old_init;
-            let block = block?;
+            let block = block?.into_vec();
             return Ok(vec![AstNode::TranslateBlock(TranslateBlock {
                 loc,
                 language,
                 block,
-            })]);
+            })]
+            .into());
         }
 
         lex.require_or_error(LexerType::String(":".into()), "expected ':'")?;
@@ -3950,12 +3993,13 @@ impl Parser for Translate {
                 block,
             }),
             AstNode::EndTranslate(EndTranslate { loc }),
-        ])
+        ]
+        .into())
     }
 }
 
 impl Parser for Testcase {
-    fn parse(&self, lex: &mut Lexer, loc: (PathBuf, usize)) -> Result<Vec<AstNode>> {
+    fn parse(&self, lex: &mut Lexer, loc: (PathBuf, usize)) -> Result<ParseNodes> {
         let name = lex.require_or_error(
             LexerType::Type(LexerTypeOptions::DottedName),
             "expected dotted name",
@@ -3967,12 +4011,12 @@ impl Parser for Testcase {
         let block = lex.subblock.clone();
         lex.advance();
 
-        Ok(vec![AstNode::Testcase(Testcase { loc, name, block })])
+        Ok(vec![AstNode::Testcase(Testcase { loc, name, block })].into())
     }
 }
 
 impl Parser for Testsuite {
-    fn parse(&self, lex: &mut Lexer, loc: (PathBuf, usize)) -> Result<Vec<AstNode>> {
+    fn parse(&self, lex: &mut Lexer, loc: (PathBuf, usize)) -> Result<ParseNodes> {
         let name = lex.require_or_error(
             LexerType::Type(LexerTypeOptions::DottedName),
             "expected dotted name",
@@ -3984,7 +4028,7 @@ impl Parser for Testsuite {
         let block = lex.subblock.clone();
         lex.advance();
 
-        Ok(vec![AstNode::Testsuite(Testsuite { loc, name, block })])
+        Ok(vec![AstNode::Testsuite(Testsuite { loc, name, block })].into())
     }
 }
 
