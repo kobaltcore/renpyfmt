@@ -43,17 +43,13 @@ Implemented parser coverage already includes:
 
 Core parser gaps still remaining:
 
-1. `IF` / `ELIF` / `ELSE`
-2. `translate`
-3. `testcase`
-4. `testsuite`
+1. `testcase`
+2. `testsuite`
 
 Out of those, the most important short-term work for a reliable core parser is:
 
-1. `IF` / `ELIF` / `ELSE`
-2. `translate`
-3. `testcase`
-4. `testsuite`
+1. `testcase`
+2. `testsuite`
 
 `translate`, `testcase`, and `testsuite` should stay on the roadmap, but they can come after the smaller core-statement work and the error-handling conversion.
 
@@ -300,6 +296,8 @@ These are still core language features, but larger than the previous group.
 
 ### 4.1 `IF` / `ELIF` / `ELSE`
 
+Status: completed as syntax-preserving parser support.
+
 Notes:
 
 1. This is compile-time conditional parsing upstream.
@@ -312,6 +310,15 @@ Recommended approach:
 3. add explicit tests for selection behavior
 
 ### 4.2 `translate`
+
+Status: completed for the main parser family.
+
+Completed coverage:
+
+1. `translate <language> <identifier>:` blocks
+2. `translate <language> strings:` blocks
+3. `translate <language> python:` blocks
+4. `translate <language> style:` blocks
 
 Notes:
 
@@ -390,9 +397,9 @@ As statements are added, clean up the parser shape instead of letting `src/parse
 5. Completed: add `init offset` and `init label`.
 6. Completed: add `rpy monologue` and `rpy python`.
 7. Completed for the current core parser path: finish panic-to-error conversion across core statement parsers and parser entry points.
-8. Next: add `IF` / `ELIF` / `ELSE`.
-9. Next: add `translate` support.
-10. Later: add `testcase` and `testsuite` or explicitly defer them behind a parser limitation.
+8. Completed: add `IF` / `ELIF` / `ELSE`.
+9. Completed: add `translate` support.
+10. Next: add `testcase` and `testsuite` or explicitly defer them behind a parser limitation.
 
 ## Future Goals
 

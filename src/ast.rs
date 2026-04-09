@@ -161,6 +161,12 @@ pub struct While {
 }
 
 #[derive(Debug, Clone, Default)]
+pub struct CompileIf {
+    pub loc: (PathBuf, usize),
+    pub entries: Vec<(Option<String>, Vec<AstNode>)>,
+}
+
+#[derive(Debug, Clone, Default)]
 pub struct Return {
     pub loc: (PathBuf, usize),
     pub expression: Option<String>,
@@ -262,6 +268,42 @@ pub struct RPY {
     pub rest: Vec<String>,
 }
 
+#[derive(Debug, Clone, Default)]
+pub struct Translate {
+    pub loc: (PathBuf, usize),
+    pub identifier: String,
+    pub language: Option<String>,
+    pub block: Vec<AstNode>,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct EndTranslate {
+    pub loc: (PathBuf, usize),
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct TranslateString {
+    pub loc: (PathBuf, usize),
+    pub language: Option<String>,
+    pub old: String,
+    pub new: String,
+    pub new_loc: (PathBuf, usize),
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct TranslateBlock {
+    pub loc: (PathBuf, usize),
+    pub language: Option<String>,
+    pub block: Vec<AstNode>,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct TranslateEarlyBlock {
+    pub loc: (PathBuf, usize),
+    pub language: Option<String>,
+    pub block: Vec<AstNode>,
+}
+
 #[derive(Debug, Clone)]
 pub enum AstNode {
     Label(Label),
@@ -276,6 +318,7 @@ pub enum AstNode {
     Menu(Menu),
     If(If),
     While(While),
+    CompileIf(CompileIf),
     Return(Return),
     Style(Style),
     Init(Init),
@@ -291,6 +334,11 @@ pub enum AstNode {
     Screen(Screen),
     Image(Image),
     RPY(RPY),
+    Translate(Translate),
+    EndTranslate(EndTranslate),
+    TranslateString(TranslateString),
+    TranslateBlock(TranslateBlock),
+    TranslateEarlyBlock(TranslateEarlyBlock),
 }
 
 impl Default for AstNode {

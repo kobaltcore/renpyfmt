@@ -1,8 +1,8 @@
 use crate::{
     ast::{
-        AstNode, Call, Camera, Default_, Define, Hide, If, Image, Init, Jump, Label, Menu, Pass,
-        Python, PythonOneLine, Return, Say, Scene, Screen, Show, Style, Transform, UserStatement,
-        While, With, RPY,
+        AstNode, Call, Camera, CompileIf, Default_, Define, Hide, If, Image, Init, Jump, Label,
+        Menu, Pass, Python, PythonOneLine, Return, Say, Scene, Screen, Show, Style, Transform,
+        Translate, UserStatement, While, With, RPY,
     },
     error::Result,
     lexer::Lexer,
@@ -36,6 +36,7 @@ impl ParseTrie {
         self.add(vec!["jump".into()], Box::new(Jump::default()));
         self.add(vec!["menu".into()], Box::new(Menu::default()));
         self.add(vec!["if".into()], Box::new(If::default()));
+        self.add(vec!["IF".into()], Box::new(CompileIf::default()));
         self.add(vec!["while".into()], Box::new(While::default()));
         self.add(vec!["return".into()], Box::new(Return::default()));
         self.add(vec!["style".into()], Box::new(Style::default()));
@@ -50,6 +51,7 @@ impl ParseTrie {
         self.add(vec!["screen".into()], Box::new(Screen::default()));
         self.add(vec!["image".into()], Box::new(Image::default()));
         self.add(vec!["rpy".into()], Box::new(RPY::default()));
+        self.add(vec!["translate".into()], Box::new(Translate::default()));
 
         let custom_statements = vec![
             // built-in custom statements

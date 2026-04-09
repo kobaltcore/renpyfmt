@@ -1,9 +1,10 @@
 use crate::{
     ast::{
-        ArgumentInfo, AstNode, Call, Camera, Default_, Define, EarlyPython, Hide, If, Image,
-        ImageSpecifier, Init, Jump, Label, Menu, Parameter, ParameterKind, ParameterSignature,
-        Pass, Python, PythonOneLine, Return, Say, Scene, Screen, Show, ShowLayer, Style, Transform,
-        UserStatement, While, With, RPY,
+        ArgumentInfo, AstNode, Call, Camera, CompileIf, Default_, Define, EarlyPython,
+        EndTranslate, Hide, If, Image, ImageSpecifier, Init, Jump, Label, Menu, Parameter,
+        ParameterKind, ParameterSignature, Pass, Python, PythonOneLine, Return, Say, Scene, Screen,
+        Show, ShowLayer, Style, Transform, Translate, TranslateBlock, TranslateEarlyBlock,
+        TranslateString, UserStatement, While, With, RPY,
     },
     atl::{
         AtlStatement, RawBlock, RawChild, RawChoice, RawContainsExpr, RawEvent, RawFunction,
@@ -1714,6 +1715,41 @@ impl Parser for While {
             condition,
             block,
         })])
+    }
+}
+
+impl Parser for CompileIf {
+    fn parse(&self, lex: &mut Lexer, loc: (PathBuf, usize)) -> Result<Vec<AstNode>> {
+        let mut entries = vec![];
+
+        let condition = lex.python_expression()?;
+        lex.require_or_error(LexerType::String(":".into()), "expected ':'")?;
+        lex.expect_eol()?;
+        lex.expect_block()?;
+        let block = parse_block(&mut lex.subblock_lexer(false))?;
+        entries.push((Some(condition), block));
+        lex.advance();
+
+        while lex.keyword("ELIF".into()).is_some() {
+            let condition = lex.python_expression()?;
+            lex.require_or_error(LexerType::String(":".into()), "expected ':'")?;
+            lex.expect_eol()?;
+            lex.expect_block()?;
+            let block = parse_block(&mut lex.subblock_lexer(false))?;
+            entries.push((Some(condition), block));
+            lex.advance();
+        }
+
+        if lex.keyword("ELSE".into()).is_some() {
+            lex.require_or_error(LexerType::String(":".into()), "expected ':'")?;
+            lex.expect_eol()?;
+            lex.expect_block()?;
+            let block = parse_block(&mut lex.subblock_lexer(false))?;
+            entries.push((None, block));
+            lex.advance();
+        }
+
+        Ok(vec![AstNode::CompileIf(CompileIf { loc, entries })])
     }
 }
 
@@ -3786,6 +3822,138 @@ impl Parser for RPY {
     }
 }
 
+fn parse_translate_strings(
+    lex: &mut Lexer,
+    init_loc: (PathBuf, usize),
+    language: Option<String>,
+) -> Result<Vec<AstNode>> {
+    lex.require_or_error(LexerType::String(":".into()), "expected ':'")?;
+    lex.expect_eol()?;
+    lex.expect_block()?;
+
+    let mut ll = lex.subblock_lexer(false);
+    let mut block = vec![];
+    let mut old = None;
+    let mut old_loc = None;
+
+    while ll.advance() {
+        if ll.keyword("old".into()).is_some() {
+            if old.is_some() {
+                return Err(ll.parse_error("previous string is missing a translation"));
+            }
+
+            old_loc = Some(ll.get_location());
+            old = Some(
+                ll.rest()
+                    .ok_or_else(|| ll.parse_error("Could not parse string."))?,
+            );
+        } else if ll.keyword("new".into()).is_some() {
+            if old.is_none() {
+                return Err(ll.parse_error("no string to translate"));
+            }
+
+            let new_loc = ll.get_location();
+            let new = ll
+                .rest()
+                .ok_or_else(|| ll.parse_error("Could not parse string."))?;
+
+            block.push(AstNode::TranslateString(TranslateString {
+                loc: old_loc.clone().expect("old location set above"),
+                language: language.clone(),
+                old: old.take().expect("old string set above"),
+                new,
+                new_loc,
+            }));
+
+            old_loc = None;
+        } else {
+            return Err(ll.parse_error("unknown statement"));
+        }
+    }
+
+    if old.is_some() {
+        return Err(lex.parse_error("final string is missing a translation"));
+    }
+
+    lex.advance();
+
+    if lex.init {
+        Ok(block)
+    } else {
+        Ok(vec![AstNode::Init(Init {
+            loc: init_loc,
+            block,
+            priority: lex.init_offset,
+        })])
+    }
+}
+
+impl Parser for Translate {
+    fn parse(&self, lex: &mut Lexer, loc: (PathBuf, usize)) -> Result<Vec<AstNode>> {
+        let mut language = Some(lex.require_or_error(
+            LexerType::Type(LexerTypeOptions::Name),
+            "expected language name",
+        )?);
+
+        if language.as_deref() == Some("None") {
+            language = None;
+        }
+
+        let identifier = lex.require_or_error(
+            LexerType::Type(LexerTypeOptions::Hash),
+            "expected translate identifier",
+        )?;
+
+        if identifier == "strings" {
+            return parse_translate_strings(lex, loc, language);
+        }
+
+        if identifier == "python" {
+            let old_init = lex.init;
+            lex.init = true;
+            let block = Python::default().parse(lex, loc.clone());
+            lex.init = old_init;
+            let block = block?;
+            return Ok(vec![AstNode::TranslateEarlyBlock(TranslateEarlyBlock {
+                loc,
+                language,
+                block,
+            })]);
+        }
+
+        if identifier == "style" {
+            let old_init = lex.init;
+            lex.init = true;
+            let block = Style::default().parse(lex, loc.clone());
+            lex.init = old_init;
+            let block = block?;
+            return Ok(vec![AstNode::TranslateBlock(TranslateBlock {
+                loc,
+                language,
+                block,
+            })]);
+        }
+
+        lex.require_or_error(LexerType::String(":".into()), "expected ':'")?;
+        lex.expect_eol()?;
+        lex.expect_block()?;
+
+        let block = parse_block(&mut lex.subblock_lexer(false))?;
+
+        lex.advance();
+
+        Ok(vec![
+            AstNode::Translate(Translate {
+                loc: loc.clone(),
+                identifier,
+                language,
+                block,
+            }),
+            AstNode::EndTranslate(EndTranslate { loc }),
+        ])
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::parse_block;
@@ -4006,5 +4174,57 @@ mod tests {
         let ast = assert_parse(parse(vec![block(1, "rpy monologue none", vec![])]));
 
         assert!(ast.is_empty());
+    }
+
+    #[test]
+    fn compile_if_statement_parses_all_clauses() {
+        let ast = assert_parse(parse(vec![
+            block(1, "IF flag:", vec![block(2, "pass", vec![])]),
+            block(3, "ELIF other:", vec![block(4, "pass", vec![])]),
+            block(5, "ELSE:", vec![block(6, "pass", vec![])]),
+        ]));
+
+        assert!(matches!(&ast[0], AstNode::CompileIf(node) if node.entries.len() == 3));
+    }
+
+    #[test]
+    fn translate_block_parses() {
+        let ast = assert_parse(parse(vec![block(
+            1,
+            "translate english start:",
+            vec![block(2, "pass", vec![])],
+        )]));
+
+        assert!(
+            matches!(&ast[0], AstNode::Translate(node) if node.language.as_deref() == Some("english") && node.identifier == "start")
+        );
+        assert!(matches!(&ast[1], AstNode::EndTranslate(_)));
+    }
+
+    #[test]
+    fn translate_strings_parses() {
+        let ast = assert_parse(parse(vec![block(
+            1,
+            "translate english strings:",
+            vec![
+                block(2, "old \"Hello\"", vec![]),
+                block(3, "new \"Hi\"", vec![]),
+            ],
+        )]));
+
+        assert!(matches!(&ast[0], AstNode::Init(_)));
+    }
+
+    #[test]
+    fn translate_python_parses() {
+        let ast = assert_parse(parse(vec![block(
+            1,
+            "translate english python:",
+            vec![block(2, "pass", vec![])],
+        )]));
+
+        assert!(
+            matches!(&ast[0], AstNode::TranslateEarlyBlock(node) if node.language.as_deref() == Some("english") && node.block.len() == 1)
+        );
     }
 }

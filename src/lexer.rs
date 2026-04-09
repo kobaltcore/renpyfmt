@@ -529,7 +529,7 @@ impl Lexer {
             LexerType::String(s) => self.rmatch(s.into()),
             LexerType::Type(t) => match t {
                 LexerTypeOptions::Name => self.name(),
-                LexerTypeOptions::Hash => todo!(),
+                LexerTypeOptions::Hash => self.rmatch(RegexType::String(r"\w+".into())),
                 LexerTypeOptions::Integer => self.integer(),
                 LexerTypeOptions::Word => self.word(),
                 LexerTypeOptions::LabelNameDeclare => self.label_name_declare(),

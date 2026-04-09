@@ -516,6 +516,7 @@ pub fn format_ast(ast: &Vec<AstNode>, indent: usize) -> Vec<String> {
                 lines.push(node.format(indent, &ctx));
             }
             AstNode::While(node) => todo!("while"),
+            AstNode::CompileIf(node) => todo!("compile if"),
             AstNode::Return(node) => {
                 lines.push(format!("{}\n", node.format(indent, &ctx)));
             }
@@ -543,6 +544,11 @@ pub fn format_ast(ast: &Vec<AstNode>, indent: usize) -> Vec<String> {
             AstNode::Screen(node) => todo!("screen"),
             AstNode::Image(node) => todo!("image"),
             AstNode::RPY(node) => todo!("rpy"),
+            AstNode::Translate(node) => todo!("translate"),
+            AstNode::EndTranslate(node) => todo!("end translate"),
+            AstNode::TranslateString(node) => todo!("translate string"),
+            AstNode::TranslateBlock(node) => todo!("translate block"),
+            AstNode::TranslateEarlyBlock(node) => todo!("translate early block"),
         }
 
         // prev_node = Some(node.clone());

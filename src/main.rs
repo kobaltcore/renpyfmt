@@ -585,6 +585,9 @@ fn print_nodes(nodes: Vec<AstNode>, depth: usize) {
                 println!("While: {}", w.condition);
                 print_nodes(w.block, depth + 1);
             }
+            AstNode::CompileIf(i) => {
+                println!("CompileIf: {:?}", i);
+            }
             AstNode::Return(r) => {
                 println!("Return: {:?}", r);
             }
@@ -629,6 +632,21 @@ fn print_nodes(nodes: Vec<AstNode>, depth: usize) {
             }
             AstNode::RPY(r) => {
                 println!("RPY: {:?}", r);
+            }
+            AstNode::Translate(t) => {
+                println!("Translate: {:?}", t);
+            }
+            AstNode::EndTranslate(t) => {
+                println!("EndTranslate: {:?}", t);
+            }
+            AstNode::TranslateString(t) => {
+                println!("TranslateString: {:?}", t);
+            }
+            AstNode::TranslateBlock(t) => {
+                println!("TranslateBlock: {:?}", t);
+            }
+            AstNode::TranslateEarlyBlock(t) => {
+                println!("TranslateEarlyBlock: {:?}", t);
             }
         }
     }
