@@ -15,8 +15,29 @@ use crate::{
 };
 use std::{
     collections::{HashMap, HashSet},
+    panic::{catch_unwind, AssertUnwindSafe},
     path::PathBuf,
 };
+
+fn panic_message(payload: Box<dyn std::any::Any + Send>) -> String {
+    if let Some(message) = payload.downcast_ref::<&str>() {
+        (*message).to_string()
+    } else if let Some(message) = payload.downcast_ref::<String>() {
+        message.clone()
+    } else {
+        "parser panicked".into()
+    }
+}
+
+fn with_parse_error_boundary<T>(
+    lex: &mut Lexer,
+    f: impl FnOnce(&mut Lexer) -> Result<T>,
+) -> Result<T> {
+    match catch_unwind(AssertUnwindSafe(|| f(lex))) {
+        Ok(result) => result,
+        Err(payload) => Err(lex.parse_error(panic_message(payload))),
+    }
+}
 
 pub trait Parser {
     fn parse(&self, lex: &mut Lexer, loc: (PathBuf, usize)) -> Result<Vec<AstNode>>;
@@ -26,7 +47,7 @@ pub fn parse_statement(lex: &mut Lexer) -> Result<Vec<AstNode>> {
     let mut parser = ParseTrie::new();
     parser.init();
 
-    parser.parse(lex)
+    with_parse_error_boundary(lex, |lex| parser.parse(lex))
 }
 pub fn parse_block(lex: &mut Lexer) -> Result<Vec<AstNode>> {
     lex.advance();
@@ -40,7 +61,7 @@ pub fn parse_block(lex: &mut Lexer) -> Result<Vec<AstNode>> {
 
     while !lex.eob {
         // println!("parsing: {:?}", lex.text);
-        let stmt = parser.parse(lex)?;
+        let stmt = with_parse_error_boundary(lex, |lex| parser.parse(lex))?;
 
         if stmt.len() == 1 {
             result.push(stmt[0].clone());
@@ -246,11 +267,12 @@ impl Parser for Label {
     }
 }
 
-fn parse_image_name(lex: &mut Lexer, string: bool, nodash: bool) -> Option<Vec<String>> {
+fn parse_image_name(lex: &mut Lexer, string: bool, nodash: bool) -> Result<Option<Vec<String>>> {
     let mut points = vec![lex.checkpoint()];
-    let mut rv = vec![lex
-        .require(LexerType::Type(LexerTypeOptions::ImageNameComponent))
-        .unwrap()];
+    let Some(first) = lex.require(LexerType::Type(LexerTypeOptions::ImageNameComponent)) else {
+        return Ok(None);
+    };
+    let mut rv = vec![first];
 
     loop {
         points.push(lex.checkpoint());
@@ -262,7 +284,7 @@ fn parse_image_name(lex: &mut Lexer, string: bool, nodash: bool) -> Option<Vec<S
             break;
         }
 
-        rv.push(n.unwrap().trim().into());
+        rv.push(n.expect("image_name_component checked above").trim().into());
     }
 
     if string {
@@ -283,18 +305,19 @@ fn parse_image_name(lex: &mut Lexer, string: bool, nodash: bool) -> Option<Vec<S
             if i.len() > 0 && i.chars().nth(0) == Some('-') {
                 lex.revert(p);
                 lex.skip_whitespace();
-                panic!("image name components may not begin with a '-'.");
+                return Err(lex.parse_error("image name components may not begin with a '-'."));
             }
         }
     }
 
-    Some(rv)
+    Ok(Some(rv))
 }
 
-fn parse_simple_expression_list(lex: &mut Lexer) -> Vec<String> {
-    let mut rv = vec![lex
-        .require(LexerType::Type(LexerTypeOptions::SimpleExpression))
-        .unwrap()];
+fn parse_simple_expression_list(lex: &mut Lexer) -> Result<Vec<String>> {
+    let mut rv = vec![lex.require_or_error(
+        LexerType::Type(LexerTypeOptions::SimpleExpression),
+        "expected simple expression",
+    )?];
 
     loop {
         if lex.rmatch(",".into()).is_none() {
@@ -307,13 +330,13 @@ fn parse_simple_expression_list(lex: &mut Lexer) -> Vec<String> {
             break;
         }
 
-        rv.push(e.unwrap());
+        rv.push(e.expect("simple_expression checked above"));
     }
 
-    rv
+    Ok(rv)
 }
 
-fn parse_image_specifier(lex: &mut Lexer) -> ImageSpecifier {
+fn parse_image_specifier(lex: &mut Lexer) -> Result<ImageSpecifier> {
     let mut tag = None;
     let mut layer = None;
     let mut at_list = vec![];
@@ -323,19 +346,28 @@ fn parse_image_specifier(lex: &mut Lexer) -> ImageSpecifier {
     let image_name: Option<Vec<String>>;
 
     if lex.keyword("expression".into()).is_some() || lex.keyword("image".into()).is_some() {
-        expression = lex.require(LexerType::Type(LexerTypeOptions::SimpleExpression));
-        image_name = Some(vec![expression.clone().unwrap().trim().into()]);
+        expression = Some(lex.require_or_error(
+            LexerType::Type(LexerTypeOptions::SimpleExpression),
+            "expected simple expression",
+        )?);
+        image_name = Some(vec![expression
+            .clone()
+            .expect("expression set above")
+            .trim()
+            .into()]);
     } else {
-        image_name = parse_image_name(lex, true, false);
+        image_name = parse_image_name(lex, true, false)?;
         expression = None;
     }
 
     loop {
         if lex.keyword("onlayer".into()).is_some() {
             if layer.is_some() {
-                panic!("multiple onlayer clauses are prohibited.");
+                return Err(lex.parse_error("multiple onlayer clauses are prohibited."));
             } else {
-                layer = lex.require(LexerType::Type(LexerTypeOptions::Name));
+                layer = Some(
+                    lex.require_or_error(LexerType::Type(LexerTypeOptions::Name), "expected name")?,
+                );
             }
             continue;
         }
@@ -344,40 +376,46 @@ fn parse_image_specifier(lex: &mut Lexer) -> ImageSpecifier {
         if lex.keyword("at".into()).is_some() {
             // println!("pos after at: {}", lex.pos);
             if at_list.len() > 0 {
-                panic!("multiple at clauses are prohibited.");
+                return Err(lex.parse_error("multiple at clauses are prohibited."));
             } else {
                 // println!("requiring simple expression");
-                at_list = parse_simple_expression_list(lex);
+                at_list = parse_simple_expression_list(lex)?;
             }
             continue;
         }
 
         if lex.keyword("as".into()).is_some() {
             if tag.is_some() {
-                panic!("multiple as clauses are prohibited.");
+                return Err(lex.parse_error("multiple as clauses are prohibited."));
             } else {
-                tag = lex.require(LexerType::Type(LexerTypeOptions::Name));
+                tag = Some(
+                    lex.require_or_error(LexerType::Type(LexerTypeOptions::Name), "expected name")?,
+                );
             }
             continue;
         }
 
         if lex.keyword("zorder".into()).is_some() {
             if zorder.is_some() {
-                panic!("multiple zorder clauses are prohibited.");
+                return Err(lex.parse_error("multiple zorder clauses are prohibited."));
             } else {
-                zorder = lex.require(LexerType::Type(LexerTypeOptions::SimpleExpression));
+                zorder = Some(lex.require_or_error(
+                    LexerType::Type(LexerTypeOptions::SimpleExpression),
+                    "expected simple expression",
+                )?);
             }
             continue;
         }
 
         if lex.keyword("behind".into()).is_some() {
             if behind.len() > 0 {
-                panic!("multiple behind clauses are prohibited.");
+                return Err(lex.parse_error("multiple behind clauses are prohibited."));
             }
 
             loop {
-                let bhtag = lex.require(LexerType::Type(LexerTypeOptions::Name));
-                behind.push(bhtag.unwrap());
+                let bhtag =
+                    lex.require_or_error(LexerType::Type(LexerTypeOptions::Name), "expected name")?;
+                behind.push(bhtag);
                 if lex.rmatch(",".into()).is_none() {
                     break;
                 }
@@ -389,42 +427,45 @@ fn parse_image_specifier(lex: &mut Lexer) -> ImageSpecifier {
         break;
     }
 
-    ImageSpecifier {
-        image_name: image_name.unwrap(),
+    Ok(ImageSpecifier {
+        image_name: image_name.ok_or_else(|| lex.parse_error("expected image name"))?,
         expression,
         tag,
         at_list,
         layer,
         zorder,
         behind,
-    }
+    })
 }
 
-fn parse_with(lex: &mut Lexer, node: AstNode) -> Vec<AstNode> {
+fn parse_with(lex: &mut Lexer, node: AstNode) -> Result<Vec<AstNode>> {
     let loc = lex.get_location();
 
     if lex.keyword("with".into()).is_none() {
-        return vec![node];
+        return Ok(vec![node]);
     }
 
-    let expr = lex.require(LexerType::Type(LexerTypeOptions::SimpleExpression));
+    let expr = lex.require_or_error(
+        LexerType::Type(LexerTypeOptions::SimpleExpression),
+        "expected simple expression",
+    )?;
 
-    vec![
+    Ok(vec![
         AstNode::With(With {
             loc: loc.clone(),
             expr: "None".into(),
-            paired: expr.clone(),
+            paired: Some(expr.clone()),
         }),
         node,
         AstNode::With(With {
             loc,
-            expr: expr.unwrap(),
+            expr,
             paired: None,
         }),
-    ]
+    ])
 }
 
-fn parse_atl(lex: &mut Lexer) -> Option<RawBlock> {
+fn parse_atl(lex: &mut Lexer) -> Result<RawBlock> {
     lex.advance();
 
     let block_loc = lex.get_location();
@@ -570,34 +611,34 @@ fn parse_atl(lex: &mut Lexer) -> Option<RawBlock> {
             let repeats = lex.simple_expression(false, true);
             statements.push(Some(AtlStatement::RawRepeat(RawRepeat { loc, repeats })));
         } else if lex.keyword("block".into()).is_some() {
-            lex.require(LexerType::String(":".into())).unwrap();
-            lex.expect_eol();
-            lex.expect_block();
+            lex.require_or_error(LexerType::String(":".into()), "expected ':'")?;
+            lex.expect_eol()?;
+            lex.expect_block()?;
 
             let block = parse_atl(&mut lex.subblock_lexer(false))?;
             statements.push(Some(AtlStatement::RawBlock(block)));
         } else if lex.keyword("contains".into()).is_some() {
             match lex.simple_expression(false, true) {
                 Some(expr) => {
-                    lex.expect_noblock();
+                    lex.expect_noblock()?;
                     statements.push(Some(AtlStatement::RawContainsExpr(RawContainsExpr {
                         loc,
                         expr,
                     })));
                 }
                 None => {
-                    lex.require(LexerType::String(":".into())).unwrap();
-                    lex.expect_eol();
-                    lex.expect_block();
+                    lex.require_or_error(LexerType::String(":".into()), "expected ':'")?;
+                    lex.expect_eol()?;
+                    lex.expect_block()?;
 
                     let block = parse_atl(&mut lex.subblock_lexer(false))?;
                     statements.push(Some(AtlStatement::RawChild(RawChild { loc, child: block })));
                 }
             }
         } else if lex.keyword("parallel".into()).is_some() {
-            lex.require(LexerType::String(":".into())).unwrap();
-            lex.expect_eol();
-            lex.expect_block();
+            lex.require_or_error(LexerType::String(":".into()), "expected ':'")?;
+            lex.expect_eol()?;
+            lex.expect_block()?;
 
             let block = parse_atl(&mut lex.subblock_lexer(false))?;
             statements.push(Some(AtlStatement::RawParallel(RawParallel { loc, block })));
@@ -608,18 +649,20 @@ fn parse_atl(lex: &mut Lexer) -> Option<RawBlock> {
                 chance = Some("1.0".into());
             }
 
-            lex.require(LexerType::String(":".into())).unwrap();
-            lex.expect_eol();
-            lex.expect_block();
+            lex.require_or_error(LexerType::String(":".into()), "expected ':'")?;
+            lex.expect_eol()?;
+            lex.expect_block()?;
 
             let block = parse_atl(&mut lex.subblock_lexer(false))?;
             statements.push(Some(AtlStatement::RawChoice(RawChoice {
                 loc,
-                chance: chance.unwrap(),
+                chance: chance.ok_or_else(|| lex.parse_error("expected chance expression"))?,
                 block,
             })));
         } else if lex.keyword("on".into()).is_some() {
-            let mut names = vec![lex.require(LexerType::Type(LexerTypeOptions::Word))?];
+            let mut names = vec![
+                lex.require_or_error(LexerType::Type(LexerTypeOptions::Word), "expected word")?
+            ];
 
             while lex.rmatch(",".into()).is_some() {
                 let name = lex.require(LexerType::Type(LexerTypeOptions::Word));
@@ -628,41 +671,42 @@ fn parse_atl(lex: &mut Lexer) -> Option<RawBlock> {
                     break;
                 }
 
-                names.push(name.unwrap());
+                names.push(name.expect("name checked above"));
             }
 
-            lex.require(LexerType::String(":".into())).unwrap();
-            lex.expect_eol();
-            lex.expect_block();
+            lex.require_or_error(LexerType::String(":".into()), "expected ':'")?;
+            lex.expect_eol()?;
+            lex.expect_block()?;
 
             let block = parse_atl(&mut lex.subblock_lexer(false))?;
             statements.push(Some(AtlStatement::RawOn(RawOn { loc, names, block })));
         } else if lex.keyword("time".into()).is_some() {
-            let time = lex
-                .require(LexerType::Type(LexerTypeOptions::SimpleExpression))
-                .unwrap();
-            lex.expect_noblock();
+            let time = lex.require_or_error(
+                LexerType::Type(LexerTypeOptions::SimpleExpression),
+                "expected simple expression",
+            )?;
+            lex.expect_noblock()?;
 
             statements.push(Some(AtlStatement::RawTime(RawTime { loc, time })));
         } else if lex.keyword("function".into()).is_some() {
-            let expr = lex
-                .require(LexerType::Type(LexerTypeOptions::SimpleExpression))
-                .unwrap();
-            lex.expect_noblock();
+            let expr = lex.require_or_error(
+                LexerType::Type(LexerTypeOptions::SimpleExpression),
+                "expected simple expression",
+            )?;
+            lex.expect_noblock()?;
 
             statements.push(Some(AtlStatement::RawFunction(RawFunction { loc, expr })));
         } else if lex.keyword("event".into()).is_some() {
-            let name = lex
-                .require(LexerType::Type(LexerTypeOptions::Word))
-                .unwrap();
-            lex.expect_noblock();
+            let name =
+                lex.require_or_error(LexerType::Type(LexerTypeOptions::Word), "expected word")?;
+            lex.expect_noblock()?;
 
             statements.push(Some(AtlStatement::RawEvent(RawEvent { loc, name })));
         } else if lex.keyword("pass".into()).is_some() {
-            lex.expect_noblock();
+            lex.expect_noblock()?;
             statements.push(None);
         } else if lex.keyword("animation".into()).is_some() {
-            lex.expect_noblock();
+            lex.expect_noblock()?;
             animation = true;
         } else {
             let mut rm = RawMultipurpose::new(loc);
@@ -676,28 +720,35 @@ fn parse_atl(lex: &mut Lexer) -> Option<RawBlock> {
             let duration;
             let warp_function;
 
-            if warper.is_some() && warpers.contains(&warper.clone().unwrap()) {
-                duration = Some(
-                    lex.require(LexerType::Type(LexerTypeOptions::SimpleExpression))
-                        .unwrap(),
-                );
-                warp_function = None;
-            } else if warper == Some("warp".into()) {
-                warper = None;
-                warp_function = Some(
-                    lex.require(LexerType::Type(LexerTypeOptions::SimpleExpression))
-                        .unwrap(),
-                );
-                duration = Some(
-                    lex.require(LexerType::Type(LexerTypeOptions::SimpleExpression))
-                        .unwrap(),
-                );
+            if let Some(ref warper_name) = warper {
+                if warpers.contains(warper_name) {
+                    duration = Some(lex.require_or_error(
+                        LexerType::Type(LexerTypeOptions::SimpleExpression),
+                        "expected simple expression",
+                    )?);
+                    warp_function = None;
+                } else if warper == Some("warp".into()) {
+                    warper = None;
+                    warp_function = Some(lex.require_or_error(
+                        LexerType::Type(LexerTypeOptions::SimpleExpression),
+                        "expected simple expression",
+                    )?);
+                    duration = Some(lex.require_or_error(
+                        LexerType::Type(LexerTypeOptions::SimpleExpression),
+                        "expected simple expression",
+                    )?);
+                } else {
+                    lex.revert(cp);
+
+                    warper = None;
+                    warp_function = None;
+                    duration = None;
+                }
             } else {
                 lex.revert(cp);
 
                 warper = None;
                 warp_function = None;
-                // duration = Some("0".into());
                 duration = None;
             }
 
@@ -712,8 +763,8 @@ fn parse_atl(lex: &mut Lexer) -> Option<RawBlock> {
                 // println!("loop lexer {} {}", lex.text, lex.pos);
                 if warper.is_some() && !has_block && ll.rmatch(":".into()).is_some() {
                     // println!("block");
-                    ll.expect_eol();
-                    ll.expect_block();
+                    ll.expect_eol()?;
+                    ll.expect_block()?;
                     has_block = true;
                     if first_lex {
                         // forward the original lexer
@@ -723,13 +774,13 @@ fn parse_atl(lex: &mut Lexer) -> Option<RawBlock> {
                     first_lex = false;
                     ll = lex.subblock_lexer(false);
                     ll.advance();
-                    ll.expect_noblock();
+                    ll.expect_noblock()?;
                 }
 
                 if has_block && ll.eol() {
                     // println!("block end");
                     ll.advance();
-                    ll.expect_noblock();
+                    ll.expect_noblock()?;
                 }
 
                 last_expression = this_expression;
@@ -754,9 +805,10 @@ fn parse_atl(lex: &mut Lexer) -> Option<RawBlock> {
 
                 if ll.keyword("circles".into()).is_some() {
                     // println!("circles");
-                    let expr = lex
-                        .require(LexerType::Type(LexerTypeOptions::SimpleExpression))
-                        .unwrap();
+                    let expr = lex.require_or_error(
+                        LexerType::Type(LexerTypeOptions::SimpleExpression),
+                        "expected simple expression",
+                    )?;
                     rm.add_circles(expr.into());
                     continue;
                 }
@@ -767,22 +819,25 @@ fn parse_atl(lex: &mut Lexer) -> Option<RawBlock> {
                     Some(prop) => {
                         // println!("try parsing as property: {:?}", prop);
                         if properties.contains(&prop) || prop.starts_with("u_") {
-                            let expr = ll
-                                .require(LexerType::Type(LexerTypeOptions::SimpleExpression))
-                                .unwrap();
+                            let expr = ll.require_or_error(
+                                LexerType::Type(LexerTypeOptions::SimpleExpression),
+                                "expected simple expression",
+                            )?;
 
                             let mut knots = vec![];
 
                             while ll.keyword("knot".into()).is_some() {
-                                knots.push(
-                                    ll.require(LexerType::Type(LexerTypeOptions::SimpleExpression))
-                                        .unwrap(),
-                                );
+                                knots.push(ll.require_or_error(
+                                    LexerType::Type(LexerTypeOptions::SimpleExpression),
+                                    "expected simple expression",
+                                )?);
                             }
 
                             if knots.len() > 0 {
                                 if prop == "orientation" {
-                                    panic!("Orientation doesn't support spline.")
+                                    return Err(
+                                        lex.parse_error("Orientation doesn't support spline.")
+                                    );
                                 }
                                 // println!("add spline");
                                 knots.push(expr);
@@ -792,12 +847,14 @@ fn parse_atl(lex: &mut Lexer) -> Option<RawBlock> {
                                 let addprop_rv = rm.add_property(prop.clone(), expr);
 
                                 if addprop_rv == Some(prop.clone()) {
-                                    panic!("property {prop} is given a value more than once");
-                                } else if addprop_rv.is_some() {
-                                    panic!(
+                                    return Err(lex.parse_error(format!(
+                                        "property {prop} is given a value more than once"
+                                    )));
+                                } else if let Some(conflict) = addprop_rv {
+                                    return Err(lex.parse_error(format!(
                                         "properties {prop} and {} conflict with each other",
-                                        addprop_rv?
-                                    );
+                                        conflict
+                                    )));
                                 }
                             }
 
@@ -822,7 +879,7 @@ fn parse_atl(lex: &mut Lexer) -> Option<RawBlock> {
                 // println!("found simple expression");
 
                 if last_expression {
-                    panic!("ATL statement contains two expressions in a row; is one of them a misspelled property? If not, separate them with pass.");
+                    return Err(lex.parse_error("ATL statement contains two expressions in a row; is one of them a misspelled property? If not, separate them with pass."));
                 }
 
                 this_expression = true;
@@ -830,19 +887,19 @@ fn parse_atl(lex: &mut Lexer) -> Option<RawBlock> {
                 let mut with_expr = None;
                 if ll.keyword("with".into()).is_some() {
                     // println!("with");
-                    with_expr = Some(
-                        ll.require(LexerType::Type(LexerTypeOptions::SimpleExpression))
-                            .unwrap(),
-                    );
+                    with_expr = Some(ll.require_or_error(
+                        LexerType::Type(LexerTypeOptions::SimpleExpression),
+                        "expected simple expression",
+                    )?);
                 }
 
                 // println!("add expression");
-                rm.add_expression(expr?, with_expr);
+                rm.add_expression(expr.expect("expression checked above"), with_expr);
             }
 
             if !has_block {
                 // println!("expect noblock");
-                lex.expect_noblock();
+                lex.expect_noblock()?;
             }
 
             // println!("add raw multipurpose");
@@ -857,13 +914,15 @@ fn parse_atl(lex: &mut Lexer) -> Option<RawBlock> {
             continue;
         }
 
-        lex.require(LexerType::String(",".into()))
-            .expect("comma or end of line");
+        lex.require_or_error(
+            LexerType::String(",".into()),
+            "expected comma or end of line",
+        )?;
     }
 
     // let merged = vec![];
 
-    Some(RawBlock {
+    Ok(RawBlock {
         loc: block_loc,
         statements,
         animation,
@@ -876,7 +935,7 @@ impl Parser for Scene {
 
         if lex.keyword("onlayer".into()).is_some() {
             layer = lex.require(LexerType::Type(LexerTypeOptions::Name));
-            lex.expect_eol();
+            lex.expect_eol()?;
         }
 
         if layer.is_some() || lex.eol() {
@@ -889,30 +948,30 @@ impl Parser for Scene {
             })]);
         }
 
-        let imspec = parse_image_specifier(lex);
+        let imspec = parse_image_specifier(lex)?;
         let stmt = Scene {
             loc,
             imspec: Some(imspec.clone()),
             layer: imspec.layer,
             atl: None,
         };
-        let mut rv = parse_with(lex, AstNode::Scene(stmt.clone()));
+        let mut rv = parse_with(lex, AstNode::Scene(stmt.clone()))?;
 
         if lex.rmatch(":".into()).is_some() {
-            lex.expect_block();
+            lex.expect_block()?;
             // println!("parsing ATL {:?}", rv);
             match &mut rv[0] {
                 AstNode::Scene(node) => {
-                    node.atl = parse_atl(&mut lex.subblock_lexer(false));
+                    node.atl = Some(parse_atl(&mut lex.subblock_lexer(false))?);
                     // println!("atl: {:?}", node.atl);
                 }
                 _ => {}
             }
         } else {
-            lex.expect_noblock();
+            lex.expect_noblock()?;
         }
 
-        lex.expect_eol();
+        lex.expect_eol()?;
         lex.advance();
 
         Ok(rv)
@@ -921,11 +980,12 @@ impl Parser for Scene {
 
 impl Parser for With {
     fn parse(&self, lex: &mut Lexer, loc: (PathBuf, usize)) -> Result<Vec<AstNode>> {
-        let expr = lex
-            .require(LexerType::Type(LexerTypeOptions::SimpleExpression))
-            .unwrap();
-        lex.expect_eol();
-        lex.expect_noblock();
+        let expr = lex.require_or_error(
+            LexerType::Type(LexerTypeOptions::SimpleExpression),
+            "expected simple expression",
+        )?;
+        lex.expect_eol()?;
+        lex.expect_noblock()?;
         lex.advance();
 
         Ok(vec![AstNode::With(With {
@@ -975,13 +1035,13 @@ fn parse_arguments(lex: &mut Lexer) -> Result<Option<ArgumentInfo>> {
                 && lex.rmatch(r"=".into()).is_some()
                 && lex.rmatch(r"=".into()).is_none()
             {
-                if names.contains(&name.clone().unwrap()) {
-                    return Err(lex.parse_error(format!(
-                        "keyword argument repeated: '{}'",
-                        name.clone().unwrap()
-                    )));
+                let name_value = name.clone().expect("name checked above");
+                if names.contains(&name_value) {
+                    return Err(
+                        lex.parse_error(format!("keyword argument repeated: '{}'", name_value))
+                    );
                 } else {
-                    names.insert(name.clone().unwrap());
+                    names.insert(name_value);
                 }
                 keyword_parsed = true;
             } else if keyword_parsed {
@@ -1035,9 +1095,14 @@ fn finish_say(
             if with.is_some() {
                 return Err(lex.parse_error("say can only take a single with clause"));
             }
-            with = lex.require(LexerType::Type(LexerTypeOptions::SimpleExpression));
+            with = Some(lex.require_or_error(
+                LexerType::Type(LexerTypeOptions::SimpleExpression),
+                "expected simple expression",
+            )?);
         } else if lex.keyword("id".into()).is_some() {
-            identifier = lex.require(LexerType::Type(LexerTypeOptions::Name));
+            identifier = Some(
+                lex.require_or_error(LexerType::Type(LexerTypeOptions::Name), "expected name")?,
+            );
         } else {
             let args = parse_arguments(lex)?;
 
@@ -1111,7 +1176,11 @@ fn say_attributes(lex: &mut Lexer) -> Option<Vec<String>> {
             break;
         }
 
-        attributes.push(format!("{}{}", prefix.unwrap(), component.unwrap()));
+        attributes.push(format!(
+            "{}{}",
+            prefix.expect("default prefix set above"),
+            component.expect("component checked above")
+        ));
     }
 
     if attributes.len() > 0 {
@@ -1168,7 +1237,7 @@ impl Parser for Say {
             let rv = finish_say(
                 lex,
                 loc,
-                Some(who.unwrap().trim().to_string()),
+                Some(who.expect("who checked above").trim().to_string()),
                 what,
                 attributes,
                 temporary_attributes,
@@ -1238,29 +1307,29 @@ impl Parser for UserStatement {
 
 impl Parser for Show {
     fn parse(&self, lex: &mut Lexer, loc: (PathBuf, usize)) -> Result<Vec<AstNode>> {
-        let imspec = parse_image_specifier(lex);
+        let imspec = parse_image_specifier(lex)?;
         let stmt = Show {
             loc,
             imspec: Some(imspec.clone()),
             atl: None,
         };
-        let mut rv = parse_with(lex, AstNode::Show(stmt));
+        let mut rv = parse_with(lex, AstNode::Show(stmt))?;
 
         if lex.rmatch(":".into()).is_some() {
-            lex.expect_block();
+            lex.expect_block()?;
             // println!("parsing ATL");
             match &mut rv[0] {
                 AstNode::Show(node) => {
-                    node.atl = parse_atl(&mut lex.subblock_lexer(false));
+                    node.atl = Some(parse_atl(&mut lex.subblock_lexer(false))?);
                     // println!("atl: {:?}", node.atl);
                 }
                 _ => {}
             }
         } else {
-            lex.expect_noblock();
+            lex.expect_noblock()?;
         }
 
-        lex.expect_eol();
+        lex.expect_eol()?;
         lex.advance();
 
         // println!("show {} {}", lex.pos, lex.text);
@@ -1272,17 +1341,17 @@ impl Parser for Show {
 
 impl Parser for Hide {
     fn parse(&self, lex: &mut Lexer, loc: (PathBuf, usize)) -> Result<Vec<AstNode>> {
-        let imspec = parse_image_specifier(lex);
+        let imspec = parse_image_specifier(lex)?;
         let rv = parse_with(
             lex,
             AstNode::Hide(Hide {
                 loc,
                 imgspec: imspec.clone(),
             }),
-        );
+        )?;
 
-        lex.expect_eol();
-        lex.expect_noblock();
+        lex.expect_eol()?;
+        lex.expect_noblock()?;
         lex.advance();
 
         Ok(rv)
@@ -1294,38 +1363,43 @@ impl Parser for PythonOneLine {
         let python_code = lex.rest_statement();
 
         if python_code.is_none() {
-            panic!("expected python code");
+            return Err(lex.parse_error("expected python code"));
         }
 
-        lex.expect_noblock();
+        lex.expect_noblock()?;
         lex.advance();
 
         Ok(vec![AstNode::PythonOneLine(PythonOneLine {
             loc,
-            python_code: python_code.unwrap().trim().into(),
+            python_code: python_code
+                .expect("python code checked above")
+                .trim()
+                .into(),
         })])
     }
 }
 
 impl Parser for Jump {
     fn parse(&self, lex: &mut Lexer, loc: (PathBuf, usize)) -> Result<Vec<AstNode>> {
-        lex.expect_noblock();
+        lex.expect_noblock()?;
 
         let target;
         let expression;
         if lex.keyword("expression".into()).is_some() {
             expression = true;
-            target = lex
-                .require(LexerType::Type(LexerTypeOptions::SimpleExpression))
-                .unwrap();
+            target = lex.require_or_error(
+                LexerType::Type(LexerTypeOptions::SimpleExpression),
+                "expected simple expression",
+            )?;
         } else {
             expression = false;
-            target = lex
-                .require(LexerType::Type(LexerTypeOptions::LabelName))
-                .unwrap();
+            target = lex.require_or_error(
+                LexerType::Type(LexerTypeOptions::LabelName),
+                "expected label name",
+            )?;
         }
 
-        lex.expect_eol();
+        lex.expect_eol()?;
         lex.advance();
 
         let mut global_label = None;
@@ -1363,20 +1437,20 @@ fn parse_menu(
 
     while l.advance() {
         if l.keyword("with".into()).is_some() {
-            with_ = Some(
-                l.require(LexerType::Type(LexerTypeOptions::SimpleExpression))
-                    .unwrap(),
-            );
+            with_ = Some(l.require_or_error(
+                LexerType::Type(LexerTypeOptions::SimpleExpression),
+                "expected simple expression",
+            )?);
             l.expect_eol()?;
             l.expect_noblock()?;
             continue;
         }
 
         if l.keyword("set".into()).is_some() {
-            set = Some(
-                l.require(LexerType::Type(LexerTypeOptions::SimpleExpression))
-                    .unwrap(),
-            );
+            set = Some(l.require_or_error(
+                LexerType::Type(LexerTypeOptions::SimpleExpression),
+                "expected simple expression",
+            )?);
             l.expect_eol()?;
             l.expect_noblock()?;
             continue;
@@ -1464,10 +1538,7 @@ fn parse_menu(
         item_arguments.push(parse_arguments(&mut l)?);
 
         if l.keyword("if".into()).is_some() {
-            condition = Some(
-                l.require(LexerType::Type(LexerTypeOptions::PythonExpression))
-                    .unwrap(),
-            );
+            condition = Some(l.python_expression()?);
         }
 
         l.require_or_error(LexerType::String(":".into()), "expected ':'")?;
@@ -1485,8 +1556,7 @@ fn parse_menu(
 
     let mut rv = vec![];
 
-    if say_ast.is_some() {
-        let say_ast = say_ast.clone().unwrap();
+    if let Some(say_ast) = say_ast.clone() {
         rv.push(say_ast[0].clone());
     }
 
@@ -1506,14 +1576,14 @@ fn parse_menu(
 
 impl Parser for Menu {
     fn parse(&self, lex: &mut Lexer, loc: (PathBuf, usize)) -> Result<Vec<AstNode>> {
-        lex.expect_block();
+        lex.expect_block()?;
         let label = lex.label_name_declare();
         lex.set_global_label(label.clone());
 
         let arguments = parse_arguments(lex)?;
 
-        lex.require(LexerType::String(":".into())).unwrap();
-        lex.expect_eol();
+        lex.require_or_error(LexerType::String(":".into()), "expected ':'")?;
+        lex.expect_eol()?;
 
         let menu = parse_menu(lex, loc.clone(), arguments)?;
 
@@ -1521,10 +1591,10 @@ impl Parser for Menu {
 
         let mut rv = vec![];
 
-        if label.is_some() {
+        if let Some(label_name) = label {
             rv.push(AstNode::Label(Label {
                 loc: loc,
-                name: label.unwrap(),
+                name: label_name,
                 block: vec![],
                 parameters: None,
                 hide: false,
@@ -1556,28 +1626,24 @@ impl Parser for If {
     fn parse(&self, lex: &mut Lexer, loc: (PathBuf, usize)) -> Result<Vec<AstNode>> {
         let mut entries = vec![];
 
-        let condition = lex
-            .require(LexerType::Type(LexerTypeOptions::PythonExpression))
-            .unwrap();
-        lex.require(LexerType::String(":".into())).unwrap();
-        lex.expect_eol();
-        lex.expect_block();
+        let condition = lex.python_expression()?;
+        lex.require_or_error(LexerType::String(":".into()), "expected ':'")?;
+        lex.expect_eol()?;
+        lex.expect_block()?;
 
-        let block = parse_block(&mut lex.subblock_lexer(false)).unwrap();
+        let block = parse_block(&mut lex.subblock_lexer(false))?;
 
         entries.push((Some(condition), block));
 
         lex.advance();
 
         while lex.keyword("elif".into()).is_some() {
-            let condition = lex
-                .require(LexerType::Type(LexerTypeOptions::PythonExpression))
-                .unwrap();
-            lex.require(LexerType::String(":".into())).unwrap();
-            lex.expect_eol();
-            lex.expect_block();
+            let condition = lex.python_expression()?;
+            lex.require_or_error(LexerType::String(":".into()), "expected ':'")?;
+            lex.expect_eol()?;
+            lex.expect_block()?;
 
-            let block = parse_block(&mut lex.subblock_lexer(false)).unwrap();
+            let block = parse_block(&mut lex.subblock_lexer(false))?;
 
             entries.push((Some(condition), block));
 
@@ -1585,11 +1651,11 @@ impl Parser for If {
         }
 
         if lex.keyword("else".into()).is_some() {
-            lex.require(LexerType::String(":".into())).unwrap();
-            lex.expect_eol();
-            lex.expect_block();
+            lex.require_or_error(LexerType::String(":".into()), "expected ':'")?;
+            lex.expect_eol()?;
+            lex.expect_block()?;
 
-            let block = parse_block(&mut lex.subblock_lexer(false)).unwrap();
+            let block = parse_block(&mut lex.subblock_lexer(false))?;
 
             entries.push((None, block));
 
@@ -1602,11 +1668,11 @@ impl Parser for If {
 
 impl Parser for Return {
     fn parse(&self, lex: &mut Lexer, loc: (PathBuf, usize)) -> Result<Vec<AstNode>> {
-        lex.expect_noblock();
+        lex.expect_noblock()?;
 
         let rest = lex.rest();
 
-        lex.expect_eol();
+        lex.expect_eol()?;
         lex.advance();
 
         Ok(vec![AstNode::Return(Return {
@@ -1616,7 +1682,7 @@ impl Parser for Return {
     }
 }
 
-fn parse_clause(rv: &mut Style, lex: &mut Lexer) -> bool {
+fn parse_clause(rv: &mut Style, lex: &mut Lexer) -> Result<bool> {
     let style_prefixed_all_properties: HashSet<String, _> = HashSet::from([
         "selected_hover_xpos".into(),
         "selected_hover_ypos".into(),
@@ -3042,53 +3108,48 @@ fn parse_clause(rv: &mut Style, lex: &mut Lexer) -> bool {
 
     if lex.keyword("is".into()).is_some() {
         if rv.parent.is_some() {
-            panic!("parent clause appears twice.");
+            return Err(lex.parse_error("parent clause appears twice."));
         }
-        rv.parent = Some(
-            lex.require(LexerType::Type(LexerTypeOptions::Word))
-                .unwrap(),
-        );
-        return true;
+        rv.parent =
+            Some(lex.require_or_error(LexerType::Type(LexerTypeOptions::Word), "expected word")?);
+        return Ok(true);
     }
 
     if lex.keyword("clear".into()).is_some() {
         rv.clear = true;
-        return true;
+        return Ok(true);
     }
 
     if lex.keyword("take".into()).is_some() {
         if rv.take.is_some() {
-            panic!("take clause appears twice.");
+            return Err(lex.parse_error("take clause appears twice."));
         }
-        rv.take = Some(
-            lex.require(LexerType::Type(LexerTypeOptions::Name))
-                .unwrap(),
-        );
-        return true;
+        rv.take =
+            Some(lex.require_or_error(LexerType::Type(LexerTypeOptions::Name), "expected name")?);
+        return Ok(true);
     }
 
     if lex.keyword("del".into()).is_some() {
-        let propname = lex
-            .require(LexerType::Type(LexerTypeOptions::Name))
-            .unwrap();
+        let propname =
+            lex.require_or_error(LexerType::Type(LexerTypeOptions::Name), "expected name")?;
 
         if !style_prefixed_all_properties.contains(&propname) {
-            panic!("style property {} is not known.", propname);
+            return Err(lex.parse_error(format!("style property {} is not known.", propname)));
         }
 
         rv.delattr.push(propname);
-        return true;
+        return Ok(true);
     }
 
     if lex.keyword("variant".into()).is_some() {
         if rv.variant.is_some() {
-            panic!("variant clause appears twice.");
+            return Err(lex.parse_error("variant clause appears twice."));
         }
-        rv.variant = Some(
-            lex.require(LexerType::Type(LexerTypeOptions::SimpleExpression))
-                .unwrap(),
-        );
-        return true;
+        rv.variant = Some(lex.require_or_error(
+            LexerType::Type(LexerTypeOptions::SimpleExpression),
+            "expected simple expression",
+        )?);
+        return Ok(true);
     }
 
     let propname = lex.name();
@@ -3096,32 +3157,33 @@ fn parse_clause(rv: &mut Style, lex: &mut Lexer) -> bool {
     match propname {
         Some(pname) => {
             if pname != "properties" && !style_prefixed_all_properties.contains(&pname) {
-                panic!("style property {} is not known.", pname);
+                return Err(lex.parse_error(format!("style property {} is not known.", pname)));
             }
 
             if rv.properties.contains_key(&pname) {
-                panic!("style property {} appears twice.", pname);
+                return Err(lex.parse_error(format!("style property {} appears twice.", pname)));
             }
 
             rv.properties.insert(
                 pname,
-                lex.require(LexerType::Type(LexerTypeOptions::SimpleExpression))
-                    .unwrap(),
+                lex.require_or_error(
+                    LexerType::Type(LexerTypeOptions::SimpleExpression),
+                    "expected simple expression",
+                )?,
             );
 
-            return true;
+            return Ok(true);
         }
         None => {}
     }
 
-    false
+    Ok(false)
 }
 
 impl Parser for Style {
     fn parse(&self, lex: &mut Lexer, loc: (PathBuf, usize)) -> Result<Vec<AstNode>> {
-        let name = lex
-            .require(LexerType::Type(LexerTypeOptions::Word))
-            .unwrap();
+        let name =
+            lex.require_or_error(LexerType::Type(LexerTypeOptions::Word), "expected word")?;
 
         let mut style_node = Style {
             loc: loc.clone(),
@@ -3134,22 +3196,22 @@ impl Parser for Style {
             properties: HashMap::new(),
         };
 
-        while parse_clause(&mut style_node, lex) {}
+        while parse_clause(&mut style_node, lex)? {}
 
         if lex.rmatch(":".into()).is_some() {
-            lex.expect_block();
-            lex.expect_eol();
+            lex.expect_block()?;
+            lex.expect_eol()?;
 
             let mut ll = lex.subblock_lexer(false);
 
             while ll.advance() {
-                while parse_clause(&mut style_node, &mut ll) {}
+                while parse_clause(&mut style_node, &mut ll)? {}
 
-                ll.expect_eol();
+                ll.expect_eol()?;
             }
         } else {
-            lex.expect_noblock();
-            lex.expect_eol();
+            lex.expect_noblock()?;
+            lex.expect_eol()?;
         }
 
         let mut rv = AstNode::Style(style_node);
@@ -3178,8 +3240,8 @@ impl Parser for Init {
         let block;
 
         if lex.rmatch(":".into()).is_some() {
-            lex.expect_eol();
-            lex.expect_block();
+            lex.expect_eol()?;
+            lex.expect_block()?;
 
             block = parse_block(&mut lex.subblock_lexer(true))?;
 
@@ -3217,18 +3279,23 @@ impl Parser for Python {
         }
 
         if lex.keyword("in".into()).is_some() {
-            let s = lex
-                .require(LexerType::Type(LexerTypeOptions::DottedName))
-                .unwrap();
+            let s = lex.require_or_error(
+                LexerType::Type(LexerTypeOptions::DottedName),
+                "expected dotted name",
+            )?;
             store = format!("store.{s}");
         }
 
-        lex.require(LexerType::String(":".into())).unwrap();
-        lex.expect_eol();
+        lex.require_or_error(LexerType::String(":".into()), "expected ':'")?;
+        lex.expect_eol()?;
 
-        lex.expect_block();
+        lex.expect_block()?;
 
-        let python_code = lex.python_block().unwrap().trim().into();
+        let python_code = lex
+            .python_block()
+            .ok_or_else(|| lex.parse_error("expected python block"))?
+            .trim()
+            .into();
 
         lex.advance();
 
@@ -3258,25 +3325,23 @@ impl Parser for Default_ {
         };
 
         let mut store = "store".into();
-        let mut name = lex
-            .require(LexerType::Type(LexerTypeOptions::Word))
-            .unwrap();
+        let mut name =
+            lex.require_or_error(LexerType::Type(LexerTypeOptions::Word), "expected word")?;
 
         while lex.rmatch(r"\.".into()).is_some() {
             store = format!("{store}.{name}");
-            name = lex
-                .require(LexerType::Type(LexerTypeOptions::Word))
-                .unwrap();
+            name =
+                lex.require_or_error(LexerType::Type(LexerTypeOptions::Word), "expected word")?;
         }
 
-        lex.require(LexerType::String("=".into())).unwrap();
+        lex.require_or_error(LexerType::String("=".into()), "expected '='")?;
         let expr = lex.rest();
 
         if expr.is_none() {
-            panic!("expected expression");
+            return Err(lex.parse_error("expected expression"));
         }
 
-        lex.expect_noblock();
+        lex.expect_noblock()?;
 
         let rv = Default_ {
             loc: loc.clone(),
@@ -3309,21 +3374,19 @@ impl Parser for Define {
         };
 
         let mut store = "store".into();
-        let mut name = lex
-            .require(LexerType::Type(LexerTypeOptions::Word))
-            .unwrap();
+        let mut name =
+            lex.require_or_error(LexerType::Type(LexerTypeOptions::Word), "expected word")?;
 
         while lex.rmatch(r"\.".into()).is_some() {
             store = format!("{store}.{name}");
-            name = lex
-                .require(LexerType::Type(LexerTypeOptions::Word))
-                .unwrap();
+            name =
+                lex.require_or_error(LexerType::Type(LexerTypeOptions::Word), "expected word")?;
         }
 
         let mut index = None;
         if lex.rmatch(r"\[".into()).is_some() {
             index = lex.delimited_python("]".into(), true);
-            lex.require(LexerType::String(r"\]".into())).unwrap();
+            lex.require_or_error(LexerType::String(r"\]".into()), "expected ']'")?;
         }
 
         let operator;
@@ -3332,17 +3395,17 @@ impl Parser for Define {
         } else if lex.rmatch(r"\|=".into()).is_some() {
             operator = "|=";
         } else {
-            lex.require(LexerType::String("=".into())).unwrap();
+            lex.require_or_error(LexerType::String("=".into()), "expected '='")?;
             operator = "=";
         }
 
         let expr = lex.rest();
 
         if expr.is_none() {
-            panic!("expected expression");
+            return Err(lex.parse_error("expected expression"));
         }
 
-        lex.expect_noblock();
+        lex.expect_noblock()?;
 
         let rv = Define {
             loc: loc.clone(),
@@ -3350,7 +3413,7 @@ impl Parser for Define {
             name,
             index,
             operator: operator.into(),
-            expr: expr.unwrap(),
+            expr: expr.ok_or_else(|| lex.parse_error("expected expression"))?,
         };
 
         let res = if !lex.init {
@@ -3371,16 +3434,20 @@ impl Parser for Define {
 
 impl Parser for Call {
     fn parse(&self, lex: &mut Lexer, loc: (PathBuf, usize)) -> Result<Vec<AstNode>> {
-        lex.expect_noblock();
+        lex.expect_noblock()?;
 
         let mut expression = false;
         let target = if lex.keyword("expression".into()).is_some() {
             expression = true;
-            lex.require(LexerType::Type(LexerTypeOptions::SimpleExpression))
-                .unwrap()
+            lex.require_or_error(
+                LexerType::Type(LexerTypeOptions::SimpleExpression),
+                "expected simple expression",
+            )?
         } else {
-            lex.require(LexerType::Type(LexerTypeOptions::LabelName))
-                .unwrap()
+            lex.require_or_error(
+                LexerType::Type(LexerTypeOptions::LabelName),
+                "expected label name",
+            )?
         };
 
         // optional keyword
@@ -3403,9 +3470,10 @@ impl Parser for Call {
         })];
 
         if lex.keyword("from".into()).is_some() {
-            let name = lex
-                .require(LexerType::Type(LexerTypeOptions::LabelNameDeclare))
-                .unwrap();
+            let name = lex.require_or_error(
+                LexerType::Type(LexerTypeOptions::LabelNameDeclare),
+                "expected label name",
+            )?;
             rv.push(AstNode::Label(Label {
                 loc: loc.clone(),
                 name,
@@ -3418,7 +3486,7 @@ impl Parser for Call {
 
         // rv.push(AstNode::Pass(Pass { loc }));
 
-        lex.expect_eol();
+        lex.expect_eol()?;
         lex.advance();
 
         Ok(rv)
@@ -3427,8 +3495,8 @@ impl Parser for Call {
 
 impl Parser for Pass {
     fn parse(&self, lex: &mut Lexer, loc: (PathBuf, usize)) -> Result<Vec<AstNode>> {
-        lex.expect_noblock();
-        lex.expect_eol();
+        lex.expect_noblock()?;
+        lex.expect_eol()?;
         lex.advance();
 
         Ok(vec![AstNode::Pass(Pass { loc })])
@@ -3443,15 +3511,13 @@ impl Parser for Transform {
         };
 
         let mut store = "store".into();
-        let mut name = lex
-            .require(LexerType::Type(LexerTypeOptions::Name))
-            .unwrap();
+        let mut name =
+            lex.require_or_error(LexerType::Type(LexerTypeOptions::Name), "expected name")?;
 
         while lex.rmatch(r"\.".into()).is_some() {
             store = format!("{store}.{name}");
-            name = lex
-                .require(LexerType::Type(LexerTypeOptions::Word))
-                .unwrap();
+            name =
+                lex.require_or_error(LexerType::Type(LexerTypeOptions::Word), "expected word")?;
         }
 
         let parameters = parse_parameters(lex)?;
@@ -3467,17 +3533,19 @@ impl Parser for Transform {
                         }
                     }
                     ParameterKind::VarPositional => {
-                        panic!(
+                        return Err(lex.parse_error(format!(
                             "the transform statement does not take *args ({p:?} is not allowed)"
-                        );
+                        )));
                     }
                     ParameterKind::VarKeyword => {
-                        panic!(
+                        return Err(lex.parse_error(format!(
                             "the transform statement does not take **kwargs ({p:?} is not allowed)"
-                        )
+                        )));
                     }
                     ParameterKind::KeywordOnly => {
-                        panic!("the transform statement does not take required keyword-only parameters ({p:?} is not allowed)")
+                        return Err(lex.parse_error(format!(
+                            "the transform statement does not take required keyword-only parameters ({p:?} is not allowed)"
+                        )));
                     }
                     _ => {}
                 }
@@ -3488,7 +3556,7 @@ impl Parser for Transform {
         lex.expect_eol()?;
         lex.expect_block()?;
 
-        let atl = parse_atl(&mut lex.subblock_lexer(false));
+        let atl = Some(parse_atl(&mut lex.subblock_lexer(false))?);
 
         let mut rv = AstNode::Transform(Transform {
             loc: loc.clone(),
@@ -3520,24 +3588,25 @@ impl Parser for Screen {
 
 impl Parser for Image {
     fn parse(&self, lex: &mut Lexer, loc: (PathBuf, usize)) -> Result<Vec<AstNode>> {
-        let name = parse_image_name(lex, false, false).unwrap();
+        let name = parse_image_name(lex, false, false)?
+            .ok_or_else(|| lex.parse_error("expected image name"))?;
 
         let mut atl = None;
         let mut expr = None;
         if lex.rmatch(RegexType::Simple(":".into())).is_some() {
-            lex.expect_eol();
-            lex.expect_block();
-            atl = parse_atl(&mut lex.subblock_lexer(false));
+            lex.expect_eol()?;
+            lex.expect_block()?;
+            atl = Some(parse_atl(&mut lex.subblock_lexer(false))?);
         } else {
-            lex.require(LexerType::String("=".into())).unwrap();
+            lex.require_or_error(LexerType::String("=".into()), "expected '='")?;
 
             expr = lex.rest();
 
             if expr.is_none() {
-                panic!("expected expression");
+                return Err(lex.parse_error("expected expression"));
             }
 
-            lex.expect_noblock();
+            lex.expect_noblock()?;
         }
 
         let mut rv = AstNode::Image(Image {
@@ -3636,6 +3705,64 @@ mod tests {
                 vec![block(2, "\"Choice\"", vec![block(3, "pass", vec![])])],
             )]),
             "Line is followed by a block, despite not being a menu choice. Did you forget a colon at the end of the line?",
+            1,
+        );
+    }
+
+    #[test]
+    fn duplicate_onlayer_clause_returns_parse_error() {
+        assert_error(
+            parse(vec![block(
+                1,
+                "show eileen onlayer master onlayer front",
+                vec![],
+            )]),
+            "multiple onlayer clauses are prohibited.",
+            1,
+        );
+    }
+
+    #[test]
+    fn duplicate_style_property_returns_parse_error() {
+        assert_error(
+            parse(vec![block(1, "style foo xalign 0.0 xalign 1.0", vec![])]),
+            "style property xalign appears twice.",
+            1,
+        );
+    }
+
+    #[test]
+    fn duplicate_at_clause_returns_parse_error() {
+        assert_error(
+            parse(vec![block(1, "show eileen at left at right", vec![])]),
+            "multiple at clauses are prohibited.",
+            1,
+        );
+    }
+
+    #[test]
+    fn empty_python_block_returns_parse_error() {
+        assert_error(
+            parse(vec![block(1, "python:", vec![])]),
+            "expected a non-empty block.",
+            1,
+        );
+    }
+
+    #[test]
+    fn malformed_python_expression_returns_parse_error_instead_of_panicking() {
+        assert_error(
+            parse(vec![block(1, "show eileen at foo.", vec![])]),
+            "expecting name after dot.",
+            1,
+        );
+    }
+
+    #[test]
+    fn unterminated_argument_expression_returns_parse_error_instead_of_panicking() {
+        assert_error(
+            parse(vec![block(1, "call expression foo(bar", vec![])]),
+            "reached end of line when expecting ')'",
             1,
         );
     }

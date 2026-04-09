@@ -71,12 +71,23 @@ Out of those, the most important short-term work for a reliable core parser is:
 
 This should happen first, because adding more statements on top of `panic!` will make the parser harder to stabilize.
 
+Status: completed.
+
 ### Deliverables
 
 1. Introduce a dedicated parse error type.
 2. Stop using `panic!` for expected parse failures.
 3. Return errors with file and line information.
 4. Keep fatal internal invariants separate from user-facing parse errors.
+
+Completed work:
+
+1. Added `src/error.rs` with `ParseError` and a shared `Result<T>` alias.
+2. Converted lexer expectation helpers to return `ParseError` instead of panicking.
+3. Converted the main parser helpers and core statement parsers to propagate `Result`.
+4. Added parser entry-point panic boundaries so remaining user-facing lexer/parser panics are surfaced as `ParseError` with location.
+5. Removed the `unused Result` fallout from the error-conversion work in `cargo check`.
+6. Added regression tests for representative error paths that previously panicked.
 
 ### Proposed shape
 
@@ -118,6 +129,19 @@ Specific hot spots to convert first:
 2. `unwrap()` should not be used after user-controlled parsing decisions.
 3. Internal impossible states may still use `debug_assert!` or rare hard failures if truly unreachable.
 4. Error messages should stay close to upstream Ren'Py wording when practical.
+
+Phase 1 exit criteria achieved:
+
+1. Core parser entry points now return structured parse errors instead of crashing on normal syntax failures.
+2. Error values include filename and line information.
+3. Core parser code no longer ignores fallible lexer helpers.
+4. Parser regression tests cover multiple formerly-panic-prone syntax failures.
+
+Remaining non-goals for Phase 1:
+
+1. Formatter `todo!()` cases and formatter warnings.
+2. Stubbed subsystems like `screen` / SL2.
+3. Internal invariant checks that are not currently reachable through normal parser input.
 
 ## Phase 2: Test Harness
 
@@ -355,16 +379,16 @@ As statements are added, clean up the parser shape instead of letting `src/parse
 
 ## Suggested Execution Order
 
-1. Introduce `ParseError` and convert lexer expectation helpers.
-2. Add parser test helpers and initial error regression tests.
-3. Convert the most panic-heavy parse helpers.
-4. Add `while`, `show layer`, and `camera`.
-5. Add `init offset` and `init label`.
-6. Add `rpy monologue` and `rpy python`.
-7. Finish panic-to-error conversion across all core statement parsers.
-8. Add `IF` / `ELIF` / `ELSE`.
-9. Add `translate` support.
-10. Add `testcase` and `testsuite` or explicitly defer them behind a parser limitation.
+1. Completed: introduce `ParseError` and convert lexer expectation helpers.
+2. Completed: add parser test helpers and initial error regression tests.
+3. Completed: convert the most panic-heavy parse helpers.
+4. Next: add `while`, `show layer`, and `camera`.
+5. Next: add `init offset` and `init label`.
+6. Next: add `rpy monologue` and `rpy python`.
+7. Completed for the current core parser path: finish panic-to-error conversion across core statement parsers and parser entry points.
+8. Later: add `IF` / `ELIF` / `ELSE`.
+9. Later: add `translate` support.
+10. Later: add `testcase` and `testsuite` or explicitly defer them behind a parser limitation.
 
 ## Future Goals
 
