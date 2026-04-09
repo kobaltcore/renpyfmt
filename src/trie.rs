@@ -3,10 +3,10 @@ use crate::{
         AstNode, Call, Default_, Define, Hide, If, Image, Init, Jump, Label, Menu, Pass, Python,
         PythonOneLine, Return, Say, Scene, Screen, Show, Style, Transform, UserStatement, With,
     },
+    error::Result,
     lexer::Lexer,
     parser::Parser,
 };
-use anyhow::Result;
 use std::collections::HashMap;
 
 pub struct ParseTrie {
@@ -131,20 +131,13 @@ impl ParseTrie {
             None => Some("".into()),
         };
 
-        println!("word: {:?}", word);
-        // println!("keys: {:?}", self.words.keys());
-
         if word.is_none() || !self.words.contains_key(&word.clone().unwrap()) {
-            println!("parsing {:?}", lex.text);
-            println!("no match, defaulting");
             lex.pos = old_pos;
             match self.default.as_ref() {
                 Some(parse_cmd) => {
-                    println!("parsing {:?}", lex.text);
                     return parse_cmd.parse(lex, loc);
                 }
                 None => {
-                    println!("defaulting to say {:?}", lex.text);
                     return Say::default().parse(lex, loc);
                     // panic!("unexpected word: {}", word.unwrap());
                     // lex.advance();

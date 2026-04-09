@@ -1,3 +1,4 @@
+use crate::error::{ParseError, Result};
 use lazy_static::lazy_static;
 use std::{collections::HashSet, path::PathBuf};
 
@@ -519,6 +520,10 @@ impl Lexer {
         (self.filename.clone(), self.number)
     }
 
+    pub fn parse_error(&self, message: impl Into<String>) -> ParseError {
+        ParseError::at((self.filename.clone(), self.number), message)
+    }
+
     pub fn require(&mut self, thing: LexerType) -> Option<String> {
         match thing {
             LexerType::String(s) => self.rmatch(s.into()),
@@ -531,16 +536,26 @@ impl Lexer {
                 LexerTypeOptions::SimpleExpression => self.simple_expression(false, true),
                 LexerTypeOptions::ImageNameComponent => self.image_name_component(),
                 LexerTypeOptions::LabelName => self.label_name(false),
-                LexerTypeOptions::PythonExpression => self.python_expression(),
+                LexerTypeOptions::PythonExpression => self.python_expression().ok(),
                 LexerTypeOptions::DottedName => self.dotted_name(),
             },
         }
     }
 
-    pub fn expect_eol(&mut self) {
+    pub fn require_or_error(
+        &mut self,
+        thing: LexerType,
+        message: impl Into<String>,
+    ) -> Result<String> {
+        self.require(thing).ok_or_else(|| self.parse_error(message))
+    }
+
+    pub fn expect_eol(&mut self) -> Result<()> {
         if !self.eol() {
-            panic!("end of line expected");
+            return Err(self.parse_error("end of line expected"));
         }
+
+        Ok(())
     }
 
     pub fn name(&mut self) -> Option<String> {
@@ -844,18 +859,22 @@ impl Lexer {
         }
     }
 
-    pub fn expect_block(&mut self) {
+    pub fn expect_block(&mut self) -> Result<()> {
         if self.subblock.len() == 0 {
-            panic!("expected a non-empty block.");
+            return Err(self.parse_error("expected a non-empty block."));
         }
+
+        Ok(())
     }
 
-    pub fn expect_noblock(&mut self) {
+    pub fn expect_noblock(&mut self) -> Result<()> {
         if self.subblock.len() > 0 {
             let mut ll = self.subblock_lexer(false);
             ll.advance();
-            panic!("Line is indented, but the preceding statement does not expect a block. Please check this line's indentation. You may have forgotten a colon (:).");
+            return Err(self.parse_error("Line is indented, but the preceding statement does not expect a block. Please check this line's indentation. You may have forgotten a colon (:)."));
         }
+
+        Ok(())
     }
 
     pub fn say_expression(&mut self) -> Option<String> {
@@ -872,12 +891,12 @@ impl Lexer {
         Some(rv)
     }
 
-    pub fn python_expression(&mut self) -> Option<String> {
+    pub fn python_expression(&mut self) -> Result<String> {
         let pe = self.delimited_python(":".into(), false);
 
         match pe {
-            Some(s) => Some(s.trim().into()),
-            None => panic!("expected python_expression"),
+            Some(s) => Ok(s.trim().into()),
+            None => Err(self.parse_error("expected python_expression")),
         }
     }
 

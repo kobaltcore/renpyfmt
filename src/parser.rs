@@ -9,10 +9,10 @@ use crate::{
         AtlStatement, RawBlock, RawChild, RawChoice, RawContainsExpr, RawEvent, RawFunction,
         RawMultipurpose, RawOn, RawParallel, RawRepeat, RawTime,
     },
+    error::Result,
     lexer::{Lexer, LexerType, LexerTypeOptions, RegexType},
     trie::ParseTrie,
 };
-use anyhow::Result;
 use std::{
     collections::{HashMap, HashSet},
     path::PathBuf,
@@ -52,9 +52,9 @@ pub fn parse_block(lex: &mut Lexer) -> Result<Vec<AstNode>> {
     Ok(result)
 }
 
-fn parse_parameters(lex: &mut Lexer) -> Option<ParameterSignature> {
+fn parse_parameters(lex: &mut Lexer) -> Result<Option<ParameterSignature>> {
     if lex.rmatch(r"\(".into()).is_none() {
-        return None;
+        return Ok(None);
     }
 
     let mut parameters = HashMap::new();
@@ -67,12 +67,13 @@ fn parse_parameters(lex: &mut Lexer) -> Option<ParameterSignature> {
 
     while lex.rmatch(r"\)".into()).is_none() {
         if lex.rmatch(r"\*\*".into()).is_some() {
-            let extrakw = lex
-                .require(LexerType::Type(LexerTypeOptions::Name))
-                .unwrap();
+            let extrakw = lex.require_or_error(
+                LexerType::Type(LexerTypeOptions::Name),
+                "expected parameter name",
+            )?;
 
             if parameters.contains_key(&extrakw) {
-                panic!("duplicate parameter name: {}", extrakw);
+                return Err(lex.parse_error(format!("duplicate parameter name: {}", extrakw)));
             }
 
             parameters.insert(
@@ -85,19 +86,23 @@ fn parse_parameters(lex: &mut Lexer) -> Option<ParameterSignature> {
             );
 
             if lex.rmatch(r"=".into()).is_some() {
-                panic!("a var-keyword parameter (**{extrakw}) cannot have a default value");
+                return Err(lex.parse_error(format!(
+                    "a var-keyword parameter (**{extrakw}) cannot have a default value"
+                )));
             }
 
             lex.rmatch(r",".into());
 
             if lex.rmatch(r"\)".into()).is_none() {
-                panic!("no parameter can follow a var-keyword parameter (**{extrakw})");
+                return Err(lex.parse_error(format!(
+                    "no parameter can follow a var-keyword parameter (**{extrakw})"
+                )));
             }
 
             break;
         } else if lex.rmatch(r"\*".into()).is_some() {
             if now_kwonly {
-                panic!("* may appear only once");
+                return Err(lex.parse_error("* may appear only once"));
             }
 
             now_kwonly = true;
@@ -107,7 +112,9 @@ fn parse_parameters(lex: &mut Lexer) -> Option<ParameterSignature> {
             match lex.name() {
                 Some(extrapos) => {
                     if parameters.contains_key(&extrapos) {
-                        panic!("duplicate parameter name: {extrapos}");
+                        return Err(
+                            lex.parse_error(format!("duplicate parameter name: {extrapos}"))
+                        );
                     }
 
                     parameters.insert(
@@ -120,9 +127,9 @@ fn parse_parameters(lex: &mut Lexer) -> Option<ParameterSignature> {
                     );
 
                     if lex.rmatch(r"=".into()).is_some() {
-                        panic!(
+                        return Err(lex.parse_error(format!(
                             "a var-positional parameter (*{extrapos}) cannot have a default value"
-                        );
+                        )));
                     }
                 }
                 None => {
@@ -130,14 +137,14 @@ fn parse_parameters(lex: &mut Lexer) -> Option<ParameterSignature> {
                 }
             };
         } else if lex.rmatch(r"/\*".into()).is_some() {
-            panic!("expected comma between / and *");
+            return Err(lex.parse_error("expected comma between / and *"));
         } else if lex.rmatch(r"/".into()).is_some() {
             if now_kwonly {
-                panic!("/ must be ahead of *");
+                return Err(lex.parse_error("/ must be ahead of *"));
             } else if got_slash {
-                panic!("/ may appear only once");
+                return Err(lex.parse_error("/ may appear only once"));
             } else if parameters.is_empty() {
-                panic!("at least one parameter must precede /");
+                return Err(lex.parse_error("at least one parameter must precede /"));
             }
 
             let mut new_parameters = HashMap::new();
@@ -154,9 +161,10 @@ fn parse_parameters(lex: &mut Lexer) -> Option<ParameterSignature> {
 
             got_slash = true;
         } else {
-            let name = lex
-                .require(LexerType::Type(LexerTypeOptions::Name))
-                .unwrap();
+            let name = lex.require_or_error(
+                LexerType::Type(LexerTypeOptions::Name),
+                "expected parameter name",
+            )?;
 
             missing_kwonly = false;
 
@@ -168,14 +176,18 @@ fn parse_parameters(lex: &mut Lexer) -> Option<ParameterSignature> {
                 now_default = true;
 
                 if default.is_none() {
-                    panic!("empty default value for parameter {name}");
+                    return Err(
+                        lex.parse_error(format!("empty default value for parameter {name}"))
+                    );
                 }
             } else if now_default && !now_kwonly {
-                panic!("non-default parameter {name} follows a default parameter");
+                return Err(lex.parse_error(format!(
+                    "non-default parameter {name} follows a default parameter"
+                )));
             }
 
             if parameters.contains_key(&name) {
-                panic!("duplicate parameter name: {}", name);
+                return Err(lex.parse_error(format!("duplicate parameter name: {}", name)));
             }
 
             parameters.insert(
@@ -192,31 +204,32 @@ fn parse_parameters(lex: &mut Lexer) -> Option<ParameterSignature> {
             break;
         }
 
-        lex.require(LexerType::String(",".into()));
+        lex.require_or_error(LexerType::String(",".into()), "expected ','")?;
     }
 
     if missing_kwonly {
-        panic!("a bare * must be followed by a parameter");
+        return Err(lex.parse_error("a bare * must be followed by a parameter"));
     }
 
-    Some(ParameterSignature { parameters })
+    Ok(Some(ParameterSignature { parameters }))
 }
 
 impl Parser for Label {
     fn parse(&self, lex: &mut Lexer, loc: (PathBuf, usize)) -> Result<Vec<AstNode>> {
-        let name = lex
-            .require(LexerType::Type(LexerTypeOptions::LabelNameDeclare))
-            .unwrap();
+        let name = lex.require_or_error(
+            LexerType::Type(LexerTypeOptions::LabelNameDeclare),
+            "expected label name",
+        )?;
         lex.set_global_label(Some(name.clone()));
-        let parameters = parse_parameters(lex);
+        let parameters = parse_parameters(lex)?;
 
         let hide = match lex.keyword("hide".into()) {
             Some(_) => true,
             None => false,
         };
 
-        lex.require(LexerType::String(":".into()));
-        lex.expect_eol();
+        lex.require_or_error(LexerType::String(":".into()), "expected ':'")?;
+        lex.expect_eol()?;
 
         let block = parse_block(&mut lex.subblock_lexer(false))?;
 
@@ -923,9 +936,9 @@ impl Parser for With {
     }
 }
 
-fn parse_arguments(lex: &mut Lexer) -> Option<ArgumentInfo> {
+fn parse_arguments(lex: &mut Lexer) -> Result<Option<ArgumentInfo>> {
     if lex.rmatch(r"\(".into()).is_none() {
-        return None;
+        return Ok(None);
     }
 
     let mut arguments = vec![];
@@ -963,13 +976,16 @@ fn parse_arguments(lex: &mut Lexer) -> Option<ArgumentInfo> {
                 && lex.rmatch(r"=".into()).is_none()
             {
                 if names.contains(&name.clone().unwrap()) {
-                    panic!("keyword argument repeated: '{}'", name.clone().unwrap());
+                    return Err(lex.parse_error(format!(
+                        "keyword argument repeated: '{}'",
+                        name.clone().unwrap()
+                    )));
                 } else {
                     names.insert(name.clone().unwrap());
                 }
                 keyword_parsed = true;
             } else if keyword_parsed {
-                panic!("positional argument follows keyword argument");
+                return Err(lex.parse_error("positional argument follows keyword argument"));
             } else {
                 lex.revert(state);
                 name = None;
@@ -983,15 +999,15 @@ fn parse_arguments(lex: &mut Lexer) -> Option<ArgumentInfo> {
             break;
         }
 
-        lex.require(LexerType::String(",".into()));
+        lex.require_or_error(LexerType::String(",".into()), "expected ','")?;
         index += 1;
     }
 
-    Some(ArgumentInfo {
+    Ok(Some(ArgumentInfo {
         arguments,
         starred_indexes,
         doublestarred_indexes,
-    })
+    }))
 }
 
 fn finish_say(
@@ -1002,9 +1018,9 @@ fn finish_say(
     attributes: Option<Vec<String>>,
     temporary_attributes: Option<Vec<String>>,
     interact: bool,
-) -> Option<Vec<AstNode>> {
+) -> Result<Option<Vec<AstNode>>> {
     if what.len() == 0 {
-        return None;
+        return Ok(None);
     }
 
     let mut with = None;
@@ -1017,20 +1033,20 @@ fn finish_say(
             interact = false;
         } else if lex.keyword("with".into()).is_some() {
             if with.is_some() {
-                panic!("say can only take a single with clause");
+                return Err(lex.parse_error("say can only take a single with clause"));
             }
             with = lex.require(LexerType::Type(LexerTypeOptions::SimpleExpression));
         } else if lex.keyword("id".into()).is_some() {
             identifier = lex.require(LexerType::Type(LexerTypeOptions::Name));
         } else {
-            let args = parse_arguments(lex);
+            let args = parse_arguments(lex)?;
 
             if args.is_none() {
                 break;
             }
 
             if arguments.is_some() {
-                panic!("say can only take a single set of arguments");
+                return Err(lex.parse_error("say can only take a single set of arguments"));
             }
 
             arguments = args;
@@ -1038,7 +1054,7 @@ fn finish_say(
     }
 
     if what.len() == 1 {
-        return Some(vec![AstNode::Say(Say {
+        return Ok(Some(vec![AstNode::Say(Say {
             loc,
             who,
             what: what[0].clone(),
@@ -1048,7 +1064,7 @@ fn finish_say(
             arguments,
             temporary_attributes,
             identifier,
-        })]);
+        })]));
     }
 
     let mut result = vec![];
@@ -1077,7 +1093,7 @@ fn finish_say(
         }
     }
 
-    Some(result)
+    Ok(Some(result))
 }
 
 fn say_attributes(lex: &mut Lexer) -> Option<Vec<String>> {
@@ -1118,12 +1134,12 @@ impl Parser for Say {
             },
         };
 
-        let rv = finish_say(lex, loc.clone(), None, what, None, None, true);
+        let rv = finish_say(lex, loc.clone(), None, what, None, None, true)?;
 
-        if rv.is_some() {
-            lex.expect_noblock();
+        if let Some(rv) = rv {
+            lex.expect_noblock()?;
             lex.advance();
-            return Ok(rv.unwrap());
+            return Ok(rv);
         }
 
         lex.revert(state);
@@ -1157,17 +1173,17 @@ impl Parser for Say {
                 attributes,
                 temporary_attributes,
                 true,
-            )
-            .unwrap();
+            )?
+            .ok_or_else(|| lex.parse_error("expected say statement"))?;
 
-            lex.expect_eol();
-            lex.expect_noblock();
+            lex.expect_eol()?;
+            lex.expect_noblock()?;
             lex.advance();
 
             return Ok(rv);
         }
 
-        panic!("expected statement.")
+        Err(lex.parse_error("expected statement."))
     }
 }
 
@@ -1191,10 +1207,10 @@ impl Parser for UserStatement {
         let block = UserStatementBlock::False;
 
         match block {
-            UserStatementBlock::True => lex.expect_block(),
-            UserStatementBlock::False => lex.expect_noblock(),
+            UserStatementBlock::True => lex.expect_block()?,
+            UserStatementBlock::False => lex.expect_noblock()?,
             UserStatementBlock::Script => {
-                lex.expect_block();
+                lex.expect_block()?;
                 code_block = Some(parse_block(&mut lex.subblock_lexer(false))?);
             }
         };
@@ -1331,7 +1347,7 @@ fn parse_menu(
     lex: &mut Lexer,
     loc: (PathBuf, usize),
     arguments: Option<ArgumentInfo>,
-) -> Vec<AstNode> {
+) -> Result<Vec<AstNode>> {
     let mut l = lex.subblock_lexer(false);
 
     let mut has_choice = false;
@@ -1351,8 +1367,8 @@ fn parse_menu(
                 l.require(LexerType::Type(LexerTypeOptions::SimpleExpression))
                     .unwrap(),
             );
-            l.expect_eol();
-            l.expect_noblock();
+            l.expect_eol()?;
+            l.expect_noblock()?;
             continue;
         }
 
@@ -1361,8 +1377,8 @@ fn parse_menu(
                 l.require(LexerType::Type(LexerTypeOptions::SimpleExpression))
                     .unwrap(),
             );
-            l.expect_eol();
-            l.expect_noblock();
+            l.expect_eol()?;
+            l.expect_noblock()?;
             continue;
         }
 
@@ -1388,11 +1404,13 @@ fn parse_menu(
 
         if who.is_some() && what.len() > 0 {
             if has_caption {
-                panic!("Say menuitems and captions may not exist in the same menu.");
+                return Err(
+                    lex.parse_error("Say menuitems and captions may not exist in the same menu.")
+                );
             }
 
             if say_ast.is_some() {
-                panic!("Only one say menuitem may exist per menu.");
+                return Err(lex.parse_error("Only one say menuitem may exist per menu."));
             }
 
             say_ast = finish_say(
@@ -1403,10 +1421,10 @@ fn parse_menu(
                 attributes,
                 temporary_attributes,
                 false,
-            );
+            )?;
 
-            l.expect_eol();
-            l.expect_noblock();
+            l.expect_eol()?;
+            l.expect_noblock()?;
             continue;
         }
 
@@ -1415,16 +1433,18 @@ fn parse_menu(
         let label = l.string();
 
         if label.is_none() {
-            panic!("expected menuitem");
+            return Err(lex.parse_error("expected menuitem"));
         }
 
         if l.eol() {
             if l.subblock.len() > 0 {
-                panic!("Line is followed by a block, despite not being a menu choice. Did you forget a colon at the end of the line?");
+                return Err(lex.parse_error("Line is followed by a block, despite not being a menu choice. Did you forget a colon at the end of the line?"));
             }
 
             if label.is_some() && say_ast.is_some() {
-                panic!("Captions and say menuitems may not exist in the same menu.");
+                return Err(
+                    lex.parse_error("Captions and say menuitems may not exist in the same menu.")
+                );
             }
 
             if label.is_some() {
@@ -1441,7 +1461,7 @@ fn parse_menu(
 
         let mut condition = None;
 
-        item_arguments.push(parse_arguments(&mut l));
+        item_arguments.push(parse_arguments(&mut l)?);
 
         if l.keyword("if".into()).is_some() {
             condition = Some(
@@ -1450,17 +1470,17 @@ fn parse_menu(
             );
         }
 
-        l.require(LexerType::String(":".into())).unwrap();
-        l.expect_eol();
-        l.expect_block();
+        l.require_or_error(LexerType::String(":".into()), "expected ':'")?;
+        l.expect_eol()?;
+        l.expect_block()?;
 
-        let block = parse_block(&mut l.subblock_lexer(false)).unwrap();
+        let block = parse_block(&mut l.subblock_lexer(false))?;
 
         items.push((label, condition, Some(block)));
     }
 
     if !has_choice {
-        panic!("Menu does not contain any choices.");
+        return Err(lex.parse_error("Menu does not contain any choices."));
     }
 
     let mut rv = vec![];
@@ -1481,7 +1501,7 @@ fn parse_menu(
         statement_start: None,
     }));
 
-    rv
+    Ok(rv)
 }
 
 impl Parser for Menu {
@@ -1490,12 +1510,12 @@ impl Parser for Menu {
         let label = lex.label_name_declare();
         lex.set_global_label(label.clone());
 
-        let arguments = parse_arguments(lex);
+        let arguments = parse_arguments(lex)?;
 
         lex.require(LexerType::String(":".into())).unwrap();
         lex.expect_eol();
 
-        let menu = parse_menu(lex, loc.clone(), arguments);
+        let menu = parse_menu(lex, loc.clone(), arguments)?;
 
         lex.advance();
 
@@ -3151,7 +3171,7 @@ impl Parser for Style {
 impl Parser for Init {
     fn parse(&self, lex: &mut Lexer, loc: (PathBuf, usize)) -> Result<Vec<AstNode>> {
         let priority: isize = match lex.integer() {
-            Some(p) => p.parse()?,
+            Some(p) => p.parse().map_err(|_| lex.parse_error("expected integer"))?,
             None => 0,
         };
 
@@ -3233,7 +3253,7 @@ impl Parser for Python {
 impl Parser for Default_ {
     fn parse(&self, lex: &mut Lexer, loc: (PathBuf, usize)) -> Result<Vec<AstNode>> {
         let priority: isize = match lex.integer() {
-            Some(p) => p.parse()?,
+            Some(p) => p.parse().map_err(|_| lex.parse_error("expected integer"))?,
             None => 0,
         };
 
@@ -3284,7 +3304,7 @@ impl Parser for Default_ {
 impl Parser for Define {
     fn parse(&self, lex: &mut Lexer, loc: (PathBuf, usize)) -> Result<Vec<AstNode>> {
         let priority: isize = match lex.integer() {
-            Some(p) => p.parse()?,
+            Some(p) => p.parse().map_err(|_| lex.parse_error("expected integer"))?,
             None => 0,
         };
 
@@ -3366,7 +3386,7 @@ impl Parser for Call {
         // optional keyword
         lex.keyword("pass".into());
 
-        let arguments = parse_arguments(lex);
+        let arguments = parse_arguments(lex)?;
 
         let mut global_label = None;
 
@@ -3418,7 +3438,7 @@ impl Parser for Pass {
 impl Parser for Transform {
     fn parse(&self, lex: &mut Lexer, loc: (PathBuf, usize)) -> Result<Vec<AstNode>> {
         let priority: isize = match lex.integer() {
-            Some(p) => p.parse()?,
+            Some(p) => p.parse().map_err(|_| lex.parse_error("expected integer"))?,
             None => 0,
         };
 
@@ -3434,7 +3454,7 @@ impl Parser for Transform {
                 .unwrap();
         }
 
-        let parameters = parse_parameters(lex);
+        let parameters = parse_parameters(lex)?;
 
         if let Some(params) = parameters.clone() {
             let mut found_pos_only = false;
@@ -3464,9 +3484,9 @@ impl Parser for Transform {
             }
         }
 
-        lex.require(LexerType::String(":".into())).unwrap();
-        lex.expect_eol();
-        lex.expect_block();
+        lex.require_or_error(LexerType::String(":".into()), "expected ':'")?;
+        lex.expect_eol()?;
+        lex.expect_block()?;
 
         let atl = parse_atl(&mut lex.subblock_lexer(false));
 
@@ -3538,5 +3558,85 @@ impl Parser for Image {
         lex.advance();
 
         Ok(vec![rv])
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::parse_block;
+    use crate::{
+        error::{ParseError, Result},
+        lexer::{Block, Lexer},
+    };
+    use std::path::PathBuf;
+
+    fn block(number: usize, text: &str, block: Vec<Block>) -> Block {
+        Block {
+            filename: PathBuf::from("test.rpy"),
+            number,
+            text: text.into(),
+            block,
+        }
+    }
+
+    fn parse(blocks: Vec<Block>) -> Result<Vec<crate::ast::AstNode>> {
+        let mut lex = Lexer::new(blocks);
+        parse_block(&mut lex)
+    }
+
+    fn assert_error(result: Result<Vec<crate::ast::AstNode>>, expected: &str, line: usize) {
+        let err = result.expect_err("parse should fail");
+        assert_eq!(
+            err,
+            ParseError::at((PathBuf::from("test.rpy"), line), expected),
+        );
+    }
+
+    #[test]
+    fn label_missing_colon_returns_parse_error() {
+        assert_error(
+            parse(vec![block(
+                1,
+                "label start",
+                vec![block(2, "pass", vec![])],
+            )]),
+            "expected ':'",
+            1,
+        );
+    }
+
+    #[test]
+    fn duplicate_label_parameter_returns_parse_error() {
+        assert_error(
+            parse(vec![block(
+                1,
+                "label start(a, a):",
+                vec![block(2, "pass", vec![])],
+            )]),
+            "duplicate parameter name: a",
+            1,
+        );
+    }
+
+    #[test]
+    fn unexpected_block_returns_parse_error() {
+        assert_error(
+            parse(vec![block(1, "\"hello\"", vec![block(2, "pass", vec![])])]),
+            "Line is indented, but the preceding statement does not expect a block. Please check this line's indentation. You may have forgotten a colon (:).",
+            1,
+        );
+    }
+
+    #[test]
+    fn malformed_menu_choice_returns_parse_error() {
+        assert_error(
+            parse(vec![block(
+                1,
+                "menu:",
+                vec![block(2, "\"Choice\"", vec![block(3, "pass", vec![])])],
+            )]),
+            "Line is followed by a block, despite not being a menu choice. Did you forget a colon at the end of the line?",
+            1,
+        );
     }
 }
