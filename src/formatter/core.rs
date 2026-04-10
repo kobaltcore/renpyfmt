@@ -238,6 +238,15 @@ impl Formatter {
         self.at_line_start = true;
     }
 
+    pub(crate) fn line_for_source(&mut self, text: &str, line_number: usize) {
+        self.emit_leading_comments(line_number);
+        let previous = self.current_trailing_line;
+        self.current_trailing_line = Some(line_number);
+        self.line_with_trailing(text);
+        self.current_trailing_line = previous;
+        self.last_emitted_line = line_number;
+    }
+
     pub(crate) fn literal_line(&mut self, text: &str) {
         self.out.push_str(text);
         self.out.push('\n');

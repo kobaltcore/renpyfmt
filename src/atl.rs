@@ -238,3 +238,21 @@ pub enum AtlStatement {
     RawEvent(RawEvent),
     RawMultipurpose(RawMultipurpose),
 }
+
+impl AtlStatement {
+    pub fn line_number(&self) -> usize {
+        match self {
+            AtlStatement::RawRepeat(node) => node.loc.1,
+            AtlStatement::RawBlock(node) => node.loc.1,
+            AtlStatement::RawContainsExpr(node) => node.loc.1,
+            AtlStatement::RawChild(node) => node.loc.1,
+            AtlStatement::RawParallel(node) => node.loc.1,
+            AtlStatement::RawChoice(node) => node.loc.1,
+            AtlStatement::RawOn(node) => node.loc.1,
+            AtlStatement::RawTime(node) => node.loc.1,
+            AtlStatement::RawFunction(node) => node.loc.1,
+            AtlStatement::RawEvent(node) => node.loc.1,
+            AtlStatement::RawMultipurpose(node) => node.loc.1,
+        }
+    }
+}

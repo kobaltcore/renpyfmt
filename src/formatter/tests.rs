@@ -9,10 +9,11 @@ use crate::{
         AtlStatement, RawBlock, RawChoice, RawContainsExpr, RawEvent, RawFunction, RawMultipurpose,
         RawOn, RawParallel, RawRepeat, RawTime,
     },
-    comments::CommentMap,
+    comments::{Comment, CommentMap},
     formatter::format_ast,
     lexer::Block,
 };
+use std::collections::BTreeMap;
 use std::path::PathBuf;
 
 fn image(name: &[&str]) -> ImageSpecifier {
@@ -579,6 +580,49 @@ fn show_expression_with_tag_and_atl_preserves_expression_form() {
         concat!(
             "show expression alien_particles(400, 250, 700) as particles:\n",
             "    ypos 1.15"
+        )
+    );
+}
+
+#[test]
+fn keeps_comments_inside_atl_blocks() {
+    let mut statement = RawMultipurpose::new((PathBuf::from("test.rpy"), 4));
+    statement.warper = Some("ease".into());
+    statement.duration = Some("0.5".into());
+    statement.properties = vec![("zoom".into(), "2.0".into())];
+
+    let ast = vec![AstNode::Label(Label {
+        loc: (PathBuf::from("test.rpy"), 1),
+        name: "test".into(),
+        block: vec![AstNode::Show(Show {
+            loc: (PathBuf::from("test.rpy"), 2),
+            imspec: Some(image(&["image1"])),
+            atl: Some(RawBlock {
+                loc: (PathBuf::from("test.rpy"), 3),
+                statements: vec![Some(AtlStatement::RawMultipurpose(statement))],
+                ..Default::default()
+            }),
+            ..Default::default()
+        })],
+        ..Default::default()
+    })];
+
+    let comments: CommentMap = BTreeMap::from([(
+        4,
+        vec![Comment::Standalone {
+            indent: 8,
+            text: "# comment".into(),
+            line_number: 3,
+        }],
+    )]);
+
+    assert_eq!(
+        format_ast(&ast, &comments),
+        concat!(
+            "label test:\n",
+            "    show image1:\n",
+            "        # comment\n",
+            "        ease 0.5 zoom 2.0"
         )
     );
 }
