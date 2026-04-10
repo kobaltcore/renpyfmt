@@ -13,7 +13,7 @@ pub(crate) fn encode_say_string(s: &str) -> String {
 pub(crate) fn format_image_specifier(image: &ImageSpecifier) -> String {
     let mut parts = vec![];
 
-    if !image.image_name.is_empty() {
+    if image.expression.is_none() && !image.image_name.is_empty() {
         parts.push(image.image_name.join(" "));
     }
 

@@ -523,6 +523,34 @@ fn show_scene_hide_with_clause_on_same_line() {
 }
 
 #[test]
+fn show_expression_with_tag_and_atl_preserves_expression_form() {
+    let ast = vec![AstNode::Show(Show {
+        imspec: Some(ImageSpecifier {
+            image_name: vec!["alien_particles(400, 250, 700)".into()],
+            expression: Some("alien_particles(400, 250, 700)".into()),
+            tag: Some("particles".into()),
+            ..Default::default()
+        }),
+        atl: Some(RawBlock {
+            statements: vec![Some(AtlStatement::RawMultipurpose(multipurpose(
+                vec![("ypos 1.15", None)],
+                vec![],
+            )))],
+            ..Default::default()
+        }),
+        ..Default::default()
+    })];
+
+    assert_eq!(
+        format_ast(&ast, &CommentMap::new()),
+        concat!(
+            "show expression alien_particles(400, 250, 700) as particles:\n",
+            "    ypos 1.15"
+        )
+    );
+}
+
+#[test]
 fn ungrouped_with_stays_on_own_line() {
     let ast = vec![
         AstNode::Show(Show {
