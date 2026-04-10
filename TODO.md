@@ -3,7 +3,7 @@
 - [x] if a with statement is already on a line with a show statement, don't put it on a new line
 - [x] say statements should have a newline after them
 - [x] fix comments being removed due to not being parsed
+- [x] don't wrap transform and define statements (and probably some others) in an init block if they aren't already in one
 - [ ] `show expression alien_particles(400, 250, 700) as particles:` turns into `show alien_particles(400, 250, 700) expression alien_particles(400, 250, 700) as particles:`
 - [ ] `show paul a_0 with ease:\n    ypos 1.15` turns into `show paul a_0 with ease`, losing its ATL block
-- [ ] don't wrap transform and define statements (and probably some others) in an init block if they aren't already in one
 - [ ] check if python blocks are being formatted correctly. if not add ruff to format them
