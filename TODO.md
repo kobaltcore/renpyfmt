@@ -7,5 +7,5 @@
 - [x] `show paul a_0 with ease:\n    ypos 1.15` turns into `show paul a_0 with ease`, losing its ATL block
 - [x] `show expression alien_particles(400, 250, 700) as particles:` turns into `show alien_particles(400, 250, 700) expression alien_particles(400, 250, 700) as particles:`
 - [x] Comments inside ATL are sent to below the ATL block
-- [ ] Tests should have Ren'Py script as strings instead of direct AST nodes
+- [x] Tests should have Ren'Py script as strings instead of direct AST nodes
 - [ ] check if python blocks are being formatted correctly. if not add ruff to format them
