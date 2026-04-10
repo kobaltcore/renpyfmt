@@ -5,5 +5,6 @@
 - [x] fix comments being removed due to not being parsed
 - [x] don't wrap transform and define statements (and probably some others) in an init block if they aren't already in one
 - [x] `show paul a_0 with ease:\n    ypos 1.15` turns into `show paul a_0 with ease`, losing its ATL block
-- [ ] `show expression alien_particles(400, 250, 700) as particles:` turns into `show alien_particles(400, 250, 700) expression alien_particles(400, 250, 700) as particles:`
+- [x] `show expression alien_particles(400, 250, 700) as particles:` turns into `show alien_particles(400, 250, 700) expression alien_particles(400, 250, 700) as particles:`
+- [ ] Comments inside ATL are sent to below the ATL block
 - [ ] check if python blocks are being formatted correctly. if not add ruff to format them
