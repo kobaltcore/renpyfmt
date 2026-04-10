@@ -1,8 +1,9 @@
 use crate::{
     ast::{
-        AstNode, Call, Camera, CompileIf, Default_, EarlyPython, If, Image, ImageSpecifier, Init,
-        Jump, Label, Menu, Pass, Python, Say, Scene, Show, ShowLayer, Testcase, Testsuite,
-        Translate, TranslateBlock, TranslateEarlyBlock, TranslateString, While, With,
+        AstNode, Call, Camera, CompileIf, Default_, Define, EarlyPython, If, Image, ImageSpecifier,
+        Init, Jump, Label, Menu, Pass, Python, Say, Scene, Show, ShowLayer, Style, Testcase,
+        Testsuite, Transform, Translate, TranslateBlock, TranslateEarlyBlock, TranslateString,
+        While, With,
     },
     atl::{
         AtlStatement, RawBlock, RawChoice, RawContainsExpr, RawEvent, RawFunction, RawMultipurpose,
@@ -338,9 +339,93 @@ fn formats_supported_media_and_atl_statement_variants() {
             "    event startled\n",
             "    repeat 2\n",
             "camera at wobble\n",
-            "init 500:\n",
-            "    image logo idle = \"room.webp\""
+            "image logo idle = \"room.webp\""
         )
+    );
+}
+
+#[test]
+fn formats_implicit_init_statements_without_init_blocks() {
+    let ast = vec![
+        AstNode::Init(Init {
+            block: vec![AstNode::Style(Style {
+                name: "nvl_window_badend".into(),
+                parent: Some("nvl_window".into()),
+                properties: [("background".into(), "None".into()), ("xpadding".into(), "40".into()), ("ypadding".into(), "40".into())]
+                    .into_iter()
+                    .collect(),
+                ..Default::default()
+            })],
+            ..Default::default()
+        }),
+        AstNode::Init(Init {
+            block: vec![AstNode::Define(Define {
+                store: "store".into(),
+                name: "badnar".into(),
+                operator: "=".into(),
+                expr: "Character(what_color='#ffffff', what_size=40, what_outlines=[(2, '#000000')], what_text_align=0.5, kind=nvl_narrator)".into(),
+                ..Default::default()
+            })],
+            ..Default::default()
+        }),
+        AstNode::Init(Init {
+            block: vec![AstNode::Transform(Transform {
+                store: "store".into(),
+                name: "wobble".into(),
+                atl: Some(RawBlock {
+                    statements: vec![Some(AtlStatement::RawMultipurpose(multipurpose(
+                        vec![("linear", None)],
+                        vec![("xalign", "0.5")],
+                    )))],
+                    ..Default::default()
+                }),
+                ..Default::default()
+            })],
+            ..Default::default()
+        }),
+        AstNode::Init(Init {
+            priority: 500,
+            block: vec![AstNode::Image(Image {
+                name: vec!["bg".into(), "room".into()],
+                expr: Some("\"room.webp\"".into()),
+                ..Default::default()
+            })],
+            ..Default::default()
+        }),
+    ];
+
+    assert_eq!(
+        format_ast(&ast, &CommentMap::new()),
+        concat!(
+            "style nvl_window_badend is nvl_window:\n",
+            "    background None\n",
+            "    xpadding 40\n",
+            "    ypadding 40\n",
+            "define badnar = Character(what_color='#ffffff', what_size=40, what_outlines=[(2, '#000000')], what_text_align=0.5, kind=nvl_narrator)\n",
+            "transform wobble:\n",
+            "    linear xalign 0.5\n",
+            "image bg room = \"room.webp\""
+        )
+    );
+}
+
+#[test]
+fn keeps_explicit_init_blocks_for_non_default_priorities() {
+    let ast = vec![AstNode::Init(Init {
+        priority: 5,
+        block: vec![AstNode::Define(Define {
+            store: "store".into(),
+            name: "foo".into(),
+            operator: "=".into(),
+            expr: "1".into(),
+            ..Default::default()
+        })],
+        ..Default::default()
+    })];
+
+    assert_eq!(
+        format_ast(&ast, &CommentMap::new()),
+        "init 5:\n    define foo = 1"
     );
 }
 

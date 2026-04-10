@@ -264,6 +264,10 @@ impl Formatter {
             return;
         }
 
+        if self.try_emit_implicit_init(node) {
+            return;
+        }
+
         if node.priority != 0 {
             self.line_with_trailing(&format!("init {}:", node.priority));
         } else {
@@ -305,6 +309,36 @@ impl Formatter {
             }
         });
         true
+    }
+
+    fn try_emit_implicit_init(&mut self, node: &Init) -> bool {
+        let [child] = node.block.as_slice() else {
+            return false;
+        };
+
+        match child {
+            crate::ast::AstNode::Define(child) if node.priority == 0 => {
+                self.emit_define(child);
+                true
+            }
+            crate::ast::AstNode::Default(child) if node.priority == 0 => {
+                self.emit_default(child);
+                true
+            }
+            crate::ast::AstNode::Style(child) if node.priority == 0 => {
+                self.emit_style(child);
+                true
+            }
+            crate::ast::AstNode::Transform(child) if node.priority == 0 => {
+                self.emit_transform(child);
+                true
+            }
+            crate::ast::AstNode::Image(child) if node.priority == 500 => {
+                self.emit_image(child);
+                true
+            }
+            _ => false,
+        }
     }
 
     pub(crate) fn emit_style(&mut self, node: &Style) {
