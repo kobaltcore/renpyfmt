@@ -264,6 +264,10 @@ impl Formatter {
             return;
         }
 
+        if self.try_emit_init_python(node) {
+            return;
+        }
+
         if self.try_emit_implicit_init(node) {
             return;
         }
@@ -335,6 +339,24 @@ impl Formatter {
             }
             crate::ast::AstNode::Image(child) if node.priority == 500 => {
                 self.emit_image(child);
+                true
+            }
+            _ => false,
+        }
+    }
+
+    fn try_emit_init_python(&mut self, node: &Init) -> bool {
+        let [child] = node.block.as_slice() else {
+            return false;
+        };
+
+        match child {
+            crate::ast::AstNode::Python(child) => {
+                self.emit_init_python_block(node.priority, child, false);
+                true
+            }
+            crate::ast::AstNode::EarlyPython(child) => {
+                self.emit_init_python_block(node.priority, child, true);
                 true
             }
             _ => false,
@@ -624,21 +646,18 @@ impl Formatter {
         self.emit_python_block(node, true);
     }
 
-    fn emit_python_block(&mut self, node: &impl PythonBlockLike, early: bool) {
-        let mut line = String::from("python");
-        if early {
-            line.push_str(" early");
+    fn emit_init_python_block(
+        &mut self,
+        priority: isize,
+        node: &impl PythonBlockLike,
+        early: bool,
+    ) {
+        let mut line = String::from("init");
+        if priority != 0 {
+            line.push_str(&format!(" {priority}"));
         }
-        if node.hide() {
-            line.push_str(" hide");
-        }
-        if node.store() != "store" {
-            line.push_str(&format!(
-                " in {}",
-                node.store().trim_start_matches("store.")
-            ));
-        }
-        line.push(':');
+        line.push(' ');
+        line.push_str(&self.python_block_header(node, early));
 
         self.line_with_trailing(&line);
         self.indented(|formatter| {
@@ -646,6 +665,36 @@ impl Formatter {
                 formatter.line(code_line);
             }
         });
+    }
+
+    fn emit_python_block(&mut self, node: &impl PythonBlockLike, early: bool) {
+        let line = self.python_block_header(node, early);
+
+        self.line_with_trailing(&line);
+        self.indented(|formatter| {
+            for code_line in node.python_code().lines() {
+                formatter.line(code_line);
+            }
+        });
+    }
+
+    fn python_block_header(&self, node: &impl PythonBlockLike, early: bool) -> String {
+        let mut line = String::from("python");
+        if early {
+            line.push_str(" early");
+        }
+        if node.hide() {
+            line.push_str(" hide");
+        }
+        if !node.store().is_empty() && node.store() != "store" {
+            line.push_str(&format!(
+                " in {}",
+                node.store().trim_start_matches("store.")
+            ));
+        }
+        line.push(':');
+
+        line
     }
 }
 

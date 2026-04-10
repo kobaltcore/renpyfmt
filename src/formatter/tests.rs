@@ -270,6 +270,39 @@ fn formats_supported_flow_and_init_statements() {
 }
 
 #[test]
+fn formats_init_python_compact_form() {
+    let ast = vec![
+        AstNode::Init(Init {
+            block: vec![AstNode::Python(Python {
+                python_code: "x = 1".into(),
+                ..Default::default()
+            })],
+            ..Default::default()
+        }),
+        AstNode::Init(Init {
+            priority: 5,
+            block: vec![AstNode::Python(Python {
+                python_code: "y = 2".into(),
+                hide: true,
+                store: "store.mystore".into(),
+                ..Default::default()
+            })],
+            ..Default::default()
+        }),
+    ];
+
+    assert_eq!(
+        format_ast(&ast, &CommentMap::new()),
+        concat!(
+            "init python:\n",
+            "    x = 1\n",
+            "init 5 python hide in mystore:\n",
+            "    y = 2"
+        )
+    );
+}
+
+#[test]
 fn formats_supported_media_and_atl_statement_variants() {
     let ast = vec![
         AstNode::ShowLayer(ShowLayer {
