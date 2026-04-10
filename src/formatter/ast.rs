@@ -1,8 +1,8 @@
 use crate::ast::{
     Call, Camera, CompileIf, Default_, Define, EarlyPython, EndTranslate, Hide, If, Image, Init,
-    Jump, Label, Menu, Pass, Python, PythonOneLine, Return, Say, Scene, Show, ShowLayer, Style,
-    Testcase, Testsuite, Transform, Translate, TranslateBlock, TranslateEarlyBlock,
-    TranslateString, While, With, RPY,
+    Jump, Label, Menu, Pass, Python, PythonOneLine, RPY, Return, Say, Scene, Show, ShowLayer,
+    Style, Testcase, Testsuite, Transform, Translate, TranslateBlock, TranslateEarlyBlock,
+    TranslateString, While, With,
 };
 
 use super::{

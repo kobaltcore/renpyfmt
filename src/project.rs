@@ -5,7 +5,7 @@ use crate::{
     formatter::format_ast,
     lexer::{Block, Lexer},
 };
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use indicatif::ProgressBar;
 use std::collections::BTreeMap;
 use std::fs;
