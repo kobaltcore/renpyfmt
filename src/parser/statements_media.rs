@@ -21,22 +21,17 @@ impl Parser for Scene {
         }
 
         let imspec = parse_image_specifier(lex)?;
-        let stmt = Scene {
+        let mut stmt = Scene {
             loc,
             imspec: Some(imspec.clone()),
             layer: imspec.layer,
             atl: None,
         };
-        let mut rv = parse_with(lex, AstNode::Scene(stmt.clone()))?;
+        let rv = parse_with(lex, AstNode::Scene(stmt.clone()))?;
 
         if lex.rmatch(":".into()).is_some() {
             lex.expect_block()?;
-            match &mut rv[0] {
-                AstNode::Scene(node) => {
-                    node.atl = Some(parse_atl(&mut lex.subblock_lexer(false))?);
-                }
-                _ => {}
-            }
+            stmt.atl = Some(parse_atl(&mut lex.subblock_lexer(false))?);
         } else {
             lex.expect_noblock()?;
         }
@@ -44,7 +39,7 @@ impl Parser for Scene {
         lex.expect_eol()?;
         lex.advance();
 
-        Ok(rv.into())
+        Ok(parse_with_nodes_replace_primary(rv, AstNode::Scene(stmt)).into())
     }
 }
 
@@ -185,21 +180,16 @@ impl Parser for Show {
         }
 
         let imspec = parse_image_specifier(lex)?;
-        let stmt = Show {
+        let mut stmt = Show {
             loc,
             imspec: Some(imspec.clone()),
             atl: None,
         };
-        let mut rv = parse_with(lex, AstNode::Show(stmt))?;
+        let rv = parse_with(lex, AstNode::Show(stmt.clone()))?;
 
         if lex.rmatch(":".into()).is_some() {
             lex.expect_block()?;
-            match &mut rv[0] {
-                AstNode::Show(node) => {
-                    node.atl = Some(parse_atl(&mut lex.subblock_lexer(false))?);
-                }
-                _ => {}
-            }
+            stmt.atl = Some(parse_atl(&mut lex.subblock_lexer(false))?);
         } else {
             lex.expect_noblock()?;
         }
@@ -207,7 +197,7 @@ impl Parser for Show {
         lex.expect_eol()?;
         lex.advance();
 
-        Ok(rv.into())
+        Ok(parse_with_nodes_replace_primary(rv, AstNode::Show(stmt)).into())
     }
 }
 

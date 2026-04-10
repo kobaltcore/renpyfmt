@@ -478,6 +478,8 @@ fn script_media_statements_parse_with_modifiers_and_atl() {
 label visuals:
     scene bg lecturehall onlayer master with fade
     show eileen happy at left, center onlayer screens zorder 3 behind desk as teacher with dissolve
+    show paul a_0 with ease:
+        ypos 1.15
     hide teacher onlayer screens
     camera at wobble:
         xalign 0.5
@@ -488,7 +490,7 @@ label visuals:
         panic!("expected label");
     };
 
-    assert_eq!(label.block.len(), 8);
+    assert_eq!(label.block.len(), 11);
     assert!(
         matches!(&label.block[0], AstNode::With(node) if node.expr == "None" && node.paired.as_deref() == Some("fade"))
     );
@@ -519,13 +521,25 @@ label visuals:
     assert!(
         matches!(&label.block[5], AstNode::With(node) if node.expr == "dissolve" && node.paired.is_none())
     );
+    assert!(
+        matches!(&label.block[6], AstNode::With(node) if node.expr == "None" && node.paired.as_deref() == Some("ease"))
+    );
     assert!(matches!(
-        &label.block[6],
+        &label.block[7],
+        AstNode::Show(node)
+            if node.imspec.as_ref().is_some_and(|imspec| imspec.image_name == vec!["paul".to_string(), "a_0".to_string()])
+                && node.atl.is_some()
+    ));
+    assert!(
+        matches!(&label.block[8], AstNode::With(node) if node.expr == "ease" && node.paired.is_none())
+    );
+    assert!(matches!(
+        &label.block[9],
         AstNode::Hide(node)
             if node.imgspec.image_name == vec!["teacher".to_string()] && node.imgspec.layer.as_deref() == Some("screens")
     ));
     assert!(
-        matches!(&label.block[7], AstNode::Camera(node) if node.layer == "master" && node.at_list == vec!["wobble"] && node.atl.is_some())
+        matches!(&label.block[10], AstNode::Camera(node) if node.layer == "master" && node.at_list == vec!["wobble"] && node.atl.is_some())
     );
 }
 

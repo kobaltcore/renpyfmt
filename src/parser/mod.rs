@@ -2,9 +2,9 @@ use crate::{
     ast::{
         ArgumentInfo, AstNode, Call, Camera, CompileIf, Default_, Define, EarlyPython,
         EndTranslate, Hide, If, Image, ImageSpecifier, Init, Jump, Label, Menu, Parameter,
-        ParameterKind, ParameterSignature, Pass, Python, PythonOneLine, RPY, Return, Say, Scene,
-        Screen, Show, ShowLayer, Style, Testcase, Testsuite, Transform, Translate, TranslateBlock,
-        TranslateEarlyBlock, TranslateString, UserStatement, While, With,
+        ParameterKind, ParameterSignature, Pass, Python, PythonOneLine, Return, Say, Scene, Screen,
+        Show, ShowLayer, Style, Testcase, Testsuite, Transform, Translate, TranslateBlock,
+        TranslateEarlyBlock, TranslateString, UserStatement, While, With, RPY,
     },
     atl::{
         AtlStatement, RawBlock, RawChild, RawChoice, RawContainsExpr, RawEvent, RawFunction,
@@ -15,7 +15,7 @@ use crate::{
 };
 use std::{
     collections::{HashMap, HashSet},
-    panic::{AssertUnwindSafe, catch_unwind},
+    panic::{catch_unwind, AssertUnwindSafe},
     path::PathBuf,
 };
 
@@ -382,13 +382,11 @@ fn parse_image_specifier(lex: &mut Lexer) -> Result<ImageSpecifier> {
             LexerType::Type(LexerTypeOptions::SimpleExpression),
             "expected simple expression",
         )?);
-        image_name = Some(vec![
-            expression
-                .clone()
-                .expect("expression set above")
-                .trim()
-                .into(),
-        ]);
+        image_name = Some(vec![expression
+            .clone()
+            .expect("expression set above")
+            .trim()
+            .into()]);
     } else {
         image_name = parse_image_name(lex, true, false)?;
         expression = None;
@@ -499,6 +497,19 @@ fn parse_with(lex: &mut Lexer, node: AstNode) -> Result<Vec<AstNode>> {
     ])
 }
 
+fn parse_with_nodes_replace_primary(mut nodes: Vec<AstNode>, node: AstNode) -> Vec<AstNode> {
+    if let Some(existing) = nodes.iter_mut().find(|existing| {
+        matches!(
+            (&node, existing),
+            (AstNode::Scene(_), AstNode::Scene(_)) | (AstNode::Show(_), AstNode::Show(_))
+        )
+    }) {
+        *existing = node;
+    }
+
+    nodes
+}
+
 fn parse_atl(lex: &mut Lexer) -> Result<RawBlock> {
     lex.advance();
 
@@ -566,7 +577,7 @@ fn parse_atl(lex: &mut Lexer) -> Result<RawBlock> {
             })));
         } else if lex.keyword("on".into()).is_some() {
             let mut names = vec![
-                lex.require_or_error(LexerType::Type(LexerTypeOptions::Word), "expected word")?,
+                lex.require_or_error(LexerType::Type(LexerTypeOptions::Word), "expected word")?
             ];
 
             while lex.rmatch(",".into()).is_some() {
