@@ -21,6 +21,10 @@ enum Commands {
     Format {
         /// Directory to search recursively for .rpy files.
         path: PathBuf,
+
+        /// Use this Ruff config file instead of auto-discovery.
+        #[arg(long = "config")]
+        config: Option<PathBuf>,
     },
 }
 
@@ -36,10 +40,10 @@ fn create_progress_bar() -> ProgressBar {
     pb
 }
 
-fn run_format(path: PathBuf) -> Result<()> {
+fn run_format(path: PathBuf, config: Option<PathBuf>) -> Result<()> {
     let pb = create_progress_bar();
     pb.set_message("formatting...");
-    format_directory(path, pb)
+    format_directory(path, config, pb)
 }
 
 fn run_parse(path: PathBuf) -> Result<()> {
@@ -53,6 +57,6 @@ fn main() -> Result<()> {
 
     match cli.command {
         Commands::Parse { path } => run_parse(path),
-        Commands::Format { path } => run_format(path),
+        Commands::Format { path, config } => run_format(path, config),
     }
 }

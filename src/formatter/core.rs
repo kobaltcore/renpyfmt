@@ -1,5 +1,8 @@
 use crate::ast::{AstNode, With};
 use crate::comments::{Comment, CommentMap, EOF_LINE};
+use std::collections::BTreeMap;
+
+use super::python::PythonFormatConfig;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Mode {
@@ -23,10 +26,12 @@ pub(crate) struct Formatter {
     comments: CommentMap,
     last_emitted_line: usize,
     current_trailing_line: Option<usize>,
+    current_next_line: Option<usize>,
+    pub(crate) python_format_config: PythonFormatConfig,
 }
 
 impl Formatter {
-    pub(crate) fn new(comments: CommentMap) -> Self {
+    pub(crate) fn new(comments: CommentMap, python_format_config: PythonFormatConfig) -> Self {
         Self {
             out: String::new(),
             indent: 0,
@@ -36,6 +41,8 @@ impl Formatter {
             comments,
             last_emitted_line: 0,
             current_trailing_line: None,
+            current_next_line: None,
+            python_format_config,
         }
     }
 
@@ -84,14 +91,18 @@ impl Formatter {
             };
 
             if with_suffix.is_some() {
+                self.current_next_line = nodes.get(i + 2).map(AstNode::line_number);
                 self.current_trailing_line = Some(node.line_number());
                 self.node_with_suffix(node, with_suffix);
                 self.current_trailing_line = None;
+                self.current_next_line = None;
                 i += 2;
             } else {
+                self.current_next_line = nodes.get(i + 1).map(AstNode::line_number);
                 self.current_trailing_line = Some(node.line_number());
                 self.node(node);
                 self.current_trailing_line = None;
+                self.current_next_line = None;
                 i += 1;
             }
 
@@ -187,16 +198,135 @@ impl Formatter {
         }
     }
 
+    pub(crate) fn format_python_block_source(
+        &mut self,
+        source: &str,
+        header_line: usize,
+    ) -> String {
+        let mut standalone_comments: BTreeMap<usize, Vec<String>> = BTreeMap::new();
+        let mut trailing_comments: BTreeMap<usize, String> = BTreeMap::new();
+        let body_indent = self.current_indent() + 4;
+        let body_start_line = header_line + 1;
+        let body_lines: Vec<&str> = source.lines().skip(1).collect();
+        let body_end_line = body_start_line.saturating_add(body_lines.len().saturating_sub(1));
+
+        let comment_keys: Vec<usize> = self.comments.keys().copied().collect();
+        for key in comment_keys {
+            let Some(comments) = self.comments.get_mut(&key) else {
+                continue;
+            };
+
+            let mut i = 0;
+            while i < comments.len() {
+                let matches = match &comments[i] {
+                    Comment::Standalone {
+                        indent,
+                        line_number,
+                        ..
+                    } => {
+                        *line_number >= body_start_line
+                            && self
+                                .current_next_line
+                                .is_none_or(|next| *line_number < next)
+                            && *indent >= body_indent
+                    }
+                    Comment::Trailing { line_number, .. } => {
+                        *line_number >= body_start_line && *line_number <= body_end_line
+                    }
+                };
+
+                if !matches {
+                    i += 1;
+                    continue;
+                }
+
+                let comment = comments.remove(i);
+                match comment {
+                    Comment::Standalone {
+                        text,
+                        line_number,
+                        indent,
+                    } => {
+                        let relative_indent = " ".repeat(indent.saturating_sub(body_indent));
+                        standalone_comments
+                            .entry(line_number)
+                            .or_default()
+                            .push(format!("{relative_indent}{text}"));
+                    }
+                    Comment::Trailing { text, line_number } => {
+                        trailing_comments.insert(line_number, text);
+                    }
+                }
+            }
+
+            if comments.is_empty() {
+                self.comments.remove(&key);
+            }
+        }
+
+        let final_line = standalone_comments
+            .keys()
+            .copied()
+            .max()
+            .map_or(body_end_line, |line| line.max(body_end_line));
+
+        let mut merged_lines = vec![];
+        for line_number in body_start_line..=final_line {
+            let standalone_for_line = standalone_comments.remove(&line_number);
+            if let Some(comment_lines) = standalone_for_line.as_ref() {
+                merged_lines.extend(comment_lines.iter().cloned());
+            }
+
+            let raw_line = body_lines
+                .get(line_number.saturating_sub(body_start_line))
+                .copied()
+                .unwrap_or("");
+            if standalone_for_line.is_some() && raw_line.trim().is_empty() {
+                continue;
+            }
+
+            let line = if let Some(comment) = trailing_comments.remove(&line_number) {
+                if raw_line.trim().is_empty() {
+                    comment
+                } else {
+                    format!("{raw_line}  {comment}")
+                }
+            } else {
+                raw_line.to_string()
+            };
+
+            if !(raw_line.trim().is_empty() && merged_lines.last().is_some_and(String::is_empty)) {
+                merged_lines.push(line);
+            }
+        }
+
+        while merged_lines.first().is_some_and(String::is_empty) {
+            merged_lines.remove(0);
+        }
+        while merged_lines.last().is_some_and(String::is_empty) {
+            merged_lines.pop();
+        }
+
+        super::python::format_python_block(&merged_lines.join("\n"), &self.python_format_config)
+    }
+
     fn take_trailing_comment_for_current_line(&mut self, text: &str) -> String {
         let line_number = self.current_trailing_line.unwrap_or(0);
-        if let Some(comments) = self.comments.remove(&line_number) {
-            for comment in comments {
+        if let Some(comments) = self.comments.get_mut(&line_number) {
+            let mut i = 0;
+            while i < comments.len() {
                 if let Comment::Trailing {
                     text: comment_text, ..
-                } = comment
+                } = &comments[i]
                 {
+                    let comment_text = comment_text.clone();
+                    comments.remove(i);
+                    if comments.is_empty() {
+                        self.comments.remove(&line_number);
+                    }
                     return format!("{text}  {comment_text}");
                 }
+                i += 1;
             }
         }
         text.to_string()
@@ -287,7 +417,15 @@ impl Formatter {
 }
 
 pub fn format_ast(ast: &[AstNode], comments: &CommentMap) -> String {
-    let mut formatter = Formatter::new(comments.clone());
+    format_ast_with_config(ast, comments, &PythonFormatConfig::default())
+}
+
+pub(crate) fn format_ast_with_config(
+    ast: &[AstNode],
+    comments: &CommentMap,
+    python_format_config: &PythonFormatConfig,
+) -> String {
+    let mut formatter = Formatter::new(comments.clone(), python_format_config.clone());
     formatter.nodes(ast);
     formatter.finish()
 }

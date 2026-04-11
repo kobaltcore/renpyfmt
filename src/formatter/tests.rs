@@ -147,6 +147,42 @@ fn formats_init_python_compact_form() {
 }
 
 #[test]
+fn formats_python_blocks_with_ruff() {
+    assert_formats(
+        concat!(
+            "python:\n",
+            "    numbers=[1,2,3]\n",
+            "    if True: print( numbers )"
+        ),
+        concat!(
+            "python:\n",
+            "    numbers = [1, 2, 3]\n",
+            "    if True:\n",
+            "        print(numbers)"
+        ),
+    );
+}
+
+#[test]
+fn formats_nested_python_blocks_with_ruff() {
+    assert_formats(
+        concat!(
+            "label start:\n",
+            "    python:\n",
+            "        values=[1,2]\n",
+            "        if True: print( values )"
+        ),
+        concat!(
+            "label start:\n",
+            "    python:\n",
+            "        values = [1, 2]\n",
+            "        if True:\n",
+            "            print(values)"
+        ),
+    );
+}
+
+#[test]
 fn formats_supported_media_and_atl_statement_variants() {
     assert_formats(
         concat!(

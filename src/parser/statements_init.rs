@@ -128,7 +128,6 @@ impl Parser for Python {
         let python_code = lex
             .python_block()
             .ok_or_else(|| lex.parse_error("expected python block"))?
-            .trim()
             .into();
 
         lex.advance();

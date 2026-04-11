@@ -2,7 +2,7 @@ use crate::comments::{Comment, CommentMap, EOF_LINE};
 use crate::parser::parse_block;
 use crate::{
     ast::AstNode,
-    formatter::format_ast,
+    formatter::{PythonFormatConfig, format_ast_with_config},
     lexer::{Block, Lexer},
 };
 use anyhow::{Context, Result, bail};
@@ -11,6 +11,28 @@ use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 use walkdir::WalkDir;
+
+use ruff_workspace::Settings;
+use ruff_workspace::configuration::Configuration;
+use ruff_workspace::pyproject::{
+    find_fallback_target_version, find_settings_toml, find_user_settings_toml,
+};
+use ruff_workspace::resolver::{
+    ConfigurationOrigin, ConfigurationTransformer, resolve_root_settings,
+};
+
+#[derive(Clone, Debug)]
+struct FormatContext {
+    python_format_config: PythonFormatConfig,
+}
+
+struct NoOpTransformer;
+
+impl ConfigurationTransformer for NoOpTransformer {
+    fn transform(&self, config: Configuration) -> Configuration {
+        config
+    }
+}
 
 struct LexerContext {
     input_dir: PathBuf,
@@ -558,9 +580,68 @@ fn parse_file(input_dir: &Path, input_file: &PathBuf) -> Result<()> {
     Ok(())
 }
 
-fn format_file(input_dir: &Path, input_file: &PathBuf) -> Result<bool> {
+fn resolve_python_format_config(
+    input_dir: &Path,
+    ruff_config: Option<&Path>,
+) -> Result<PythonFormatConfig> {
+    let input_dir = fs::canonicalize(input_dir)
+        .with_context(|| format!("Failed to resolve input directory {}", input_dir.display()))?;
+
+    let settings = resolve_ruff_settings(&input_dir, ruff_config)?;
+
+    Ok(PythonFormatConfig::new(input_dir, settings.formatter))
+}
+
+fn resolve_ruff_settings(input_dir: &Path, ruff_config: Option<&Path>) -> Result<Settings> {
+    if let Some(ruff_config) = ruff_config {
+        let ruff_config = fs::canonicalize(ruff_config).with_context(|| {
+            format!(
+                "Failed to resolve Ruff config path {}",
+                ruff_config.display()
+            )
+        })?;
+
+        return resolve_root_settings(
+            &ruff_config,
+            &NoOpTransformer,
+            ConfigurationOrigin::UserSpecified,
+        )
+        .with_context(|| format!("Failed to load Ruff config {}", ruff_config.display()));
+    }
+
+    if let Some(ruff_config) = find_settings_toml(input_dir).with_context(|| {
+        format!(
+            "Failed to discover Ruff config from {}",
+            input_dir.display()
+        )
+    })? {
+        return resolve_root_settings(
+            &ruff_config,
+            &NoOpTransformer,
+            ConfigurationOrigin::Ancestor,
+        )
+        .with_context(|| format!("Failed to load Ruff config {}", ruff_config.display()));
+    }
+
+    if let Some(ruff_config) = find_user_settings_toml() {
+        return resolve_root_settings(
+            &ruff_config,
+            &NoOpTransformer,
+            ConfigurationOrigin::UserSettings,
+        )
+        .with_context(|| format!("Failed to load Ruff config {}", ruff_config.display()));
+    }
+
+    let mut settings = Settings::default();
+    if let Some(target_version) = find_fallback_target_version(input_dir) {
+        settings.formatter.unresolved_target_version = target_version.into();
+    }
+    Ok(settings)
+}
+
+fn format_file(input_dir: &Path, input_file: &PathBuf, ctx: &FormatContext) -> Result<bool> {
     let (ast, comments) = parse_file_ast(input_dir, input_file)?;
-    let formatted = format_ast(&ast, &comments);
+    let formatted = format_ast_with_config(&ast, &comments, &ctx.python_format_config);
     let output = if formatted.is_empty() {
         String::new()
     } else {
@@ -625,8 +706,16 @@ pub fn parse_directory(path: PathBuf, pb: ProgressBar) -> Result<()> {
     Ok(())
 }
 
-pub fn format_directory(path: PathBuf, pb: ProgressBar) -> Result<()> {
+pub fn format_directory(
+    path: PathBuf,
+    ruff_config: Option<PathBuf>,
+    pb: ProgressBar,
+) -> Result<()> {
     let files = collect_rpy_files(&path)?;
+
+    let ctx = FormatContext {
+        python_format_config: resolve_python_format_config(&path, ruff_config.as_deref())?,
+    };
 
     if files.is_empty() {
         pb.finish_with_message("No .rpy files found");
@@ -640,7 +729,7 @@ pub fn format_directory(path: PathBuf, pb: ProgressBar) -> Result<()> {
 
     for input_file in &files {
         pb.set_message(input_file.display().to_string());
-        match format_file(&path, input_file) {
+        match format_file(&path, input_file, &ctx) {
             Ok(true) => {
                 formatted_count += 1;
             }
@@ -677,6 +766,8 @@ pub fn format_directory(path: PathBuf, pb: ProgressBar) -> Result<()> {
 
 #[cfg(test)]
 mod tests {
+    use std::time::{SystemTime, UNIX_EPOCH};
+
     use std::path::PathBuf;
 
     use super::*;
@@ -768,5 +859,148 @@ mod tests {
         );
 
         let _ = std::fs::remove_file(&file_path);
+    }
+
+    fn create_temp_test_dir(name: &str) -> PathBuf {
+        let unique = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let dir =
+            std::env::temp_dir().join(format!("renpyfmt-{name}-{}-{unique}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    #[test]
+    fn format_uses_ruff_config_discovered_from_cli_input_directory() {
+        let root = create_temp_test_dir("ruff-root-discovery");
+        let nested = root.join("game");
+        std::fs::create_dir_all(&nested).unwrap();
+
+        std::fs::write(
+            root.join("ruff.toml"),
+            "[format]\nquote-style = \"single\"\n",
+        )
+        .unwrap();
+        std::fs::write(
+            nested.join(".ruff.toml"),
+            "[format]\nquote-style = \"double\"\n",
+        )
+        .unwrap();
+
+        let script_path = nested.join("script.rpy");
+        std::fs::write(&script_path, "python:\n    message=\"hi\"\n").unwrap();
+
+        let ctx = FormatContext {
+            python_format_config: resolve_python_format_config(&root, None).unwrap(),
+        };
+        format_file(&root, &script_path, &ctx).unwrap();
+
+        let formatted = std::fs::read_to_string(&script_path).unwrap();
+        assert_eq!(formatted, "python:\n    message = 'hi'\n");
+
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn format_can_use_explicit_ruff_config_override() {
+        let root = create_temp_test_dir("ruff-explicit-config");
+        std::fs::write(
+            root.join("ruff.toml"),
+            "[format]\nquote-style = \"single\"\n",
+        )
+        .unwrap();
+
+        let explicit_config = root.join("explicit-ruff.toml");
+        std::fs::write(&explicit_config, "[format]\nquote-style = \"double\"\n").unwrap();
+
+        let script_path = root.join("script.rpy");
+        std::fs::write(&script_path, "python:\n    message='hi'\n").unwrap();
+
+        let ctx = FormatContext {
+            python_format_config: resolve_python_format_config(&root, Some(&explicit_config))
+                .unwrap(),
+        };
+        format_file(&root, &script_path, &ctx).unwrap();
+
+        let formatted = std::fs::read_to_string(&script_path).unwrap();
+        assert_eq!(formatted, "python:\n    message = \"hi\"\n");
+
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn format_keeps_python_block_comments_in_place() {
+        let root = create_temp_test_dir("python-comments");
+        let script_path = root.join("script.rpy");
+        std::fs::write(
+            &script_path,
+            concat!(
+                "label start:\n",
+                "    python:\n",
+                "        # before\n",
+                "        value=1  # trailing\n",
+                "\n",
+                "        # after\n",
+                "    \"done\"\n",
+            ),
+        )
+        .unwrap();
+
+        let ctx = FormatContext {
+            python_format_config: resolve_python_format_config(&root, None).unwrap(),
+        };
+        format_file(&root, &script_path, &ctx).unwrap();
+
+        let formatted = std::fs::read_to_string(&script_path).unwrap();
+        assert_eq!(
+            formatted,
+            concat!(
+                "label start:\n",
+                "    python:\n",
+                "        # before\n",
+                "        value = 1  # trailing\n",
+                "\n",
+                "        # after\n",
+                "    \"done\"\n",
+            )
+        );
+
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn format_keeps_nested_python_block_comment_indentation() {
+        let root = create_temp_test_dir("python-comment-indent");
+        let script_path = root.join("script.rpy");
+        std::fs::write(
+            &script_path,
+            concat!(
+                "python:\n",
+                "    if ready:\n",
+                "        # nested\n",
+                "        value=1\n",
+            ),
+        )
+        .unwrap();
+
+        let ctx = FormatContext {
+            python_format_config: resolve_python_format_config(&root, None).unwrap(),
+        };
+        format_file(&root, &script_path, &ctx).unwrap();
+
+        let formatted = std::fs::read_to_string(&script_path).unwrap();
+        assert_eq!(
+            formatted,
+            concat!(
+                "python:\n",
+                "    if ready:\n",
+                "        # nested\n",
+                "        value = 1\n",
+            )
+        );
+
+        let _ = std::fs::remove_dir_all(&root);
     }
 }

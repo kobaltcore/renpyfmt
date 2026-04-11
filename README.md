@@ -14,6 +14,6 @@
 
 `renpyfmt` is an opinionated source code formatter for Ren'Py script.
 
-It ships with a complete, standalone parser for the Ren'Py language, allowing for deep understanding of the code and thus proper formatting. Python blocks will be formatted via `ruff` sometime soon.
+It ships with a complete, standalone parser for the Ren'Py language, allowing for deep understanding of the code and thus proper formatting. Embedded Python blocks are formatted via `ruff`.
 
 <a href="https://unsplash.com/photos/E8Ufcyxz514?utm_source=unsplash&utm_medium=referral&utm_content=creditShareLink">Photo by Milad Fakurian on Unsplash</a>

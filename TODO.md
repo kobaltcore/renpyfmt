@@ -8,4 +8,11 @@
 - [x] `show expression alien_particles(400, 250, 700) as particles:` turns into `show alien_particles(400, 250, 700) expression alien_particles(400, 250, 700) as particles:`
 - [x] Comments inside ATL are sent to below the ATL block
 - [x] Tests should have Ren'Py script as strings instead of direct AST nodes
-- [ ] check if python blocks are being formatted correctly. if not add ruff to format them
+- [x] check if python blocks are being formatted correctly. if not add ruff to format them
+- [ ] support screen language
+- [ ] support testcase/testsuite DSL
+- [ ] layeredimage support?
+- [ ] formatter: check-only mode
+- [ ] support user statements (embedded python interpreter and stubbed lexer?)
+- [ ] optional: support AST rewriting via python plugins?
+- [ ] performance improvements

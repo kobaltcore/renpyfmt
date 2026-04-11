@@ -610,9 +610,11 @@ impl Formatter {
 
         if node.block.len() == 1 {
             if let crate::ast::AstNode::Python(python) = &node.block[0] {
+                let formatted_code =
+                    self.format_python_block_source(&python.python_code, python.loc.1);
                 self.line_with_trailing(&format!("translate {language} python:"));
                 self.indented(|formatter| {
-                    for code_line in python.python_code.lines() {
+                    for code_line in formatted_code.lines() {
                         formatter.line(code_line);
                     }
                 });
@@ -658,10 +660,12 @@ impl Formatter {
         }
         line.push(' ');
         line.push_str(&self.python_block_header(node, early));
+        let formatted_code =
+            self.format_python_block_source(node.python_code(), node.line_number());
 
         self.line_with_trailing(&line);
         self.indented(|formatter| {
-            for code_line in node.python_code().lines() {
+            for code_line in formatted_code.lines() {
                 formatter.line(code_line);
             }
         });
@@ -669,10 +673,12 @@ impl Formatter {
 
     fn emit_python_block(&mut self, node: &impl PythonBlockLike, early: bool) {
         let line = self.python_block_header(node, early);
+        let formatted_code =
+            self.format_python_block_source(node.python_code(), node.line_number());
 
         self.line_with_trailing(&line);
         self.indented(|formatter| {
-            for code_line in node.python_code().lines() {
+            for code_line in formatted_code.lines() {
                 formatter.line(code_line);
             }
         });
@@ -702,6 +708,7 @@ trait PythonBlockLike {
     fn python_code(&self) -> &str;
     fn store(&self) -> &str;
     fn hide(&self) -> bool;
+    fn line_number(&self) -> usize;
 }
 
 impl PythonBlockLike for Python {
@@ -716,6 +723,10 @@ impl PythonBlockLike for Python {
     fn hide(&self) -> bool {
         self.hide
     }
+
+    fn line_number(&self) -> usize {
+        self.loc.1
+    }
 }
 
 impl PythonBlockLike for EarlyPython {
@@ -729,5 +740,9 @@ impl PythonBlockLike for EarlyPython {
 
     fn hide(&self) -> bool {
         self.hide
+    }
+
+    fn line_number(&self) -> usize {
+        self.loc.1
     }
 }
