@@ -1,10 +1,10 @@
 use crate::{
     ast::{
         ArgumentInfo, AstNode, Call, Camera, CompileIf, Default_, Define, EarlyPython,
-        EndTranslate, Hide, If, Image, ImageSpecifier, Init, Jump, Label, Menu, Parameter,
-        ParameterKind, ParameterSignature, Pass, Python, PythonOneLine, RPY, Return, Say, Scene,
-        Screen, Show, ShowLayer, Style, Testcase, Testsuite, Transform, Translate, TranslateBlock,
-        TranslateEarlyBlock, TranslateString, UserStatement, While, With,
+        EndTranslate, Hide, If, Image, ImageSpecifier, Init, InitOffset, Jump, Label, Menu,
+        Parameter, ParameterKind, ParameterSignature, Pass, Python, PythonOneLine, RPY, Return,
+        Say, Scene, Screen, Show, ShowLayer, Style, Testcase, Testsuite, Transform, Translate,
+        TranslateBlock, TranslateEarlyBlock, TranslateString, UserStatement, While, With,
     },
     atl::{
         AtlStatement, RawBlock, RawChild, RawChoice, RawContainsExpr, RawEvent, RawFunction,

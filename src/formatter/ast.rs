@@ -1,8 +1,8 @@
 use crate::ast::{
     Call, Camera, CompileIf, Default_, Define, EarlyPython, EndTranslate, Hide, If, Image, Init,
-    Jump, Label, Menu, Pass, Python, PythonOneLine, RPY, Return, Say, Scene, Show, ShowLayer,
-    Style, Testcase, Testsuite, Transform, Translate, TranslateBlock, TranslateEarlyBlock,
-    TranslateString, While, With,
+    InitOffset, Jump, Label, Menu, Pass, Python, PythonOneLine, RPY, Return, Say, Scene, Show,
+    ShowLayer, Style, Testcase, Testsuite, Transform, Translate, TranslateBlock,
+    TranslateEarlyBlock, TranslateString, While, With,
 };
 
 use super::{
@@ -137,8 +137,12 @@ impl Formatter {
     }
 
     pub(crate) fn emit_jump(&mut self, node: &Jump) {
-        let target = if let Some(global_label) = &node.global_label {
-            format!("{global_label}.{}", node.target)
+        let target = if !node.expression {
+            if let Some(global_label) = &node.global_label {
+                format!("{global_label}.{}", node.target)
+            } else {
+                node.target.clone()
+            }
         } else {
             node.target.clone()
         };
@@ -281,6 +285,11 @@ impl Formatter {
         self.indented(|formatter| formatter.nodes(&node.block));
     }
 
+    pub(crate) fn emit_init_offset(&mut self, node: &InitOffset) {
+        self.current_init_offset = node.offset;
+        self.line_with_trailing(&format!("init offset = {}", node.offset));
+    }
+
     fn try_emit_translate_strings(&mut self, node: &Init) -> bool {
         if node.block.is_empty() {
             return false;
@@ -321,23 +330,25 @@ impl Formatter {
         };
 
         match child {
-            crate::ast::AstNode::Define(child) if node.priority == 0 => {
+            crate::ast::AstNode::Define(child) if node.priority == self.current_init_offset => {
                 self.emit_define(child);
                 true
             }
-            crate::ast::AstNode::Default(child) if node.priority == 0 => {
+            crate::ast::AstNode::Default(child) if node.priority == self.current_init_offset => {
                 self.emit_default(child);
                 true
             }
-            crate::ast::AstNode::Style(child) if node.priority == 0 => {
+            crate::ast::AstNode::Style(child) if node.priority == self.current_init_offset => {
                 self.emit_style(child);
                 true
             }
-            crate::ast::AstNode::Transform(child) if node.priority == 0 => {
+            crate::ast::AstNode::Transform(child) if node.priority == self.current_init_offset => {
                 self.emit_transform(child);
                 true
             }
-            crate::ast::AstNode::Image(child) if node.priority == 500 => {
+            crate::ast::AstNode::Image(child)
+                if node.priority == 500 + self.current_init_offset =>
+            {
                 self.emit_image(child);
                 true
             }

@@ -62,11 +62,12 @@ impl Parser for Init {
             lex.expect_noblock()?;
             lex.advance();
 
-            lex.init_offset = offset
+            let offset = offset
                 .parse()
                 .map_err(|_| lex.parse_error("expected integer"))?;
+            lex.init_offset = offset;
 
-            return Ok(ParseNodes::None);
+            return Ok(AstNode::InitOffset(InitOffset { loc, offset }).into());
         }
 
         if lex.keyword("label".into()).is_some() {

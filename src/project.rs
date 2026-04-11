@@ -268,10 +268,6 @@ fn list_logical_lines(
                         pending_standalone.clear();
                     }
                     result.push((path.clone(), start_number, final_line));
-                } else if trailing_comment.is_none() && pending_standalone.is_empty() {
-                    // blank line with no preceding standalone comments - skip
-                } else if trailing_comment.is_none() && !pending_standalone.is_empty() {
-                    // blank line between standalone comments - keep accumulating
                 }
 
                 if endpos.is_none() {
@@ -963,6 +959,7 @@ mod tests {
                 "        value = 1  # trailing\n",
                 "\n",
                 "        # after\n",
+                "\n",
                 "    \"done\"\n",
             )
         );
@@ -998,6 +995,48 @@ mod tests {
                 "    if ready:\n",
                 "        # nested\n",
                 "        value = 1\n",
+            )
+        );
+
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn format_preserves_init_offset_comments_and_separation() {
+        let root = create_temp_test_dir("init-offset-comments");
+        let script_path = root.join("script.rpy");
+        std::fs::write(
+            &script_path,
+            concat!(
+                "################################################################################\n",
+                "## Initialization\n",
+                "################################################################################\n",
+                "\n",
+                "## The init offset statement causes the init code in this file to run before\n",
+                "## init code in any other file.\n",
+                "init offset = -2\n",
+                "\n",
+                "define gui.accent_color = '#9e2c94'\n",
+            ),
+        )
+        .unwrap();
+
+        let ctx = FormatContext {
+            python_format_config: resolve_python_format_config(&root, None).unwrap(),
+        };
+        format_file(&root, &script_path, &ctx).unwrap();
+
+        let formatted = std::fs::read_to_string(&script_path).unwrap();
+        assert_eq!(
+            formatted,
+            concat!(
+                "################################################################################\n",
+                "## Initialization\n",
+                "################################################################################\n",
+                "## The init offset statement causes the init code in this file to run before\n",
+                "## init code in any other file.\n",
+                "init offset = -2\n",
+                "define gui.accent_color = '#9e2c94'\n",
             )
         );
 

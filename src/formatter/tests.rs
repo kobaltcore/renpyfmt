@@ -113,13 +113,16 @@ fn formats_supported_flow_and_init_statements() {
         concat!(
             "init 5:\n",
             "    default persistent.answer = 42\n",
+            "\n",
             "python early hide in mystore:\n",
             "    total = 1\n",
+            "\n",
             "if seen_intro:\n",
             "    pass\n",
             "else:\n",
             "    while waiting:\n",
             "        pass\n",
+            "\n",
             "IF renpy.version_tuple >= (8, 0):\n",
             "    pass\n",
             "ELSE:\n",
@@ -134,12 +137,14 @@ fn formats_init_python_compact_form() {
         concat!(
             "init python:\n",
             "    x = 1\n",
+            "\n",
             "init 5 python hide in mystore:\n",
             "    y = 2"
         ),
         concat!(
             "init python:\n",
             "    x = 1\n",
+            "\n",
             "init 5 python hide in mystore:\n",
             "    y = 2"
         ),
@@ -195,6 +200,7 @@ fn formats_supported_media_and_atl_statement_variants() {
             "    function callback\n",
             "    event startled\n",
             "    repeat 2\n",
+            "\n",
             "camera at wobble\n",
             "image logo idle = \"room.webp\""
         ),
@@ -208,6 +214,7 @@ fn formats_supported_media_and_atl_statement_variants() {
             "    function callback\n",
             "    event startled\n",
             "    repeat 2\n",
+            "\n",
             "camera at wobble\n",
             "image logo idle = \"room.webp\""
         ),
@@ -243,6 +250,56 @@ fn formats_implicit_init_statements_without_init_blocks() {
 #[test]
 fn keeps_explicit_init_blocks_for_non_default_priorities() {
     assert_formats("init 5 define foo = 1", "init 5:\n    define foo = 1");
+}
+
+#[test]
+fn keeps_implicit_init_statements_bare_after_init_offset() {
+    assert_formats(
+        concat!("init offset = -2\n", "define gui.accent_color = '#9e2c94'"),
+        concat!("init offset = -2\n", "define gui.accent_color = '#9e2c94'"),
+    );
+}
+
+#[test]
+fn keeps_jump_expression_targets_unqualified() {
+    assert_formats(
+        concat!(
+            "label scenario_entry_point:\n",
+            "    jump expression scenario.label"
+        ),
+        concat!(
+            "label scenario_entry_point:\n",
+            "    jump expression scenario.label"
+        ),
+    );
+}
+
+#[test]
+fn separates_block_statements_from_neighbors() {
+    assert_formats(
+        concat!(
+            "define foo = 1\n",
+            "label start:\n",
+            "    $ x = 1\n",
+            "    if True:\n",
+            "        pass\n",
+            "    $ y = 2\n",
+            "define bar = 2"
+        ),
+        concat!(
+            "define foo = 1\n",
+            "\n",
+            "label start:\n",
+            "    $ x = 1\n",
+            "\n",
+            "    if True:\n",
+            "        pass\n",
+            "\n",
+            "    $ y = 2\n",
+            "\n",
+            "define bar = 2"
+        ),
+    );
 }
 
 #[test]
@@ -362,12 +419,16 @@ fn formats_translate_and_raw_block_statements() {
             "translate None strings:\n",
             "    old \"Hello\"\n",
             "    new \"Hi\"\n",
+            "\n",
             "translate english start:\n",
             "    pass\n",
+            "\n",
             "translate french python:\n",
             "    count = 3\n",
+            "\n",
             "testcase foo.bar:\n",
             "    assert x\n",
+            "\n",
             "testsuite foo.bar:\n",
             "    testcase nested:\n",
             "        assert y"
@@ -376,12 +437,16 @@ fn formats_translate_and_raw_block_statements() {
             "translate None strings:\n",
             "    old \"Hello\"\n",
             "    new \"Hi\"\n",
+            "\n",
             "translate english start:\n",
             "    pass\n",
+            "\n",
             "translate french python:\n",
             "    count = 3\n",
+            "\n",
             "testcase foo.bar:\n",
             "    assert x\n",
+            "\n",
             "testsuite foo.bar:\n",
             "    testcase nested:\n",
             "        assert y"

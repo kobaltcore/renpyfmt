@@ -13,7 +13,7 @@ pub(crate) enum Mode {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum NodeKind {
-    Scene,
+    Block,
     Other,
 }
 
@@ -22,11 +22,12 @@ pub(crate) struct Formatter {
     indent: usize,
     pub(crate) mode: Mode,
     at_line_start: bool,
-    previous_top_level_kind: Option<NodeKind>,
+    previous_node_kind: Option<NodeKind>,
     comments: CommentMap,
     last_emitted_line: usize,
     current_trailing_line: Option<usize>,
     current_next_line: Option<usize>,
+    pub(crate) current_init_offset: isize,
     pub(crate) python_format_config: PythonFormatConfig,
 }
 
@@ -37,11 +38,12 @@ impl Formatter {
             indent: 0,
             mode: Mode::Script,
             at_line_start: true,
-            previous_top_level_kind: None,
+            previous_node_kind: None,
             comments,
             last_emitted_line: 0,
             current_trailing_line: None,
             current_next_line: None,
+            current_init_offset: 0,
             python_format_config,
         }
     }
@@ -115,13 +117,18 @@ impl Formatter {
     }
 
     pub(crate) fn node_with_suffix(&mut self, node: &AstNode, with_suffix: Option<&With>) {
-        if self.indent == 0 {
-            let kind = self.node_kind(node);
-            if matches!(kind, NodeKind::Scene) && self.previous_top_level_kind.is_some() {
+        let kind = self.node_kind(node);
+        if self.indent == 0
+            && matches!(node, AstNode::Scene(_))
+            && self.previous_node_kind.is_some()
+        {
+            self.blank_line();
+        } else if let Some(previous_kind) = self.previous_node_kind {
+            if matches!(kind, NodeKind::Block) || matches!(previous_kind, NodeKind::Block) {
                 self.blank_line();
             }
-            self.previous_top_level_kind = Some(kind);
         }
+        self.previous_node_kind = Some(kind);
 
         match node {
             AstNode::Label(node) => self.emit_label(node),
@@ -143,6 +150,7 @@ impl Formatter {
             AstNode::Return(node) => self.emit_return(node),
             AstNode::Style(node) => self.emit_style(node),
             AstNode::Init(node) => self.emit_init(node),
+            AstNode::InitOffset(node) => self.emit_init_offset(node),
             AstNode::Python(node) => self.emit_python(node),
             AstNode::EarlyPython(node) => self.emit_early_python(node),
             AstNode::Define(node) => self.emit_define(node),
@@ -167,8 +175,62 @@ impl Formatter {
 
     fn node_kind(&self, node: &AstNode) -> NodeKind {
         match node {
-            AstNode::Scene(_) => NodeKind::Scene,
+            AstNode::Label(_)
+            | AstNode::Menu(_)
+            | AstNode::If(_)
+            | AstNode::While(_)
+            | AstNode::CompileIf(_)
+            | AstNode::Python(_)
+            | AstNode::EarlyPython(_)
+            | AstNode::Translate(_)
+            | AstNode::TranslateBlock(_)
+            | AstNode::TranslateEarlyBlock(_)
+            | AstNode::Testcase(_)
+            | AstNode::Testsuite(_) => NodeKind::Block,
+            AstNode::Init(node) if self.init_emits_block(node) => NodeKind::Block,
+            AstNode::Style(node) if self.style_emits_block(node) => NodeKind::Block,
+            AstNode::Transform(_) => NodeKind::Block,
+            AstNode::Scene(node) if node.atl.is_some() => NodeKind::Block,
+            AstNode::Show(node) if node.atl.is_some() => NodeKind::Block,
+            AstNode::ShowLayer(node) if node.atl.is_some() => NodeKind::Block,
+            AstNode::Camera(node) if node.atl.is_some() => NodeKind::Block,
+            AstNode::Image(node) if node.atl.is_some() && node.expr.is_none() => NodeKind::Block,
             _ => NodeKind::Other,
+        }
+    }
+
+    fn style_emits_block(&self, node: &crate::ast::Style) -> bool {
+        node.clear
+            || node.take.is_some()
+            || !node.delattr.is_empty()
+            || node.variant.is_some()
+            || !node.properties.is_empty()
+    }
+
+    fn init_emits_block(&self, node: &crate::ast::Init) -> bool {
+        if self.try_init_emits_implicit(node) {
+            return false;
+        }
+
+        true
+    }
+
+    fn try_init_emits_implicit(&self, node: &crate::ast::Init) -> bool {
+        let [child] = node.block.as_slice() else {
+            return false;
+        };
+
+        match child {
+            AstNode::Define(_)
+            | AstNode::Default(_)
+            | AstNode::Style(_)
+            | AstNode::Transform(_)
+                if node.priority == self.current_init_offset =>
+            {
+                true
+            }
+            AstNode::Image(_) if node.priority == 500 + self.current_init_offset => true,
+            _ => false,
         }
     }
 
@@ -391,9 +453,12 @@ impl Formatter {
     }
 
     pub(crate) fn indented(&mut self, f: impl FnOnce(&mut Self)) {
+        let previous_kind = self.previous_node_kind;
+        self.previous_node_kind = None;
         self.indent += 4;
         f(self);
         self.indent -= 4;
+        self.previous_node_kind = previous_kind;
     }
 
     pub(crate) fn with_mode<T>(&mut self, mode: Mode, f: impl FnOnce(&mut Self) -> T) -> T {

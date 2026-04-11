@@ -181,7 +181,8 @@ fn init_offset_updates_following_init_priority() {
         block(2, "define foo = 1", vec![]),
     ]));
 
-    assert!(matches!(&ast[0], AstNode::Init(node) if node.priority == 5));
+    assert!(matches!(&ast[0], AstNode::InitOffset(node) if node.offset == 5));
+    assert!(matches!(&ast[1], AstNode::Init(node) if node.priority == 5));
 }
 
 #[test]

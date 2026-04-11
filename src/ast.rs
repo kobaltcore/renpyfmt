@@ -192,6 +192,12 @@ pub struct Init {
 }
 
 #[derive(Debug, Clone, Default)]
+pub struct InitOffset {
+    pub loc: (PathBuf, usize),
+    pub offset: isize,
+}
+
+#[derive(Debug, Clone, Default)]
 pub struct Define {
     pub loc: (PathBuf, usize),
     pub store: String,
@@ -336,6 +342,7 @@ pub enum AstNode {
     Return(Return),
     Style(Style),
     Init(Init),
+    InitOffset(InitOffset),
     Python(Python),
     EarlyPython(EarlyPython),
     Define(Define),
@@ -382,6 +389,7 @@ impl AstNode {
             AstNode::Return(n) => n.loc.1,
             AstNode::Style(n) => n.loc.1,
             AstNode::Init(n) => n.loc.1,
+            AstNode::InitOffset(n) => n.loc.1,
             AstNode::Python(n) => n.loc.1,
             AstNode::EarlyPython(n) => n.loc.1,
             AstNode::Define(n) => n.loc.1,
