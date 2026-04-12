@@ -1042,4 +1042,28 @@ mod tests {
 
         let _ = std::fs::remove_dir_all(&root);
     }
+
+    #[test]
+    fn format_preserves_inline_comments_on_default_statements() {
+        let root = create_temp_test_dir("default-inline-comment");
+        let script_path = root.join("script.rpy");
+        std::fs::write(
+            &script_path,
+            "default eDay4Morph = \"john\"  # john, zoey, brad, rita\n",
+        )
+        .unwrap();
+
+        let ctx = FormatContext {
+            python_format_config: resolve_python_format_config(&root, None).unwrap(),
+        };
+        format_file(&root, &script_path, &ctx).unwrap();
+
+        let formatted = std::fs::read_to_string(&script_path).unwrap();
+        assert_eq!(
+            formatted,
+            "default eDay4Morph = \"john\"  # john, zoey, brad, rita\n"
+        );
+
+        let _ = std::fs::remove_dir_all(&root);
+    }
 }
