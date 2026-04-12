@@ -38,6 +38,32 @@ struct LexerContext {
     input_dir: PathBuf,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum FormatMode {
+    Write,
+    Check,
+}
+
+#[derive(Debug, Default)]
+pub struct FormatReport {
+    pub unchanged_count: usize,
+    pub changed_count: usize,
+    pub failed_count: usize,
+    pub changed_files: Vec<PathBuf>,
+}
+
+impl FormatReport {
+    pub fn has_changes(&self) -> bool {
+        self.changed_count > 0
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum FileFormatOutcome {
+    Unchanged,
+    Changed,
+}
+
 fn ren_py_to_rpy(data: &str, filename: Option<&PathBuf>) -> Result<String> {
     let lines = data.lines().collect::<Vec<_>>();
     let mut result = vec![];
@@ -635,7 +661,12 @@ fn resolve_ruff_settings(input_dir: &Path, ruff_config: Option<&Path>) -> Result
     Ok(settings)
 }
 
-fn format_file(input_dir: &Path, input_file: &PathBuf, ctx: &FormatContext) -> Result<bool> {
+fn format_file(
+    input_dir: &Path,
+    input_file: &PathBuf,
+    ctx: &FormatContext,
+    mode: FormatMode,
+) -> Result<FileFormatOutcome> {
     let (ast, comments) = parse_file_ast(input_dir, input_file)?;
     let formatted = format_ast_with_config(&ast, &comments, &ctx.python_format_config);
     let output = if formatted.is_empty() {
@@ -648,13 +679,15 @@ fn format_file(input_dir: &Path, input_file: &PathBuf, ctx: &FormatContext) -> R
         .with_context(|| format!("Failed to read {}", input_file.display()))?;
 
     if existing == output {
-        return Ok(false);
+        return Ok(FileFormatOutcome::Unchanged);
     }
 
-    fs::write(input_file, output)
-        .with_context(|| format!("Failed to write {}", input_file.display()))?;
+    if mode == FormatMode::Write {
+        fs::write(input_file, output)
+            .with_context(|| format!("Failed to write {}", input_file.display()))?;
+    }
 
-    Ok(true)
+    Ok(FileFormatOutcome::Changed)
 }
 
 pub fn parse_directory(path: PathBuf, pb: ProgressBar) -> Result<()> {
@@ -705,8 +738,9 @@ pub fn parse_directory(path: PathBuf, pb: ProgressBar) -> Result<()> {
 pub fn format_directory(
     path: PathBuf,
     ruff_config: Option<PathBuf>,
+    mode: FormatMode,
     pb: ProgressBar,
-) -> Result<()> {
+) -> Result<FormatReport> {
     let files = collect_rpy_files(&path)?;
 
     let ctx = FormatContext {
@@ -715,22 +749,22 @@ pub fn format_directory(
 
     if files.is_empty() {
         pb.finish_with_message("No .rpy files found");
-        return Ok(());
+        return Ok(FormatReport::default());
     }
 
     pb.set_length(files.len() as u64);
-    let mut unchanged_count = 0;
-    let mut formatted_count = 0;
+    let mut report = FormatReport::default();
     let mut failures = vec![];
 
     for input_file in &files {
         pb.set_message(input_file.display().to_string());
-        match format_file(&path, input_file, &ctx) {
-            Ok(true) => {
-                formatted_count += 1;
+        match format_file(&path, input_file, &ctx, mode) {
+            Ok(FileFormatOutcome::Changed) => {
+                report.changed_count += 1;
+                report.changed_files.push(input_file.clone());
             }
-            Ok(false) => {
-                unchanged_count += 1;
+            Ok(FileFormatOutcome::Unchanged) => {
+                report.unchanged_count += 1;
             }
             Err(err) => failures.push((input_file.clone(), err)),
         }
@@ -745,19 +779,40 @@ pub fn format_directory(
         eprintln!();
     }
 
-    println!(
-        "Formatted {} .rpy file(s): {} changed, {} unchanged, {} failed",
-        files.len(),
-        formatted_count,
-        unchanged_count,
-        failures.len()
-    );
+    report.failed_count = failures.len();
+
+    if mode == FormatMode::Check {
+        for path in &report.changed_files {
+            println!("Would reformat {}", path.display());
+        }
+    }
+
+    match mode {
+        FormatMode::Write => {
+            println!(
+                "Formatted {} .rpy file(s): {} changed, {} unchanged, {} failed",
+                files.len(),
+                report.changed_count,
+                report.unchanged_count,
+                report.failed_count
+            );
+        }
+        FormatMode::Check => {
+            println!(
+                "Checked {} .rpy file(s): {} would change, {} already formatted, {} failed",
+                files.len(),
+                report.changed_count,
+                report.unchanged_count,
+                report.failed_count
+            );
+        }
+    }
 
     if !failures.is_empty() {
         bail!("encountered format errors")
     }
 
-    Ok(())
+    Ok(report)
 }
 
 #[cfg(test)]
@@ -891,7 +946,7 @@ mod tests {
         let ctx = FormatContext {
             python_format_config: resolve_python_format_config(&root, None).unwrap(),
         };
-        format_file(&root, &script_path, &ctx).unwrap();
+        format_file(&root, &script_path, &ctx, FormatMode::Write).unwrap();
 
         let formatted = std::fs::read_to_string(&script_path).unwrap();
         assert_eq!(formatted, "python:\n    message = 'hi'\n");
@@ -918,7 +973,7 @@ mod tests {
             python_format_config: resolve_python_format_config(&root, Some(&explicit_config))
                 .unwrap(),
         };
-        format_file(&root, &script_path, &ctx).unwrap();
+        format_file(&root, &script_path, &ctx, FormatMode::Write).unwrap();
 
         let formatted = std::fs::read_to_string(&script_path).unwrap();
         assert_eq!(formatted, "python:\n    message = \"hi\"\n");
@@ -947,7 +1002,7 @@ mod tests {
         let ctx = FormatContext {
             python_format_config: resolve_python_format_config(&root, None).unwrap(),
         };
-        format_file(&root, &script_path, &ctx).unwrap();
+        format_file(&root, &script_path, &ctx, FormatMode::Write).unwrap();
 
         let formatted = std::fs::read_to_string(&script_path).unwrap();
         assert_eq!(
@@ -985,7 +1040,7 @@ mod tests {
         let ctx = FormatContext {
             python_format_config: resolve_python_format_config(&root, None).unwrap(),
         };
-        format_file(&root, &script_path, &ctx).unwrap();
+        format_file(&root, &script_path, &ctx, FormatMode::Write).unwrap();
 
         let formatted = std::fs::read_to_string(&script_path).unwrap();
         assert_eq!(
@@ -1068,7 +1123,7 @@ mod tests {
         let ctx = FormatContext {
             python_format_config: resolve_python_format_config(&root, None).unwrap(),
         };
-        format_file(&root, &script_path, &ctx).unwrap();
+        format_file(&root, &script_path, &ctx, FormatMode::Write).unwrap();
 
         let formatted = std::fs::read_to_string(&script_path).unwrap();
         assert_eq!(
@@ -1100,13 +1155,47 @@ mod tests {
         let ctx = FormatContext {
             python_format_config: resolve_python_format_config(&root, None).unwrap(),
         };
-        format_file(&root, &script_path, &ctx).unwrap();
+        format_file(&root, &script_path, &ctx, FormatMode::Write).unwrap();
 
         let formatted = std::fs::read_to_string(&script_path).unwrap();
         assert_eq!(
             formatted,
             "default eDay4Morph = \"john\"  # john, zoey, brad, rita\n"
         );
+
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn format_check_reports_changed_without_writing_file() {
+        let root = create_temp_test_dir("format-check-no-write");
+        let script_path = root.join("script.rpy");
+        std::fs::write(&script_path, "python:\n    message='hi'\n").unwrap();
+
+        let ctx = FormatContext {
+            python_format_config: resolve_python_format_config(&root, None).unwrap(),
+        };
+        let outcome = format_file(&root, &script_path, &ctx, FormatMode::Check).unwrap();
+
+        assert_eq!(outcome, FileFormatOutcome::Changed);
+        let existing = std::fs::read_to_string(&script_path).unwrap();
+        assert_eq!(existing, "python:\n    message='hi'\n");
+
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn format_check_reports_unchanged_for_formatted_file() {
+        let root = create_temp_test_dir("format-check-clean");
+        let script_path = root.join("script.rpy");
+        std::fs::write(&script_path, "python:\n    message = \"hi\"\n").unwrap();
+
+        let ctx = FormatContext {
+            python_format_config: resolve_python_format_config(&root, None).unwrap(),
+        };
+        let outcome = format_file(&root, &script_path, &ctx, FormatMode::Check).unwrap();
+
+        assert_eq!(outcome, FileFormatOutcome::Unchanged);
 
         let _ = std::fs::remove_dir_all(&root);
     }
