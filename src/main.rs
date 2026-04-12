@@ -1,8 +1,9 @@
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 use indicatif::{ProgressBar, ProgressStyle};
-use renpyfmt::project::{format_directory, parse_directory};
+use renpyfmt::project::{FormatMode, format_directory, parse_directory};
 use std::path::PathBuf;
+use std::process::ExitCode;
 
 #[derive(Parser)]
 #[command(name = "renpyfmt")]
@@ -25,7 +26,16 @@ enum Commands {
         /// Use this Ruff config file instead of auto-discovery.
         #[arg(long = "config")]
         config: Option<PathBuf>,
+
+        /// Check if files are formatted without modifying them.
+        #[arg(long = "check")]
+        check: bool,
     },
+}
+
+enum CommandOutcome {
+    Success,
+    CheckFailed,
 }
 
 fn create_progress_bar() -> ProgressBar {
@@ -40,23 +50,59 @@ fn create_progress_bar() -> ProgressBar {
     pb
 }
 
-fn run_format(path: PathBuf, config: Option<PathBuf>) -> Result<()> {
+fn run_format(path: PathBuf, config: Option<PathBuf>, check: bool) -> Result<CommandOutcome> {
     let pb = create_progress_bar();
-    pb.set_message("formatting...");
-    format_directory(path, config, pb)
+    pb.set_message(if check {
+        "checking format..."
+    } else {
+        "formatting..."
+    });
+
+    let report = format_directory(
+        path,
+        config,
+        if check {
+            FormatMode::Check
+        } else {
+            FormatMode::Write
+        },
+        pb,
+    )?;
+
+    if check && report.has_changes() {
+        Ok(CommandOutcome::CheckFailed)
+    } else {
+        Ok(CommandOutcome::Success)
+    }
 }
 
-fn run_parse(path: PathBuf) -> Result<()> {
+fn run_parse(path: PathBuf) -> Result<CommandOutcome> {
     let pb = create_progress_bar();
     pb.set_message("parsing...");
-    parse_directory(path, pb)
+    parse_directory(path, pb)?;
+    Ok(CommandOutcome::Success)
 }
 
-fn main() -> Result<()> {
+fn try_main() -> Result<CommandOutcome> {
     let cli = Cli::parse();
 
     match cli.command {
         Commands::Parse { path } => run_parse(path),
-        Commands::Format { path, config } => run_format(path, config),
+        Commands::Format {
+            path,
+            config,
+            check,
+        } => run_format(path, config, check),
+    }
+}
+
+fn main() -> ExitCode {
+    match try_main() {
+        Ok(CommandOutcome::Success) => ExitCode::SUCCESS,
+        Ok(CommandOutcome::CheckFailed) => ExitCode::from(1),
+        Err(err) => {
+            eprintln!("{err:#}");
+            ExitCode::from(2)
+        }
     }
 }
