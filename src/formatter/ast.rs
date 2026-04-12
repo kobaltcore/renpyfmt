@@ -434,13 +434,13 @@ impl Formatter {
 
     pub(crate) fn emit_default(&mut self, node: &Default_) {
         if node.store == "store" {
-            self.line(&format!(
+            self.line_with_trailing(&format!(
                 "default {} = {}",
                 node.name,
                 node.expr.as_deref().unwrap_or("None")
             ));
         } else {
-            self.line(&format!(
+            self.line_with_trailing(&format!(
                 "default {}.{} = {}",
                 node.store.trim_start_matches("store."),
                 node.name,
