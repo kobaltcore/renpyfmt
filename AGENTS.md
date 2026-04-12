@@ -6,3 +6,4 @@ This repository is a port of the Ren'Py AST parser, meant to become a tool for a
 
 - Use `cargo tarpaulin` to check for code coverage. We should aim to cover all important code paths.
 - When fixing a bug, always write a test to cover for the erroneous behavior.
+- Use `cargo test` to run the full test suite after making changes.
