@@ -36,7 +36,7 @@ impl Default for PythonFormatConfig {
 }
 
 pub(crate) fn format_python_block(source: &str, config: &PythonFormatConfig) -> String {
-    let base_indent = common_leading_indent(source);
+    let base_indent = base_leading_indent(source);
     let dedented = strip_leading_indent(source, &base_indent);
 
     let formatted = match format_module_source(&dedented, config.format_options(&dedented)) {
@@ -51,26 +51,17 @@ pub(crate) fn format_python_block(source: &str, config: &PythonFormatConfig) -> 
     }
 }
 
-fn common_leading_indent(source: &str) -> String {
+fn base_leading_indent(source: &str) -> String {
     source
         .lines()
-        .filter(|line| !line.trim().is_empty())
+        .find(|line| !line.trim().is_empty())
         .map(leading_whitespace)
-        .reduce(common_prefix)
         .unwrap_or_default()
 }
 
 fn leading_whitespace(line: &str) -> String {
     line.chars()
         .take_while(|char| char.is_ascii_whitespace())
-        .collect()
-}
-
-fn common_prefix(left: String, right: String) -> String {
-    left.chars()
-        .zip(right.chars())
-        .take_while(|(left, right)| left == right)
-        .map(|(char, _)| char)
         .collect()
 }
 
@@ -126,6 +117,33 @@ mod tests {
                 &PythonFormatConfig::default(),
             ),
             "        values = [1, 2]\n        if True:\n            print(values)"
+        );
+    }
+
+    #[test]
+    fn preserves_multiline_string_indentation_relative_to_python_block() {
+        assert_eq!(
+            format_python_block(
+                concat!(
+                    "        \"\"\"\n",
+                    "            Scenario Mode now uses a list of locations.\n",
+                    "            This allows an external scenario directory.\n",
+                    "            \"\"\"\n",
+                    "\n",
+                    "        def update_scenario_paths():\n",
+                    "            scenario_base_paths=[1,2]\n",
+                ),
+                &PythonFormatConfig::default(),
+            ),
+            concat!(
+                "        \"\"\"\n",
+                "        Scenario Mode now uses a list of locations.\n",
+                "        This allows an external scenario directory.\n",
+                "        \"\"\"\n",
+                "\n\n",
+                "        def update_scenario_paths():\n",
+                "            scenario_base_paths = [1, 2]"
+            )
         );
     }
 }

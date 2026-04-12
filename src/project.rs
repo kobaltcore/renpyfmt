@@ -1002,6 +1002,50 @@ mod tests {
     }
 
     #[test]
+    fn format_keeps_nested_python_block_multiline_string_indentation() {
+        let root = create_temp_test_dir("python-docstring-indent");
+        let script_path = root.join("script.rpy");
+        std::fs::write(
+            &script_path,
+            concat!(
+                "label start:\n",
+                "    python:\n",
+                "        \"\"\"\n",
+                "            Scenario Mode now uses a list of locations.\n",
+                "            This allows an external scenario directory.\n",
+                "            \"\"\"\n",
+                "\n",
+                "        def update_scenario_paths():\n",
+                "            scenario_base_paths=[1,2]\n",
+            ),
+        )
+        .unwrap();
+
+        let ctx = FormatContext {
+            python_format_config: resolve_python_format_config(&root, None).unwrap(),
+        };
+        format_file(&root, &script_path, &ctx).unwrap();
+
+        let formatted = std::fs::read_to_string(&script_path).unwrap();
+        assert_eq!(
+            formatted,
+            concat!(
+                "label start:\n",
+                "    python:\n",
+                "        \"\"\"\n",
+                "        Scenario Mode now uses a list of locations.\n",
+                "        This allows an external scenario directory.\n",
+                "        \"\"\"\n",
+                "\n\n",
+                "        def update_scenario_paths():\n",
+                "            scenario_base_paths = [1, 2]\n",
+            )
+        );
+
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
     fn format_preserves_init_offset_comments_and_separation() {
         let root = create_temp_test_dir("init-offset-comments");
         let script_path = root.join("script.rpy");
