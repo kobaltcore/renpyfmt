@@ -1079,7 +1079,7 @@ mod tests {
         let ctx = FormatContext {
             python_format_config: resolve_python_format_config(&root, None).unwrap(),
         };
-        format_file(&root, &script_path, &ctx).unwrap();
+        format_file(&root, &script_path, &ctx, FormatMode::Write).unwrap();
 
         let formatted = std::fs::read_to_string(&script_path).unwrap();
         assert_eq!(
