@@ -1,8 +1,8 @@
 use crate::{
     ast::{
-        Call, Camera, CompileIf, Default_, Define, Hide, If, Image, Init, Jump, Label, Menu, Pass,
-        Python, PythonOneLine, RPY, Return, Say, Scene, Screen, Show, Style, Testcase, Testsuite,
-        Transform, Translate, UserStatement, While, With,
+        Call, Camera, CompileIf, Default_, Define, Hide, If, Image, Init, Jump, Label,
+        LayeredImage, Menu, Pass, Python, PythonOneLine, RPY, Return, Say, Scene, Screen, Show,
+        Style, Testcase, Testsuite, Transform, Translate, UserStatement, While, With,
     },
     trie::ParseTrie,
 };
@@ -38,6 +38,7 @@ fn register_statements(parser: &mut ParseTrie) {
     parser.add(vec!["camera".into()], Box::new(Camera::default()));
     parser.add(vec!["screen".into()], Box::new(Screen::default()));
     parser.add(vec!["image".into()], Box::new(Image::default()));
+    parser.add(vec!["layeredimage".into()], Box::new(LayeredImage::default()));
     parser.add(vec!["rpy".into()], Box::new(RPY::default()));
     parser.add(vec!["translate".into()], Box::new(Translate::default()));
     parser.add(vec!["testcase".into()], Box::new(Testcase::default()));

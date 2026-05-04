@@ -1,10 +1,13 @@
 use crate::{
     ast::{
         ArgumentInfo, AstNode, Call, Camera, CompileIf, Default_, Define, EarlyPython,
-        EndTranslate, Hide, If, Image, ImageSpecifier, Init, InitOffset, Jump, Label, Menu,
-        Parameter, ParameterKind, ParameterSignature, Pass, Python, PythonOneLine, RPY, Return,
-        Say, Scene, Screen, Show, ShowLayer, Style, Testcase, Testsuite, Transform, Translate,
-        TranslateBlock, TranslateEarlyBlock, TranslateString, UserStatement, While, With,
+        EndTranslate, Hide, If, Image, ImageSpecifier, Init, InitOffset, Jump, Label, LayeredImage,
+        LayeredImageAlways, LayeredImageAttribute, LayeredImageChild, LayeredImageCondition,
+        LayeredImageConditionGroup, LayeredImageDisplayable, LayeredImageGroup, LayeredImageProperty,
+        LayeredImagePropertyValue, Menu, Parameter, ParameterKind, ParameterSignature, Pass, Python,
+        PythonOneLine, RPY, Return, Say, Scene, Screen, Show, ShowLayer, Style, Testcase,
+        Testsuite, Transform, Translate, TranslateBlock, TranslateEarlyBlock, TranslateString,
+        UserStatement, While, With,
     },
     atl::{
         AtlStatement, RawBlock, RawChild, RawChoice, RawContainsExpr, RawEvent, RawFunction,
@@ -1040,6 +1043,281 @@ fn say_attributes(lex: &mut Lexer) -> Option<Vec<String>> {
     }
 
     None
+}
+
+fn layered_image_property_allowed(name: &str, allow_flags: bool) -> bool {
+    matches!(
+        name,
+        "image_format"
+            | "format_function"
+            | "attribute_function"
+            | "offer_screen"
+            | "at"
+            | "when"
+            | "if_all"
+            | "if_any"
+            | "if_not"
+            | "variant"
+            | "prefix"
+    ) || (allow_flags && matches!(name, "auto" | "default" | "multiple"))
+        || STYLE_PROPERTIES.contains(name)
+        || ATL_PROPERTIES.contains(name)
+        || name.starts_with("u_")
+}
+
+fn layered_image_has_property(
+    properties: &[LayeredImageProperty],
+    name: &str,
+    predicate: impl Fn(&LayeredImagePropertyValue) -> bool,
+) -> bool {
+    properties
+        .iter()
+        .any(|property| property.name == name && predicate(&property.value))
+}
+
+fn parse_layered_image_when_expression(lex: &mut Lexer) -> Result<String> {
+    fn parse_or(lex: &mut Lexer) -> Result<()> {
+        parse_and(lex)?;
+        while lex.keyword("or".into()).is_some() {
+            parse_and(lex)?;
+        }
+        Ok(())
+    }
+
+    fn parse_and(lex: &mut Lexer) -> Result<()> {
+        parse_not(lex)?;
+        while lex.keyword("and".into()).is_some() {
+            parse_not(lex)?;
+        }
+        Ok(())
+    }
+
+    fn parse_not(lex: &mut Lexer) -> Result<()> {
+        if lex.keyword("not".into()).is_some() {
+            parse_not(lex)
+        } else {
+            parse_atom(lex)
+        }
+    }
+
+    fn parse_atom(lex: &mut Lexer) -> Result<()> {
+        if lex.rmatch("(".into()).is_some() {
+            parse_or(lex)?;
+            lex.require_or_error(LexerType::String(")".into()), "closing parenthesis")?;
+            return Ok(());
+        }
+
+        lex.require_or_error(
+            LexerType::Type(LexerTypeOptions::ImageNameComponent),
+            "expected attribute name",
+        )?;
+        Ok(())
+    }
+
+    lex.skip_whitespace();
+    let start = lex.pos;
+    parse_or(lex)?;
+    Ok(lex.text[start..lex.pos].trim().to_string())
+}
+
+fn parse_layered_image_property(
+    lex: &mut Lexer,
+    properties: &mut Vec<LayeredImageProperty>,
+    allow_flags: bool,
+) -> Result<bool> {
+    let checkpoint = lex.checkpoint();
+    let Some(name) = lex.word() else {
+        return Ok(false);
+    };
+
+    if !layered_image_property_allowed(&name, allow_flags) {
+        lex.revert(checkpoint);
+        return Ok(false);
+    }
+
+    match name.as_str() {
+        "auto" | "default" | "multiple" => {
+            if layered_image_has_property(properties, &name, |_| true) {
+                return Err(lex.parse_error(format!("Duplicate property: {name}")));
+            }
+
+            properties.push(LayeredImageProperty {
+                name,
+                value: LayeredImagePropertyValue::Flag,
+            });
+        }
+        "when" => {
+            if layered_image_has_property(properties, &name, |_| true) {
+                return Err(lex.parse_error("Duplicate property: when"));
+            }
+
+            properties.push(LayeredImageProperty {
+                name,
+                value: LayeredImagePropertyValue::Expression(
+                    parse_layered_image_when_expression(lex)?,
+                ),
+            });
+        }
+        "at" => {
+            if lex.keyword("transform".into()).is_some() {
+                if layered_image_has_property(properties, "at", |value| {
+                    matches!(value, LayeredImagePropertyValue::AtlTransform(_))
+                }) {
+                    return Err(lex.parse_error("Duplicate property: at transform"));
+                }
+
+                lex.require_or_error(LexerType::String(":".into()), "expected ':'")?;
+                lex.expect_eol()?;
+                lex.expect_block()?;
+                properties.push(LayeredImageProperty {
+                    name,
+                    value: LayeredImagePropertyValue::AtlTransform(parse_atl(
+                        &mut lex.subblock_lexer(false),
+                    )?),
+                });
+            } else {
+                if layered_image_has_property(properties, "at", |value| {
+                    matches!(value, LayeredImagePropertyValue::Expression(_))
+                }) {
+                    return Err(lex.parse_error("Duplicate property: at"));
+                }
+
+                let expr = lex
+                    .simple_expression(true, true)?
+                    .ok_or_else(|| lex.parse_error("the at keyword argument was not given a value"))?;
+                properties.push(LayeredImageProperty {
+                    name,
+                    value: LayeredImagePropertyValue::Expression(expr),
+                });
+            }
+        }
+        "variant" | "prefix" => {
+            if layered_image_has_property(properties, &name, |_| true) {
+                return Err(lex.parse_error(format!("Duplicate property: {name}")));
+            }
+
+            let value = match lex.image_name_component() {
+                Some(value) => value,
+                None => lex
+                    .simple_expression(false, true)?
+                    .ok_or_else(|| lex.parse_error(format!("the {name} keyword argument was not given a value")))?,
+            };
+
+            properties.push(LayeredImageProperty {
+                name,
+                value: LayeredImagePropertyValue::Expression(value),
+            });
+        }
+        _ => {
+            if layered_image_has_property(properties, &name, |_| true) && name != "at" {
+                return Err(lex.parse_error(format!("Duplicate property: {name}")));
+            }
+
+            let expr = lex
+                .simple_expression(true, true)?
+                .ok_or_else(|| lex.parse_error(format!("the {name} keyword argument was not given a value")))?;
+            properties.push(LayeredImageProperty {
+                name,
+                value: LayeredImagePropertyValue::Expression(expr),
+            });
+        }
+    }
+
+    Ok(true)
+}
+
+fn parse_layered_image_displayable(lex: &mut Lexer) -> Result<Option<LayeredImageDisplayable>> {
+    if lex.keyword("image".into()).is_some() {
+        lex.require_or_error(LexerType::String(":".into()), "expected ':'")?;
+        lex.expect_eol()?;
+        lex.expect_block()?;
+        return Ok(Some(LayeredImageDisplayable::Atl(parse_atl(
+            &mut lex.subblock_lexer(false),
+        )?)));
+    }
+
+    if lex.keyword("null".into()).is_some() {
+        return Ok(Some(LayeredImageDisplayable::Null));
+    }
+
+    Ok(lex
+        .simple_expression(false, true)?
+        .map(LayeredImageDisplayable::Expression))
+}
+
+fn validate_layered_image_attribute(
+    lex: &Lexer,
+    attribute: &LayeredImageAttribute,
+) -> Result<()> {
+    if attribute.displayable.is_some()
+        && layered_image_has_property(&attribute.properties, "variant", |_| true)
+    {
+        return Err(lex.parse_error(format!(
+            "Attribute {:?} cannot have a variant if it is provided a displayable.",
+            attribute.name
+        )));
+    }
+
+    Ok(())
+}
+
+fn parse_layered_image_attribute_line(
+    lex: &mut Lexer,
+    attribute: &mut LayeredImageAttribute,
+) -> Result<bool> {
+    loop {
+        if parse_layered_image_property(lex, &mut attribute.properties, true)? {
+            let has_atl = layered_image_has_property(&attribute.properties, "at", |value| {
+                matches!(value, LayeredImagePropertyValue::AtlTransform(_))
+            });
+            if has_atl {
+                return Ok(true);
+            }
+            continue;
+        }
+
+        if let Some(displayable) = parse_layered_image_displayable(lex)? {
+            if attribute.displayable.is_some() {
+                return Err(lex.parse_error(format!(
+                    "An attribute can only have zero or one displayable, two found."
+                )));
+            }
+            let got_block = matches!(displayable, LayeredImageDisplayable::Atl(_));
+            attribute.displayable = Some(displayable);
+            return Ok(got_block);
+        }
+
+        break;
+    }
+
+    Ok(false)
+}
+
+fn parse_layered_image_attribute_body(
+    lex: &mut Lexer,
+    attribute: &mut LayeredImageAttribute,
+    owner: &str,
+) -> Result<()> {
+    let mut sub = lex.subblock_lexer(false);
+    while sub.advance() {
+        if sub.keyword("pass".into()).is_some() {
+            sub.expect_eol()?;
+            sub.expect_noblock()?;
+            continue;
+        }
+
+        let got_block = parse_layered_image_attribute_line(&mut sub, attribute)?;
+        if !got_block {
+            sub.expect_eol()?;
+            sub.expect_noblock()?;
+        }
+    }
+
+    if owner == "attribute" {
+        validate_layered_image_attribute(lex, attribute)?;
+    }
+
+    Ok(())
 }
 
 enum UserStatementBlock {

@@ -219,6 +219,54 @@ fn rpy_monologue_none_parses_without_nodes() {
 }
 
 #[test]
+fn layeredimage_statement_parses() {
+    let ast = assert_parse(parse(vec![block(
+        1,
+        "layeredimage eileen happy:",
+        vec![
+            block(2, "offer_screen False", vec![]),
+            block(3, "attribute body default:", vec![block(4, "\"body.png\"", vec![])]),
+            block(
+                5,
+                "group face auto:",
+                vec![block(6, "attribute smile", vec![])],
+            ),
+            block(
+                7,
+                "if wearing_hat:",
+                vec![block(8, "\"hat.png\"", vec![])],
+            ),
+            block(9, "elif True:", vec![block(10, "null", vec![])]),
+            block(11, "always:", vec![block(12, "image:", vec![block(13, "pass", vec![])])]),
+        ],
+    )]));
+
+    let AstNode::Init(init) = &ast[0] else {
+        panic!("expected implicit init node");
+    };
+    assert_eq!(init.priority, 0);
+
+    let AstNode::LayeredImage(layered) = &init.block[0] else {
+        panic!("expected layeredimage child");
+    };
+    assert_eq!(layered.name, vec!["eileen".to_string(), "happy".to_string()]);
+    assert_eq!(layered.children.len(), 4);
+}
+
+#[test]
+fn layeredimage_attribute_rejects_variant_with_displayable() {
+    assert_error(
+        parse(vec![block(
+            1,
+            "layeredimage eileen:",
+            vec![block(2, "attribute happy variant alt \"happy.png\"", vec![])],
+        )]),
+        "Attribute \"happy\" cannot have a variant if it is provided a displayable.",
+        2,
+    );
+}
+
+#[test]
 fn compile_if_statement_parses_all_clauses() {
     let ast = assert_parse(parse(vec![
         block(1, "IF flag:", vec![block(2, "pass", vec![])]),

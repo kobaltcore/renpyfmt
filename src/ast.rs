@@ -268,6 +268,76 @@ pub struct Image {
     pub atl: Option<RawBlock>,
 }
 
+#[derive(Debug, Clone)]
+pub enum LayeredImagePropertyValue {
+    Flag,
+    Expression(String),
+    AtlTransform(RawBlock),
+}
+
+#[derive(Debug, Clone)]
+pub struct LayeredImageProperty {
+    pub name: String,
+    pub value: LayeredImagePropertyValue,
+}
+
+#[derive(Debug, Clone)]
+pub enum LayeredImageDisplayable {
+    Expression(String),
+    Null,
+    Atl(RawBlock),
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct LayeredImageAttribute {
+    pub name: String,
+    pub properties: Vec<LayeredImageProperty>,
+    pub displayable: Option<LayeredImageDisplayable>,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct LayeredImageGroup {
+    pub name: Option<String>,
+    pub properties: Vec<LayeredImageProperty>,
+    pub attributes: Vec<LayeredImageAttribute>,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct LayeredImageCondition {
+    pub branch: String,
+    pub condition: Option<String>,
+    pub properties: Vec<LayeredImageProperty>,
+    pub displayable: Option<LayeredImageDisplayable>,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct LayeredImageConditionGroup {
+    pub branches: Vec<LayeredImageCondition>,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct LayeredImageAlways {
+    pub properties: Vec<LayeredImageProperty>,
+    pub displayable: Option<LayeredImageDisplayable>,
+}
+
+#[derive(Debug, Clone)]
+pub enum LayeredImageChild {
+    Attribute(LayeredImageAttribute),
+    Group(LayeredImageGroup),
+    ConditionGroup(LayeredImageConditionGroup),
+    Always(LayeredImageAlways),
+    Pass,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct LayeredImage {
+    pub loc: (PathBuf, usize),
+    pub name: Vec<String>,
+    pub properties: Vec<LayeredImageProperty>,
+    pub children: Vec<LayeredImageChild>,
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct RPY {
     pub loc: (PathBuf, usize),
@@ -354,6 +424,7 @@ pub enum AstNode {
     Camera(Camera),
     Screen(Screen),
     Image(Image),
+    LayeredImage(LayeredImage),
     RPY(RPY),
     Translate(Translate),
     EndTranslate(EndTranslate),
@@ -401,6 +472,7 @@ impl AstNode {
             AstNode::Camera(n) => n.loc.1,
             AstNode::Screen(n) => n.loc.1,
             AstNode::Image(n) => n.loc.1,
+            AstNode::LayeredImage(n) => n.loc.1,
             AstNode::RPY(n) => n.loc.1,
             AstNode::Translate(n) => n.loc.1,
             AstNode::EndTranslate(n) => n.loc.1,

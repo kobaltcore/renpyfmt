@@ -248,6 +248,44 @@ fn formats_implicit_init_statements_without_init_blocks() {
 }
 
 #[test]
+fn formats_layeredimage_blocks() {
+    assert_formats(
+        concat!(
+            "layeredimage eileen happy:\n",
+            "    offer_screen False\n",
+            "    attribute body default \"body.png\"\n",
+            "    group multiple auto:\n",
+            "        attribute smile\n",
+            "    if wearing_hat:\n",
+            "        \"hat.png\"\n",
+            "    else:\n",
+            "        null\n",
+            "    always image:\n",
+            "        pass"
+        ),
+        concat!(
+            "init:\n",
+            "    layeredimage eileen happy:\n",
+            "        offer_screen False\n",
+            "        attribute body:\n",
+            "            default\n",
+            "            \"body.png\"\n",
+            "        group multiple:\n",
+            "            auto\n",
+            "            multiple\n",
+            "            attribute smile\n",
+            "        if wearing_hat:\n",
+            "            \"hat.png\"\n",
+            "        else:\n",
+            "            null\n",
+            "        always:\n",
+            "            image:\n",
+            "                pass"
+        ),
+    );
+}
+
+#[test]
 fn keeps_explicit_init_blocks_for_non_default_priorities() {
     assert_formats("init 5 define foo = 1", "init 5:\n    define foo = 1");
 }

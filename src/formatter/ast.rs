@@ -1,8 +1,9 @@
 use crate::ast::{
     Call, Camera, CompileIf, Default_, Define, EarlyPython, EndTranslate, Hide, If, Image, Init,
-    InitOffset, Jump, Label, Menu, Pass, Python, PythonOneLine, RPY, Return, Say, Scene, Show,
-    ShowLayer, Style, Testcase, Testsuite, Transform, Translate, TranslateBlock,
-    TranslateEarlyBlock, TranslateString, While, With,
+    InitOffset, Jump, Label, LayeredImage, LayeredImageChild, LayeredImageDisplayable,
+    LayeredImageProperty, LayeredImagePropertyValue, Menu, Pass, Python, PythonOneLine, RPY,
+    Return, Say, Scene, Show, ShowLayer, Style, Testcase, Testsuite, Transform, Translate,
+    TranslateBlock, TranslateEarlyBlock, TranslateString, While, With,
 };
 
 use super::{
@@ -552,6 +553,152 @@ impl Formatter {
         } else {
             self.line_with_trailing(&line);
         }
+    }
+
+    pub(crate) fn emit_layered_image(&mut self, node: &LayeredImage) {
+        self.line_with_trailing(&format!("layeredimage {}:", node.name.join(" ")));
+        self.indented(|formatter| {
+            for property in &node.properties {
+                formatter.emit_layered_image_property(property);
+            }
+
+            for child in &node.children {
+                match child {
+                    LayeredImageChild::Attribute(attribute) => {
+                        formatter.emit_layered_image_attribute(attribute)
+                    }
+                    LayeredImageChild::Group(group) => formatter.emit_layered_image_group(group),
+                    LayeredImageChild::ConditionGroup(group) => {
+                        formatter.emit_layered_image_condition_group(group)
+                    }
+                    LayeredImageChild::Always(always) => {
+                        formatter.emit_layered_image_always(always)
+                    }
+                    LayeredImageChild::Pass => formatter.line("pass"),
+                }
+            }
+        });
+    }
+
+    fn emit_layered_image_property(&mut self, property: &LayeredImageProperty) {
+        match &property.value {
+            LayeredImagePropertyValue::Flag => self.line(&property.name),
+            LayeredImagePropertyValue::Expression(expr) => {
+                self.line(&format!("{} {expr}", property.name))
+            }
+            LayeredImagePropertyValue::AtlTransform(block) => {
+                self.line(&format!("{} transform:", property.name));
+                self.indented(|formatter| {
+                    formatter.with_mode(Mode::AtlDirectChild, |formatter| {
+                        formatter.emit_atl_block(block)
+                    });
+                });
+            }
+        }
+    }
+
+    fn emit_layered_image_displayable(&mut self, displayable: &LayeredImageDisplayable) {
+        match displayable {
+            LayeredImageDisplayable::Expression(expr) => self.line(expr),
+            LayeredImageDisplayable::Null => self.line("null"),
+            LayeredImageDisplayable::Atl(block) => {
+                self.line("image:");
+                self.indented(|formatter| {
+                    formatter.with_mode(Mode::AtlDirectChild, |formatter| {
+                        formatter.emit_atl_block(block)
+                    });
+                });
+            }
+        }
+    }
+
+    fn emit_layered_image_attribute(&mut self, attribute: &crate::ast::LayeredImageAttribute) {
+        if attribute.properties.is_empty() && attribute.displayable.is_none() {
+            self.line(&format!("attribute {}", attribute.name));
+            return;
+        }
+
+        self.line(&format!("attribute {}:", attribute.name));
+        self.indented(|formatter| {
+            for property in &attribute.properties {
+                formatter.emit_layered_image_property(property);
+            }
+            if let Some(displayable) = &attribute.displayable {
+                formatter.emit_layered_image_displayable(displayable);
+            }
+        });
+    }
+
+    fn emit_layered_image_group(&mut self, group: &crate::ast::LayeredImageGroup) {
+        let mut line = String::from("group");
+        if let Some(name) = &group.name {
+            line.push(' ');
+            line.push_str(name);
+        } else {
+            line.push_str(" multiple");
+        }
+        line.push(':');
+        self.line(&line);
+        self.indented(|formatter| {
+            for property in &group.properties {
+                formatter.emit_layered_image_property(property);
+            }
+            for attribute in &group.attributes {
+                formatter.emit_layered_image_attribute(attribute);
+            }
+        });
+    }
+
+    fn emit_layered_image_condition_group(
+        &mut self,
+        group: &crate::ast::LayeredImageConditionGroup,
+    ) {
+        for branch in &group.branches {
+            let mut line = branch.branch.clone();
+            if let Some(condition) = &branch.condition {
+                line.push(' ');
+                line.push_str(condition);
+            }
+            line.push(':');
+            self.line(&line);
+            self.indented(|formatter| {
+                for property in &branch.properties {
+                    formatter.emit_layered_image_property(property);
+                }
+                if let Some(displayable) = &branch.displayable {
+                    formatter.emit_layered_image_displayable(displayable);
+                }
+            });
+        }
+    }
+
+    fn emit_layered_image_always(&mut self, always: &crate::ast::LayeredImageAlways) {
+        if always.properties.is_empty()
+            && matches!(
+                always.displayable,
+                Some(LayeredImageDisplayable::Expression(_))
+                    | Some(LayeredImageDisplayable::Null)
+            )
+        {
+            match always.displayable.as_ref().expect("checked above") {
+                LayeredImageDisplayable::Expression(expr) => {
+                    self.line(&format!("always {expr}"));
+                }
+                LayeredImageDisplayable::Null => self.line("always null"),
+                LayeredImageDisplayable::Atl(_) => unreachable!(),
+            }
+            return;
+        }
+
+        self.line("always:");
+        self.indented(|formatter| {
+            for property in &always.properties {
+                formatter.emit_layered_image_property(property);
+            }
+            if let Some(displayable) = &always.displayable {
+                formatter.emit_layered_image_displayable(displayable);
+            }
+        });
     }
 
     pub(crate) fn emit_rpy(&mut self, node: &RPY) {

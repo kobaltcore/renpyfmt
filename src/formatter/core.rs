@@ -162,6 +162,7 @@ impl Formatter {
             AstNode::Camera(node) => self.emit_camera(node),
             AstNode::Screen(node) => self.emit_screen(node),
             AstNode::Image(node) => self.emit_image(node),
+            AstNode::LayeredImage(node) => self.emit_layered_image(node),
             AstNode::RPY(node) => self.emit_rpy(node),
             AstNode::Translate(node) => self.emit_translate(node),
             AstNode::EndTranslate(node) => self.emit_end_translate(node),
@@ -196,6 +197,7 @@ impl Formatter {
             AstNode::ShowLayer(node) if node.atl.is_some() => NodeKind::Block,
             AstNode::Camera(node) if node.atl.is_some() => NodeKind::Block,
             AstNode::Image(node) if node.atl.is_some() && node.expr.is_none() => NodeKind::Block,
+            AstNode::LayeredImage(_) => NodeKind::Block,
             _ => NodeKind::Other,
         }
     }
