@@ -17,6 +17,6 @@ ruff_workspace = { git = "https://github.com/astral-sh/ruff.git", tag = "0.15.10
 ruff_python_formatter = { git = "https://github.com/astral-sh/ruff.git", tag = "0.15.10" }
 
 [profile.release]
-# lto = "thin"
-# strip = true
-debug = true
+strip = true
+opt-level = 3
+codegen-units = 16
