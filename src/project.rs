@@ -1101,6 +1101,64 @@ mod tests {
     }
 
     #[test]
+    fn format_dedents_top_level_python_block_multiline_comment_after_import() {
+        let root = create_temp_test_dir("python-top-level-docstring-indent");
+        let script_path = root.join("script.rpy");
+        std::fs::write(
+            &script_path,
+            concat!(
+                "init -2000 python:\n",
+                "    import re\n",
+                "\n",
+                "    \"\"\"\n",
+                "        This defines a FontGroup which uses Ubuntu Regular by default\n",
+                "        and falls back to Noto Sans for chinese characters.\n",
+                "        This can be used anywhere a regular path to a font is otherwise used.\n",
+                "            https://renpy.org/doc/html/text.html#FontGroup\n",
+                "        \"\"\"\n",
+                "    main_font_group = (\n",
+                "        FontGroup()\n",
+                "        .add(\"gui/fonts/Ubuntu-R.ttf\", 0x0020, 0x024F)\n",
+                "        .add(\"gui/fonts/Ubuntu-R.ttf\", 0x2000, 0x23FF)\n",
+                "        .add(\"gui/fonts/Ubuntu-R.ttf\", 0x0400, 0x04FF)\n",
+                "        .add(\"gui/fonts/SourceHanSansCLite.ttf\", None, None)\n",
+                "    )\n",
+            ),
+        )
+        .unwrap();
+
+        let ctx = FormatContext {
+            python_format_config: resolve_python_format_config(&root, None).unwrap(),
+        };
+        format_file(&root, &script_path, &ctx, FormatMode::Write).unwrap();
+
+        let formatted = std::fs::read_to_string(&script_path).unwrap();
+        assert_eq!(
+            formatted,
+            concat!(
+                "init -2000 python:\n",
+                "    import re\n",
+                "\n",
+                "    \"\"\"\n",
+                "    This defines a FontGroup which uses Ubuntu Regular by default\n",
+                "    and falls back to Noto Sans for chinese characters.\n",
+                "    This can be used anywhere a regular path to a font is otherwise used.\n",
+                "        https://renpy.org/doc/html/text.html#FontGroup\n",
+                "    \"\"\"\n",
+                "    main_font_group = (\n",
+                "        FontGroup()\n",
+                "        .add(\"gui/fonts/Ubuntu-R.ttf\", 0x0020, 0x024F)\n",
+                "        .add(\"gui/fonts/Ubuntu-R.ttf\", 0x2000, 0x23FF)\n",
+                "        .add(\"gui/fonts/Ubuntu-R.ttf\", 0x0400, 0x04FF)\n",
+                "        .add(\"gui/fonts/SourceHanSansCLite.ttf\", None, None)\n",
+                "    )\n",
+            )
+        );
+
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
     fn format_preserves_init_offset_comments_and_separation() {
         let root = create_temp_test_dir("init-offset-comments");
         let script_path = root.join("script.rpy");

@@ -43,6 +43,7 @@ pub(crate) fn format_python_block(source: &str, config: &PythonFormatConfig) -> 
         Ok(printed) => printed.as_code().trim_end_matches('\n').to_string(),
         Err(_) => return source.to_string(),
     };
+    let formatted = normalize_standalone_multiline_strings(&formatted);
 
     if base_indent.is_empty() {
         formatted
@@ -94,6 +95,64 @@ fn restore_leading_indent(source: &str, indent: &str) -> String {
         .join("\n")
 }
 
+fn normalize_standalone_multiline_strings(source: &str) -> String {
+    let mut lines = source.lines().map(str::to_string).collect::<Vec<_>>();
+    let mut index = 0;
+
+    while index < lines.len() {
+        let Some(delimiter) = standalone_triple_quote_delimiter(&lines[index]) else {
+            index += 1;
+            continue;
+        };
+
+        let Some(end_index) =
+            (index + 1..lines.len()).find(|line_index| lines[*line_index].trim() == delimiter)
+        else {
+            index += 1;
+            continue;
+        };
+
+        let common_indent = lines[index + 1..end_index]
+            .iter()
+            .filter(|line| !line.trim().is_empty())
+            .map(|line| leading_whitespace(line).len())
+            .min();
+
+        if let Some(common_indent) = common_indent {
+            let indent = " ".repeat(common_indent);
+
+            for line in &mut lines[index + 1..end_index] {
+                if line.trim().is_empty() {
+                    continue;
+                }
+
+                *line = line.strip_prefix(&indent).unwrap_or(line).to_string();
+            }
+
+            lines[end_index] = lines[end_index]
+                .strip_prefix(&indent)
+                .unwrap_or(&lines[end_index])
+                .to_string();
+        }
+
+        index = end_index + 1;
+    }
+
+    lines.join("\n")
+}
+
+fn standalone_triple_quote_delimiter(line: &str) -> Option<&'static str> {
+    let trimmed = line.trim();
+
+    if matches!(trimmed, "\"\"\"" | "r\"\"\"" | "R\"\"\"" | "u\"\"\"" | "U\"\"\"") {
+        Some("\"\"\"")
+    } else if matches!(trimmed, "'''" | "r'''" | "R'''" | "u'''" | "U'''") {
+        Some("'''")
+    } else {
+        None
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{PythonFormatConfig, format_python_block};
@@ -125,6 +184,8 @@ mod tests {
         assert_eq!(
             format_python_block(
                 concat!(
+                    "        import re\n",
+                    "\n",
                     "        \"\"\"\n",
                     "            Scenario Mode now uses a list of locations.\n",
                     "            This allows an external scenario directory.\n",
@@ -136,6 +197,8 @@ mod tests {
                 &PythonFormatConfig::default(),
             ),
             concat!(
+                "        import re\n",
+                "\n",
                 "        \"\"\"\n",
                 "        Scenario Mode now uses a list of locations.\n",
                 "        This allows an external scenario directory.\n",
@@ -143,6 +206,25 @@ mod tests {
                 "\n\n",
                 "        def update_scenario_paths():\n",
                 "            scenario_base_paths = [1, 2]"
+            )
+        );
+    }
+
+    #[test]
+    fn preserves_assigned_multiline_string_contents() {
+        assert_eq!(
+            format_python_block(
+                concat!(
+                    "text = \"\"\"\n",
+                    "    keep this indent\n",
+                    "\"\"\"\n",
+                ),
+                &PythonFormatConfig::default(),
+            ),
+            concat!(
+                "text = \"\"\"\n",
+                "    keep this indent\n",
+                "\"\"\""
             )
         );
     }
