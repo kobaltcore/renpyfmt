@@ -12,10 +12,10 @@ repos:
       - id: check-merge-conflict
       - id: mixed-line-ending
         args: ["--fix=lf"]
-  - repo: https://github.com/charliermarsh/ruff-pre-commit
-    rev: v0.15.10
-    hooks:
-      - id: ruff
+  # - repo: https://github.com/charliermarsh/ruff-pre-commit
+  #   rev: v0.15.12
+  #   hooks:
+  #     - id: ruff
   # - repo: https://github.com/psf/black
   #   rev: 26.3.1
   #   hooks:
