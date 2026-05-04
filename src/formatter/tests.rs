@@ -376,6 +376,26 @@ fn formats_screen_fixture_from_reference_style() {
 }
 
 #[test]
+fn formats_screen_properties_with_comma_values() {
+    assert_formats(
+        concat!(
+            "screen physics_quiz():\n",
+            "    window:\n",
+            "        at quizshow_show_hide\n",
+            "        add LiveMarquee(Text(u\"Speed of an Egg\", slow=True, style='quizshow')) crop 0, 0, 900, 58 xoffset -10"
+        ),
+        concat!(
+            "screen physics_quiz():\n",
+            "    window:\n",
+            "        at quizshow_show_hide\n",
+            "        add LiveMarquee(Text(u\"Speed of an Egg\", slow=True, style='quizshow')):\n",
+            "            crop 0, 0, 900, 58\n",
+            "            xoffset -10"
+        ),
+    );
+}
+
+#[test]
 fn keeps_jump_expression_targets_unqualified() {
     assert_formats(
         concat!(

@@ -674,7 +674,7 @@ fn parse_named_property(
             &parse_arguments(lex)?.ok_or_else(|| lex.parse_error("expected arguments"))?,
         )
     } else {
-        lex.simple_expression(false, true)?
+        lex.simple_expression(true, true)?
             .ok_or_else(|| lex.parse_error(format!("the {name} keyword argument was not given a value")))?
     };
 

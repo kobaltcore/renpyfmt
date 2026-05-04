@@ -364,6 +364,38 @@ fn screen_python_default_transclude_and_at_transform_parse() {
 }
 
 #[test]
+fn screen_window_properties_with_commas_and_add_parse() {
+    let ast = assert_parse(parse_script(
+        concat!(
+            "screen physics_quiz():\n",
+            "    window:\n",
+            "        pos (int(1280 / 2), int(88 / 2))\n",
+            "        anchor (0.5, 0.5)\n",
+            "        xmargin 24\n",
+            "        ymargin 16\n",
+            "        yminimum 0\n",
+            "        ymaximum 88\n",
+            "        at quizshow_show_hide\n",
+            "        add LiveMarquee(Text(u\"Speed of an Egg\", slow=True, style='quizshow')) crop 0, 0, 900, 58 xoffset -10\n",
+        ),
+    ));
+
+    let AstNode::Screen(screen) = &ast[0] else {
+        panic!("expected screen node");
+    };
+    let crate::slast::Node::Displayable(window) = &screen.screen.children[0] else {
+        panic!("expected window displayable");
+    };
+    assert_eq!(window.properties[0].0, "pos");
+    assert!(window.properties.iter().any(|(name, expr)| name == "at" && expr == "quizshow_show_hide"));
+    let crate::slast::Node::Displayable(add) = &window.children[0] else {
+        panic!("expected add displayable");
+    };
+    assert!(add.properties.iter().any(|(name, expr)| name == "crop" && expr == "0, 0, 900, 58"));
+    assert!(add.properties.iter().any(|(name, expr)| name == "xoffset" && expr == "-10"));
+}
+
+#[test]
 fn screen_duplicate_property_returns_parse_error() {
     assert_error_contains(
         parse_script(
