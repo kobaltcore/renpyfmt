@@ -329,6 +329,26 @@ fn formats_textbutton_properties_in_block_form() {
 }
 
 #[test]
+fn formats_icon_and_iconbutton_screen_language() {
+    assert_formats(
+        concat!(
+            "screen toolbar():\n",
+            "    icon \"save\" color \"#fff\"\n",
+            "    iconbutton \"prefs\" caption _(\"Preferences\") action ShowMenu(\"preferences\") icon_color \"#8cf\""
+        ),
+        concat!(
+            "screen toolbar():\n",
+            "    icon \"save\":\n",
+            "        color \"#fff\"\n",
+            "    iconbutton \"prefs\":\n",
+            "        caption _(\"Preferences\")\n",
+            "        action ShowMenu(\"preferences\")\n",
+            "        icon_color \"#8cf\""
+        ),
+    );
+}
+
+#[test]
 fn formats_nested_screen_displayables_and_use() {
     assert_formats(
         concat!(

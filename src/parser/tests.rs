@@ -166,6 +166,45 @@ fn show_layer_statement_parses() {
 }
 
 #[test]
+fn registered_builtin_user_statements_parse() {
+    let ast = assert_parse(parse_script(
+        concat!(
+            "play music \"theme.ogg\" fadeout 1.0 fadein 0.5 if_changed volume 0.8\n",
+            "queue music [\"a.ogg\", \"b.ogg\"] channel music_loop loop fadein 1.25\n",
+            "stop music fadeout 2.0 channel music_loop\n",
+            "play sound \"click.ogg\" channel sfx noloop volume 0.4\n",
+            "queue sound \"next.ogg\" channel sfx loop fadein 0.2\n",
+            "stop sound fadeout 0.5 channel sfx\n",
+            "play ambient \"wind.ogg\" fadein 0.1\n",
+            "queue ambient \"gust.ogg\" loop\n",
+            "stop ambient fadeout 0.75\n",
+            "pause 0.25\n",
+            "show screen preferences(page=\"audio\") nopredict with dissolve onlayer screens zorder 20 as prefs\n",
+            "call screen confirm(\"Quit?\") with dissolve\n",
+            "hide screen preferences with fade onlayer screens\n",
+            "window show Dissolve(0.2)\n",
+            "window hide\n",
+            "window auto hide Dissolve(0.3)\n",
+        ),
+    ));
+
+    assert_eq!(ast.len(), 16);
+    assert!(ast.iter().all(|node| matches!(node, AstNode::UserStatement(_))));
+    assert!(matches!(
+        &ast[0],
+        AstNode::UserStatement(node) if node.line == "play music \"theme.ogg\" fadeout 1.0 fadein 0.5 if_changed volume 0.8"
+    ));
+    assert!(matches!(
+        &ast[10],
+        AstNode::UserStatement(node) if node.line == "show screen preferences(page=\"audio\") nopredict with dissolve onlayer screens zorder 20 as prefs"
+    ));
+    assert!(matches!(
+        &ast[15],
+        AstNode::UserStatement(node) if node.line == "window auto hide Dissolve(0.3)"
+    ));
+}
+
+#[test]
 fn camera_statement_defaults_to_master() {
     let ast = assert_parse(parse(vec![block(1, "camera", vec![])]));
 
@@ -441,6 +480,40 @@ fn screen_window_properties_with_commas_and_add_parse() {
     };
     assert!(add.properties.iter().any(|(name, expr)| name == "crop" && expr == "0, 0, 900, 58"));
     assert!(add.properties.iter().any(|(name, expr)| name == "xoffset" && expr == "-10"));
+}
+
+#[test]
+fn screen_icon_and_iconbutton_parse() {
+    let ast = assert_parse(parse_script(
+        concat!(
+            "screen toolbar():\n",
+            "    icon \"save\" color \"#fff\"\n",
+            "    iconbutton \"prefs\":\n",
+            "        caption _(\"Preferences\")\n",
+            "        action ShowMenu(\"preferences\")\n",
+            "        icon_color \"#8cf\"\n",
+        ),
+    ));
+
+    let AstNode::Screen(screen) = &ast[0] else {
+        panic!("expected screen node");
+    };
+
+    let crate::slast::Node::Displayable(icon) = &screen.screen.children[0] else {
+        panic!("expected icon displayable");
+    };
+    assert_eq!(icon.name, "icon");
+    assert_eq!(icon.positional, vec!["\"save\"".to_string()]);
+    assert!(icon.properties.iter().any(|(name, expr)| name == "color" && expr == "\"#fff\""));
+
+    let crate::slast::Node::Displayable(iconbutton) = &screen.screen.children[1] else {
+        panic!("expected iconbutton displayable");
+    };
+    assert_eq!(iconbutton.name, "iconbutton");
+    assert_eq!(iconbutton.positional, vec!["\"prefs\"".to_string()]);
+    assert!(iconbutton.properties.iter().any(|(name, expr)| name == "caption" && expr == "_(\"Preferences\")"));
+    assert!(iconbutton.properties.iter().any(|(name, expr)| name == "action" && expr == "ShowMenu(\"preferences\")"));
+    assert!(iconbutton.properties.iter().any(|(name, expr)| name == "icon_color" && expr == "\"#8cf\""));
 }
 
 #[test]

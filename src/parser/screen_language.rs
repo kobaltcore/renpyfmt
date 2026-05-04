@@ -38,6 +38,7 @@ const DISPLAYABLE_SPECS: &[DisplayableSpec] = &[
     DisplayableSpec { name: "button", positional: &[], nchildren: ChildCount::One, default_properties: true },
     DisplayableSpec { name: "imagebutton", positional: &[], nchildren: ChildCount::Zero, default_properties: true },
     DisplayableSpec { name: "textbutton", positional: &["label"], nchildren: ChildCount::One, default_properties: true },
+    DisplayableSpec { name: "iconbutton", positional: &["icon"], nchildren: ChildCount::One, default_properties: true },
     DisplayableSpec { name: "label", positional: &["label"], nchildren: ChildCount::One, default_properties: true },
     DisplayableSpec { name: "bar", positional: &[], nchildren: ChildCount::Zero, default_properties: true },
     DisplayableSpec { name: "vbar", positional: &[], nchildren: ChildCount::Zero, default_properties: true },
@@ -55,6 +56,7 @@ const DISPLAYABLE_SPECS: &[DisplayableSpec] = &[
     DisplayableSpec { name: "nearrect", positional: &[], nchildren: ChildCount::One, default_properties: true },
     DisplayableSpec { name: "dismiss", positional: &[], nchildren: ChildCount::Zero, default_properties: true },
     DisplayableSpec { name: "areapicker", positional: &[], nchildren: ChildCount::Zero, default_properties: true },
+    DisplayableSpec { name: "icon", positional: &["name"], nchildren: ChildCount::Zero, default_properties: true },
 ];
 
 const SCREEN_PROPERTY_NAMES: &[&str] = &[
