@@ -3,6 +3,7 @@ mod atl;
 mod core;
 mod inline;
 mod python;
+mod slast;
 
 pub use core::format_ast;
 pub(crate) use core::format_ast_with_config;

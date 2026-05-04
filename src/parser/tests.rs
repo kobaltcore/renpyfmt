@@ -258,6 +258,134 @@ fn translate_strings_parses() {
 }
 
 #[test]
+fn screen_with_basic_pass_parses() {
+    let ast = assert_parse(parse(vec![block(
+        1,
+        "screen simple:",
+        vec![block(2, "pass", vec![])],
+    )]));
+
+    let AstNode::Screen(screen) = &ast[0] else {
+        panic!("expected screen node");
+    };
+    assert_eq!(screen.screen.name, "simple");
+    assert!(matches!(&screen.screen.children[0], crate::slast::Node::Pass(_)));
+}
+
+#[test]
+fn screen_with_parameters_and_properties_parses() {
+    let ast = assert_parse(parse_script(
+        "screen say(who, what):\n    tag menu\n    modal True\n    zorder 100\n    window:\n        text what",
+    ));
+
+    let AstNode::Screen(screen) = &ast[0] else {
+        panic!("expected screen node");
+    };
+    assert!(screen.screen.parameters.is_some());
+    assert_eq!(
+        screen.screen.properties,
+        vec![
+            ("tag".to_string(), "menu".to_string()),
+            ("modal".to_string(), "True".to_string()),
+            ("zorder".to_string(), "100".to_string()),
+        ]
+    );
+}
+
+#[test]
+fn screen_displayables_and_use_parse() {
+    let ast = assert_parse(parse_script(
+        "screen navigation():\n    vbox:\n        textbutton _(\"Start\") action Start()\n        use extra_nav(id=\"root\")",
+    ));
+
+    let AstNode::Screen(screen) = &ast[0] else {
+        panic!("expected screen node");
+    };
+    let crate::slast::Node::Displayable(vbox) = &screen.screen.children[0] else {
+        panic!("expected vbox");
+    };
+    assert_eq!(vbox.name, "vbox");
+    assert_eq!(vbox.children.len(), 2);
+}
+
+#[test]
+fn screen_if_showif_and_for_parse() {
+    let ast = assert_parse(parse_script(
+        concat!(
+            "screen complex(slots):\n",
+            "    if persistent.foo:\n",
+            "        text \"yes\"\n",
+            "    elif persistent.bar:\n",
+            "        text \"maybe\"\n",
+            "    else:\n",
+            "        pass\n",
+            "    showif visible:\n",
+            "        text \"shown\"\n",
+            "    for slot index i in slots:\n",
+            "        if slot.hidden:\n",
+            "            continue\n",
+            "        text slot.name\n",
+        ),
+    ));
+
+    let AstNode::Screen(screen) = &ast[0] else {
+        panic!("expected screen node");
+    };
+    assert!(matches!(&screen.screen.children[0], crate::slast::Node::If(node) if node.entries.len() == 3));
+    assert!(matches!(&screen.screen.children[1], crate::slast::Node::ShowIf(node) if node.entries.len() == 1));
+    assert!(matches!(&screen.screen.children[2], crate::slast::Node::For(node) if node.index_expression.as_deref() == Some("i")));
+}
+
+#[test]
+fn screen_python_default_transclude_and_at_transform_parse() {
+    let ast = assert_parse(parse_script(
+        concat!(
+            "screen tools(default_name):\n",
+            "    default current = default_name\n",
+            "    $ current = current.upper()\n",
+            "    python:\n",
+            "        current = current.lower()\n",
+            "    use panel:\n",
+            "        transclude\n",
+            "    text current:\n",
+            "        at transform:\n",
+            "            linear 1.0 alpha 1.0\n",
+        ),
+    ));
+
+    let AstNode::Screen(screen) = &ast[0] else {
+        panic!("expected screen node");
+    };
+    assert!(matches!(&screen.screen.children[0], crate::slast::Node::Default(_)));
+    assert!(matches!(&screen.screen.children[1], crate::slast::Node::Python(node) if !node.block));
+    assert!(matches!(&screen.screen.children[2], crate::slast::Node::Python(node) if node.block));
+    assert!(matches!(&screen.screen.children[3], crate::slast::Node::Use(_)));
+    assert!(matches!(&screen.screen.children[4], crate::slast::Node::Displayable(node) if node.atl_transform.is_some()));
+}
+
+#[test]
+fn screen_duplicate_property_returns_parse_error() {
+    assert_error_contains(
+        parse_script(
+            "screen dupes:\n    text \"Hello\" xalign 0.0 xalign 1.0",
+        ),
+        "appears more than once",
+        2,
+    );
+}
+
+#[test]
+fn screen_unknown_child_returns_parse_error() {
+    assert_error_contains(
+        parse_script(
+            "screen odd:\n    mystery_widget:",
+        ),
+        "not a valid child statement",
+        2,
+    );
+}
+
+#[test]
 fn translate_python_parses() {
     let ast = assert_parse(parse(vec![block(
         1,

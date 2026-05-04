@@ -160,7 +160,7 @@ impl Formatter {
             AstNode::Transform(node) => self.emit_transform(node),
             AstNode::ShowLayer(node) => self.emit_show_layer(node),
             AstNode::Camera(node) => self.emit_camera(node),
-            AstNode::Screen(_node) => todo!("screen"),
+            AstNode::Screen(node) => self.emit_screen(node),
             AstNode::Image(node) => self.emit_image(node),
             AstNode::RPY(node) => self.emit_rpy(node),
             AstNode::Translate(node) => self.emit_translate(node),
@@ -186,7 +186,8 @@ impl Formatter {
             | AstNode::TranslateBlock(_)
             | AstNode::TranslateEarlyBlock(_)
             | AstNode::Testcase(_)
-            | AstNode::Testsuite(_) => NodeKind::Block,
+            | AstNode::Testsuite(_)
+            | AstNode::Screen(_) => NodeKind::Block,
             AstNode::Init(node) if self.init_emits_block(node) => NodeKind::Block,
             AstNode::Style(node) if self.style_emits_block(node) => NodeKind::Block,
             AstNode::Transform(_) => NodeKind::Block,

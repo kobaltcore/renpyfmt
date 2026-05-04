@@ -261,6 +261,121 @@ fn keeps_implicit_init_statements_bare_after_init_offset() {
 }
 
 #[test]
+fn formats_basic_screen_language_blocks() {
+    assert_formats(
+        concat!(
+            "screen say(what, who):\n",
+            "    tag say\n",
+            "    window:\n",
+            "        text what"
+        ),
+        concat!(
+            "screen say(what, who):\n",
+            "    tag say\n",
+            "    window:\n",
+            "        text what"
+        ),
+    );
+}
+
+#[test]
+fn formats_textbutton_properties_in_block_form() {
+    assert_formats(
+        "screen navigation():\n    textbutton _(\"Start\") action Start()",
+        concat!(
+            "screen navigation():\n",
+            "    textbutton _(\"Start\"):\n",
+            "        action Start()"
+        ),
+    );
+}
+
+#[test]
+fn formats_nested_screen_displayables_and_use() {
+    assert_formats(
+        concat!(
+            "screen nav():\n",
+            "    viewport:\n",
+            "        vbox:\n",
+            "            use navigation"
+        ),
+        concat!(
+            "screen nav():\n",
+            "    viewport:\n",
+            "        vbox:\n",
+            "            use navigation"
+        ),
+    );
+}
+
+#[test]
+fn formats_screen_conditionals_and_loops() {
+    assert_formats(
+        concat!(
+            "screen listing(slots):\n",
+            "    if persistent.foo:\n",
+            "        text \"Yes\"\n",
+            "    else:\n",
+            "        pass\n",
+            "    for slot in slots:\n",
+            "        text slot"
+        ),
+        concat!(
+            "screen listing(slots):\n",
+            "    if persistent.foo:\n",
+            "        text \"Yes\"\n",
+            "    else:\n",
+            "        pass\n",
+            "    for slot in slots:\n",
+            "        text slot"
+        ),
+    );
+}
+
+#[test]
+fn formats_screen_python_and_transclude() {
+    assert_formats(
+        concat!(
+            "screen tools():\n",
+            "    $ count=count+1\n",
+            "    python:\n",
+            "        total=[1,2,3]\n",
+            "    use panel:\n",
+            "        transclude"
+        ),
+        concat!(
+            "screen tools():\n",
+            "    $ count=count+1\n",
+            "    python:\n",
+            "        total = [1, 2, 3]\n",
+            "    use panel:\n",
+            "        transclude"
+        ),
+    );
+}
+
+#[test]
+fn formats_screen_fixture_from_reference_style() {
+    assert_formats(
+        concat!(
+            "screen quick_menu():\n",
+            "    hbox:\n",
+            "        textbutton _(\"Back\") action Rollback()\n",
+            "        textbutton _(\"Skip\") action Skip() alternate Skip(fast=True, confirm=True)\n"
+        ),
+        concat!(
+            "screen quick_menu():\n",
+            "    hbox:\n",
+            "        textbutton _(\"Back\"):\n",
+            "            action Rollback()\n",
+            "        textbutton _(\"Skip\"):\n",
+            "            action Skip()\n",
+            "            alternate Skip(fast=True, confirm=True)"
+        ),
+    );
+}
+
+#[test]
 fn keeps_jump_expression_targets_unqualified() {
     assert_formats(
         concat!(

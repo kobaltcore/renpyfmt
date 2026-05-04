@@ -274,8 +274,9 @@ impl Parser for Camera {
 }
 
 impl Parser for Screen {
-    fn parse(&self, _lex: &mut Lexer, _loc: (PathBuf, usize)) -> Result<ParseNodes> {
-        todo!("parse screen")
+    fn parse(&self, lex: &mut Lexer, loc: (PathBuf, usize)) -> Result<ParseNodes> {
+        let screen = super::screen_language::parse_screen(lex, loc.clone())?;
+        Ok(AstNode::Screen(Screen { loc, screen }).into())
     }
 }
 

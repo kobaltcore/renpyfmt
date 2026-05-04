@@ -21,6 +21,7 @@ use std::{
 
 mod keywords;
 mod registry;
+mod screen_language;
 mod statements_flow;
 mod statements_init;
 mod statements_media;
@@ -110,7 +111,7 @@ pub fn parse_block(lex: &mut Lexer) -> Result<Vec<AstNode>> {
     Ok(result)
 }
 
-fn parse_parameters(lex: &mut Lexer) -> Result<Option<ParameterSignature>> {
+pub(super) fn parse_parameters(lex: &mut Lexer) -> Result<Option<ParameterSignature>> {
     if lex.rmatch(r"\(".into()).is_none() {
         return Ok(None);
     }
@@ -512,7 +513,7 @@ fn parse_with_nodes_replace_primary(mut nodes: Vec<AstNode>, node: AstNode) -> V
     nodes
 }
 
-fn parse_atl(lex: &mut Lexer) -> Result<RawBlock> {
+pub(super) fn parse_atl(lex: &mut Lexer) -> Result<RawBlock> {
     lex.advance();
 
     let block_loc = lex.get_location();
@@ -847,7 +848,7 @@ fn parse_atl(lex: &mut Lexer) -> Result<RawBlock> {
     })
 }
 
-fn parse_arguments(lex: &mut Lexer) -> Result<Option<ArgumentInfo>> {
+pub(super) fn parse_arguments(lex: &mut Lexer) -> Result<Option<ArgumentInfo>> {
     if lex.rmatch(r"\(".into()).is_none() {
         return Ok(None);
     }
