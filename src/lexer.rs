@@ -1,6 +1,6 @@
 use crate::error::{ParseError, Result};
-use lazy_static::lazy_static;
 use std::path::PathBuf;
+use std::sync::LazyLock;
 
 use regex::{Regex, RegexBuilder};
 
@@ -64,26 +64,92 @@ pub enum LexerType {
     Type(LexerTypeOptions),
 }
 
-lazy_static! {
-    static ref RE_OPERATOR: Regex = RegexBuilder::new(r#"^(<>|<<|<=|<|>>|>=|>|!=|==|\||\^|&|\+|\-|\*\*|\*|\/\/|\/|%|~|@|:=|\bor\b|\band\b|\bnot\b|\bin\b|\bis\b)"#).dot_matches_new_line(true).build().unwrap();
-    static ref RE_WORD: Regex = RegexBuilder::new("^[a-zA-Z_\u{00a0}-\u{fffd}][0-9a-zA-Z_\u{00a0}-\u{fffd}]*").dot_matches_new_line(true).build().unwrap();
-    static ref RE_WHITESPACE: Regex = RegexBuilder::new(r"^(\s+|\\\n)+").dot_matches_new_line(true).build().unwrap();
-    static ref RE_STRING_DOUBLE: Regex = RegexBuilder::new("^r?\"([^\\\"]|\\.)*\"").dot_matches_new_line(true).build().unwrap();
-    static ref RE_STRING_SINGLE: Regex = RegexBuilder::new(r"^r?'([^\\']|\\.)*'").dot_matches_new_line(true).build().unwrap();
-    static ref RE_STRING_BACK: Regex = RegexBuilder::new(r"^r?`([^\\`]|\\.)*`").dot_matches_new_line(true).build().unwrap();
-    static ref RE_STRING_TRIPLE_DOUBLE: Regex = RegexBuilder::new("^r?\"\"\"([^\\\"]|\\.|\"{1,2}[^\"])*\"\"\"").dot_matches_new_line(true).build().unwrap();
-    static ref RE_STRING_TRIPLE_SINGLE: Regex = RegexBuilder::new(r"^r?'''([^\\']|\\.|'{1,2}[^'])*'''").dot_matches_new_line(true).build().unwrap();
-    static ref RE_STRING_TRIPLE_BACK: Regex = RegexBuilder::new(r"^r?```([^\\`]|\\.|`{1,2}[^`])*```").dot_matches_new_line(true).build().unwrap();
-    static ref RE_IMAGE_NAME: Regex = RegexBuilder::new("^[-0-9a-zA-Z_\u{00a0}-\u{fffd}][-0-9a-zA-Z_\u{00a0}-\u{fffd}]*").dot_matches_new_line(true).build().unwrap();
-    static ref RE_FLOAT: Regex = RegexBuilder::new(r"^(\+|\-)?(\d+\.?\d*|\.\d+)([eE][-+]?\d+)?").dot_matches_new_line(true).build().unwrap();
-    static ref RE_INTEGER: Regex = RegexBuilder::new(r"^(\+|\-)?\d+").dot_matches_new_line(true).build().unwrap();
-    static ref RE_PYTHON_STRING: Regex = RegexBuilder::new("^[urfFURF]*(\"\"\"|\'\'\'|\"|\')").dot_matches_new_line(true).build().unwrap();
-    static ref RE_STRING_NEWLINE_REPLACE: Regex = Regex::new(r"[ \n]+").unwrap();
-    static ref RE_STRING_INTERNAL_1: Regex = Regex::new(r"\\(u([0-9a-fA-F]{1,4})|.)").unwrap();
-    static ref RE_NEWLINES: Regex = Regex::new(r" *\n *").unwrap();
-    static ref RE_SPACES: Regex = Regex::new(r" +").unwrap();
-    static ref RE_PYTHON_STRING_INTERNAL_1: Regex = Regex::new(r#"^.[^'"\\]*"#).unwrap();
-}
+static RE_OPERATOR: LazyLock<Regex> = LazyLock::new(|| {
+    RegexBuilder::new(r#"^(<>|<<|<=|<|>>|>=|>|!=|==|\||\^|&|\+|\-|\*\*|\*|\/\/|\/|%|~|@|:=|\bor\b|\band\b|\bnot\b|\bin\b|\bis\b)"#)
+        .dot_matches_new_line(true)
+        .build()
+        .unwrap()
+});
+static RE_WORD: LazyLock<Regex> = LazyLock::new(|| {
+    RegexBuilder::new("^[a-zA-Z_\u{00a0}-\u{fffd}][0-9a-zA-Z_\u{00a0}-\u{fffd}]*")
+        .dot_matches_new_line(true)
+        .build()
+        .unwrap()
+});
+static RE_WHITESPACE: LazyLock<Regex> = LazyLock::new(|| {
+    RegexBuilder::new(r"^(\s+|\\\n)+")
+        .dot_matches_new_line(true)
+        .build()
+        .unwrap()
+});
+static RE_STRING_DOUBLE: LazyLock<Regex> = LazyLock::new(|| {
+    RegexBuilder::new("^r?\"([^\\\"]|\\.)*\"")
+        .dot_matches_new_line(true)
+        .build()
+        .unwrap()
+});
+static RE_STRING_SINGLE: LazyLock<Regex> = LazyLock::new(|| {
+    RegexBuilder::new(r"^r?'([^\\']|\\.)*'")
+        .dot_matches_new_line(true)
+        .build()
+        .unwrap()
+});
+static RE_STRING_BACK: LazyLock<Regex> = LazyLock::new(|| {
+    RegexBuilder::new(r"^r?`([^\\`]|\\.)*`")
+        .dot_matches_new_line(true)
+        .build()
+        .unwrap()
+});
+static RE_STRING_TRIPLE_DOUBLE: LazyLock<Regex> = LazyLock::new(|| {
+    RegexBuilder::new("^r?\"\"\"([^\\\"]|\\.|\"{1,2}[^\"])*\"\"\"")
+        .dot_matches_new_line(true)
+        .build()
+        .unwrap()
+});
+static RE_STRING_TRIPLE_SINGLE: LazyLock<Regex> = LazyLock::new(|| {
+    RegexBuilder::new(r"^r?'''([^\\']|\\.|'{1,2}[^'])*'''")
+        .dot_matches_new_line(true)
+        .build()
+        .unwrap()
+});
+static RE_STRING_TRIPLE_BACK: LazyLock<Regex> = LazyLock::new(|| {
+    RegexBuilder::new(r"^r?```([^\\`]|\\.|`{1,2}[^`])*```")
+        .dot_matches_new_line(true)
+        .build()
+        .unwrap()
+});
+static RE_IMAGE_NAME: LazyLock<Regex> = LazyLock::new(|| {
+    RegexBuilder::new("^[-0-9a-zA-Z_\u{00a0}-\u{fffd}][-0-9a-zA-Z_\u{00a0}-\u{fffd}]*")
+        .dot_matches_new_line(true)
+        .build()
+        .unwrap()
+});
+static RE_FLOAT: LazyLock<Regex> = LazyLock::new(|| {
+    RegexBuilder::new(r"^(\+|\-)?(\d+\.?\d*|\.\d+)([eE][-+]?\d+)?")
+        .dot_matches_new_line(true)
+        .build()
+        .unwrap()
+});
+static RE_INTEGER: LazyLock<Regex> = LazyLock::new(|| {
+    RegexBuilder::new(r"^(\+|\-)?\d+")
+        .dot_matches_new_line(true)
+        .build()
+        .unwrap()
+});
+static RE_PYTHON_STRING: LazyLock<Regex> = LazyLock::new(|| {
+    RegexBuilder::new("^[urfFURF]*(\"\"\"|\'\'\'|\"|\')")
+        .dot_matches_new_line(true)
+        .build()
+        .unwrap()
+});
+static RE_STRING_NEWLINE_REPLACE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"[ \n]+").unwrap());
+static RE_STRING_INTERNAL_1: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"\\(u([0-9a-fA-F]{1,4})|.)").unwrap());
+static RE_NEWLINES: LazyLock<Regex> = LazyLock::new(|| Regex::new(r" *\n *").unwrap());
+static RE_SPACES: LazyLock<Regex> = LazyLock::new(|| Regex::new(r" +").unwrap());
+static RE_PYTHON_STRING_INTERNAL_1: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r#"^.[^'"\\]*"#).unwrap());
 
 pub enum GlobalRegex {
     Operator,

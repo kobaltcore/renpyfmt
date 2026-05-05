@@ -6,7 +6,7 @@ use crate::{
     },
     trie::ParseTrie,
 };
-use once_cell::sync::Lazy;
+use std::sync::LazyLock;
 
 use super::statements_media::{
     AudioStatementParser, HideScreenStatementParser, PauseStatementParser, PlayLikeMode,
@@ -15,7 +15,7 @@ use super::statements_media::{
 };
 use crate::ast::{AudioTarget, ScreenStatementKind, WindowKind};
 
-static PARSER: Lazy<ParseTrie> = Lazy::new(|| {
+static PARSER: LazyLock<ParseTrie> = LazyLock::new(|| {
     let mut parser = ParseTrie::new();
     register_statements(&mut parser);
     parser

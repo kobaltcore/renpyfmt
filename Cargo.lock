@@ -330,7 +330,6 @@ checksum = "d64e8af5551369d19cf50138de61f1c42074ab970f74e99be916646777f8fc87"
 dependencies = [
  "encode_unicode",
  "libc",
- "unicode-width",
  "windows-sys",
 ]
 
@@ -943,9 +942,7 @@ checksum = "25470f23803092da7d239834776d653104d551bc4d7eacaf31e6837854b8e9eb"
 dependencies = [
  "console",
  "portable-atomic",
- "unicode-width",
  "unit-prefix",
- "web-time",
 ]
 
 [[package]]
@@ -1086,12 +1083,6 @@ dependencies = [
  "once_cell",
  "wasm-bindgen",
 ]
-
-[[package]]
-name = "lazy_static"
-version = "1.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bbd2bcb4c963f2ddae06a2efc7e9f3591312473c50c6685e1f298068316e66fe"
 
 [[package]]
 name = "leb128fmt"
@@ -1780,8 +1771,6 @@ dependencies = [
  "criterion",
  "derivative",
  "indicatif",
- "lazy_static",
- "once_cell",
  "pathdiff",
  "rayon",
  "regex",
