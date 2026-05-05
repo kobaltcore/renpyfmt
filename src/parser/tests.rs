@@ -205,6 +205,45 @@ fn registered_builtin_user_statements_parse() {
 }
 
 #[test]
+fn malformed_registered_builtin_user_statements_return_parse_errors() {
+    assert_error(
+        parse_script("play music \"theme.ogg\" fadein"),
+        "expected simple expression",
+        1,
+    );
+    assert_error(
+        parse_script("queue ambient"),
+        "queue requires a file",
+        1,
+    );
+    assert_error(
+        parse_script("stop"),
+        "stop requires a channel",
+        1,
+    );
+    assert_error(
+        parse_script("show screen preferences zorder"),
+        "expected simple expression",
+        1,
+    );
+    assert_error(
+        parse_script("hide screen"),
+        "expected screen name",
+        1,
+    );
+    assert_error(
+        parse_script("window auto hide extra junk"),
+        "end of line expected",
+        1,
+    );
+    assert_error(
+        parse_script("pause 1 2"),
+        "end of line expected",
+        1,
+    );
+}
+
+#[test]
 fn camera_statement_defaults_to_master() {
     let ast = assert_parse(parse(vec![block(1, "camera", vec![])]));
 

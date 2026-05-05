@@ -7,6 +7,8 @@ use crate::{
     trie::ParseTrie,
 };
 
+use super::statements_media::{RegisteredStatement, RegisteredStatementKind};
+
 pub(super) fn new_parser() -> ParseTrie {
     let mut parser = ParseTrie::new();
     register_statements(&mut parser);
@@ -44,26 +46,75 @@ fn register_statements(parser: &mut ParseTrie) {
     parser.add(vec!["testcase".into()], Box::new(Testcase::default()));
     parser.add(vec!["testsuite".into()], Box::new(Testsuite::default()));
 
+    parser.add(
+        vec!["play".into(), "music".into()],
+        Box::new(RegisteredStatement::new(RegisteredStatementKind::PlayMusic)),
+    );
+    parser.add(
+        vec!["queue".into(), "music".into()],
+        Box::new(RegisteredStatement::new(RegisteredStatementKind::QueueMusic)),
+    );
+    parser.add(
+        vec!["stop".into(), "music".into()],
+        Box::new(RegisteredStatement::new(RegisteredStatementKind::StopMusic)),
+    );
+    parser.add(
+        vec!["play".into(), "sound".into()],
+        Box::new(RegisteredStatement::new(RegisteredStatementKind::PlaySound)),
+    );
+    parser.add(
+        vec!["queue".into(), "sound".into()],
+        Box::new(RegisteredStatement::new(RegisteredStatementKind::QueueSound)),
+    );
+    parser.add(
+        vec!["stop".into(), "sound".into()],
+        Box::new(RegisteredStatement::new(RegisteredStatementKind::StopSound)),
+    );
+    parser.add(
+        vec!["play".into()],
+        Box::new(RegisteredStatement::new(RegisteredStatementKind::Play)),
+    );
+    parser.add(
+        vec!["queue".into()],
+        Box::new(RegisteredStatement::new(RegisteredStatementKind::Queue)),
+    );
+    parser.add(
+        vec!["stop".into()],
+        Box::new(RegisteredStatement::new(RegisteredStatementKind::Stop)),
+    );
+    parser.add(
+        vec!["pause".into()],
+        Box::new(RegisteredStatement::new(RegisteredStatementKind::Pause)),
+    );
+    parser.add(
+        vec!["show".into(), "screen".into()],
+        Box::new(RegisteredStatement::new(RegisteredStatementKind::ShowScreen)),
+    );
+    parser.add(
+        vec!["call".into(), "screen".into()],
+        Box::new(RegisteredStatement::new(RegisteredStatementKind::CallScreen)),
+    );
+    parser.add(
+        vec!["hide".into(), "screen".into()],
+        Box::new(RegisteredStatement::new(RegisteredStatementKind::HideScreen)),
+    );
+    parser.add(
+        vec!["window".into(), "show".into()],
+        Box::new(RegisteredStatement::new(RegisteredStatementKind::WindowShow)),
+    );
+    parser.add(
+        vec!["window".into(), "hide".into()],
+        Box::new(RegisteredStatement::new(RegisteredStatementKind::WindowHide)),
+    );
+    parser.add(
+        vec!["window".into(), "auto".into()],
+        Box::new(RegisteredStatement::new(RegisteredStatementKind::WindowAuto)),
+    );
+
     let custom_statements = vec![
-        "play music",
-        "queue music",
-        "stop music",
-        "play sound",
-        "queue sound",
-        "stop sound",
-        "play",
-        "queue",
-        "stop",
-        "pause",
-        "show screen",
-        "call screen",
-        "hide screen",
         "nvl show",
         "nvl hide",
         "nvl clear",
-        "window show",
-        "window hide",
-        "window auto",
         "resumeaudio",
         "pauseaudio",
         "timedchoice",

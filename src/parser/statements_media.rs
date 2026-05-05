@@ -1,5 +1,35 @@
 use super::*;
 
+#[derive(Clone, Copy)]
+pub(super) enum RegisteredStatementKind {
+    PlayMusic,
+    QueueMusic,
+    StopMusic,
+    PlaySound,
+    QueueSound,
+    StopSound,
+    Play,
+    Queue,
+    Stop,
+    Pause,
+    ShowScreen,
+    CallScreen,
+    HideScreen,
+    WindowShow,
+    WindowHide,
+    WindowAuto,
+}
+
+pub(super) struct RegisteredStatement {
+    pub(super) kind: RegisteredStatementKind,
+}
+
+impl RegisteredStatement {
+    pub(super) fn new(kind: RegisteredStatementKind) -> Self {
+        Self { kind }
+    }
+}
+
 impl Parser for Scene {
     fn parse(&self, lex: &mut Lexer, loc: (PathBuf, usize)) -> Result<ParseNodes> {
         let mut layer = None;
@@ -143,6 +173,224 @@ impl Parser for UserStatement {
 
         Ok(vec![AstNode::UserStatement(rv)].into())
     }
+}
+
+impl Parser for RegisteredStatement {
+    fn parse(&self, lex: &mut Lexer, loc: (PathBuf, usize)) -> Result<ParseNodes> {
+        match self.kind {
+            RegisteredStatementKind::PlayMusic => parse_play_like(lex, loc, false, PlayLikeMode::Play),
+            RegisteredStatementKind::QueueMusic => parse_play_like(lex, loc, false, PlayLikeMode::Queue),
+            RegisteredStatementKind::StopMusic => parse_stop_like(lex, loc, false),
+            RegisteredStatementKind::PlaySound => parse_play_like(lex, loc, false, PlayLikeMode::Play),
+            RegisteredStatementKind::QueueSound => parse_play_like(lex, loc, false, PlayLikeMode::Queue),
+            RegisteredStatementKind::StopSound => parse_stop_like(lex, loc, false),
+            RegisteredStatementKind::Play => parse_play_like(lex, loc, true, PlayLikeMode::Play),
+            RegisteredStatementKind::Queue => parse_play_like(lex, loc, true, PlayLikeMode::Queue),
+            RegisteredStatementKind::Stop => parse_stop_like(lex, loc, true),
+            RegisteredStatementKind::Pause => parse_pause_statement(lex, loc),
+            RegisteredStatementKind::ShowScreen => parse_show_call_screen_statement(lex, loc),
+            RegisteredStatementKind::CallScreen => parse_show_call_screen_statement(lex, loc),
+            RegisteredStatementKind::HideScreen => parse_hide_screen_statement(lex, loc),
+            RegisteredStatementKind::WindowShow | RegisteredStatementKind::WindowHide => {
+                parse_window_show_hide_statement(lex, loc)
+            }
+            RegisteredStatementKind::WindowAuto => parse_window_auto_statement(lex, loc),
+        }
+    }
+}
+
+#[derive(Clone, Copy)]
+enum PlayLikeMode {
+    Play,
+    Queue,
+}
+
+fn finish_registered_statement(lex: &mut Lexer, loc: (PathBuf, usize)) -> Result<ParseNodes> {
+    lex.expect_noblock()?;
+    let line = lex.text.clone();
+    let block = lex.subblock.clone();
+    lex.advance();
+    Ok(vec![AstNode::UserStatement(UserStatement {
+        loc,
+        line,
+        block,
+        parsed: true,
+        code_block: None,
+    })]
+    .into())
+}
+
+fn require_simple_expression(lex: &mut Lexer, message: &str) -> Result<String> {
+    lex.simple_expression(false, true)?
+        .ok_or_else(|| lex.parse_error(message))
+}
+
+fn parse_optional_simple_expression(lex: &mut Lexer) -> Result<Option<String>> {
+    lex.simple_expression(false, true)
+}
+
+fn parse_play_like(
+    lex: &mut Lexer,
+    loc: (PathBuf, usize),
+    generic_channel: bool,
+    mode: PlayLikeMode,
+) -> Result<ParseNodes> {
+    if generic_channel {
+        lex.name()
+            .ok_or_else(|| lex.parse_error(match mode {
+                PlayLikeMode::Play => "play requires a channel",
+                PlayLikeMode::Queue => "queue requires a channel",
+            }))?;
+    }
+
+    require_simple_expression(
+        lex,
+        match mode {
+            PlayLikeMode::Play => "play requires a file",
+            PlayLikeMode::Queue => "queue requires a file",
+        },
+    )?;
+
+    while !lex.eol() {
+        if lex.keyword("channel".into()).is_some() {
+            require_simple_expression(lex, "expected simple expression")?;
+            continue;
+        }
+
+        if lex.keyword("loop".into()).is_some()
+            || lex.keyword("noloop".into()).is_some()
+            || (matches!(mode, PlayLikeMode::Play) && lex.keyword("if_changed".into()).is_some())
+        {
+            continue;
+        }
+
+        if lex.keyword("fadeout".into()).is_some() || lex.keyword("fadein".into()).is_some() {
+            require_simple_expression(lex, "expected simple expression")?;
+            continue;
+        }
+
+        if lex.keyword("volume".into()).is_some() {
+            require_simple_expression(lex, "expected simple expression")?;
+            continue;
+        }
+
+        return Err(lex.parse_error("end of line expected"));
+    }
+
+    lex.expect_eol()?;
+    finish_registered_statement(lex, loc)
+}
+
+fn parse_stop_like(
+    lex: &mut Lexer,
+    loc: (PathBuf, usize),
+    generic_channel: bool,
+) -> Result<ParseNodes> {
+    if generic_channel {
+        lex.name()
+            .ok_or_else(|| lex.parse_error("stop requires a channel"))?;
+    }
+
+    while !lex.eol() {
+        if lex.keyword("fadeout".into()).is_some() || lex.keyword("channel".into()).is_some() {
+            require_simple_expression(lex, "expected simple expression")?;
+            continue;
+        }
+
+        return Err(lex.parse_error("end of line expected"));
+    }
+
+    lex.expect_eol()?;
+    finish_registered_statement(lex, loc)
+}
+
+fn parse_pause_statement(lex: &mut Lexer, loc: (PathBuf, usize)) -> Result<ParseNodes> {
+    parse_optional_simple_expression(lex)?;
+    lex.expect_eol()?;
+    finish_registered_statement(lex, loc)
+}
+
+fn parse_screen_name(lex: &mut Lexer) -> Result<()> {
+    if lex.keyword("expression".into()).is_some() {
+        require_simple_expression(lex, "expected screen expression")?;
+        lex.keyword("pass".into());
+    } else {
+        lex.require_or_error(
+            LexerType::Type(LexerTypeOptions::Word),
+            "expected screen name",
+        )?;
+    }
+
+    Ok(())
+}
+
+fn parse_show_call_screen_statement(lex: &mut Lexer, loc: (PathBuf, usize)) -> Result<ParseNodes> {
+    parse_screen_name(lex)?;
+    parse_arguments(lex)?;
+
+    while !lex.eol() {
+        if lex.keyword("nopredict".into()).is_some() {
+            continue;
+        }
+        if lex.keyword("with".into()).is_some() {
+            require_simple_expression(lex, "expected simple expression")?;
+            continue;
+        }
+        if lex.keyword("onlayer".into()).is_some() {
+            lex.require_or_error(LexerType::Type(LexerTypeOptions::Name), "expected layer name")?;
+            continue;
+        }
+        if lex.keyword("zorder".into()).is_some() {
+            require_simple_expression(lex, "expected simple expression")?;
+            continue;
+        }
+        if lex.keyword("as".into()).is_some() {
+            lex.require_or_error(LexerType::Type(LexerTypeOptions::Name), "expected tag name")?;
+            continue;
+        }
+
+        return Err(lex.parse_error("end of line expected"));
+    }
+
+    lex.expect_eol()?;
+    finish_registered_statement(lex, loc)
+}
+
+fn parse_hide_screen_statement(lex: &mut Lexer, loc: (PathBuf, usize)) -> Result<ParseNodes> {
+    parse_screen_name(lex)?;
+
+    while !lex.eol() {
+        if lex.keyword("with".into()).is_some() {
+            require_simple_expression(lex, "expected simple expression")?;
+            continue;
+        }
+        if lex.keyword("onlayer".into()).is_some() {
+            lex.require_or_error(LexerType::Type(LexerTypeOptions::Name), "expected layer name")?;
+            continue;
+        }
+
+        return Err(lex.parse_error("end of line expected"));
+    }
+
+    lex.expect_eol()?;
+    finish_registered_statement(lex, loc)
+}
+
+fn parse_window_show_hide_statement(lex: &mut Lexer, loc: (PathBuf, usize)) -> Result<ParseNodes> {
+    parse_optional_simple_expression(lex)?;
+    lex.expect_eol()?;
+    finish_registered_statement(lex, loc)
+}
+
+fn parse_window_auto_statement(lex: &mut Lexer, loc: (PathBuf, usize)) -> Result<ParseNodes> {
+    if lex.keyword("hide".into()).is_some() || lex.keyword("show".into()).is_some() {
+        parse_optional_simple_expression(lex)?;
+    } else {
+        parse_optional_simple_expression(lex)?;
+    }
+
+    lex.expect_eol()?;
+    finish_registered_statement(lex, loc)
 }
 
 impl Parser for Show {
