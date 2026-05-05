@@ -1480,6 +1480,15 @@ label start(a, /, b=1, *rest, **kwargs):
         params.parameters.get("kwargs"),
         Some(param) if matches!(param.kind, crate::ast::ParameterKind::VarKeyword)
     ));
+    assert_eq!(
+        params.order,
+        vec![
+            "a".to_string(),
+            "b".to_string(),
+            "rest".to_string(),
+            "kwargs".to_string()
+        ]
+    );
 
     let AstNode::Call(call) = &label.block[0] else {
         panic!("expected call");

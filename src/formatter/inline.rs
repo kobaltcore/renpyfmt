@@ -70,7 +70,11 @@ pub(crate) fn format_parameter_signature(signature: &ParameterSignature) -> Stri
     let mut var_positional = vec![];
     let mut var_keyword = vec![];
 
-    for parameter in signature.parameters.values() {
+    for name in &signature.order {
+        let parameter = signature
+            .parameters
+            .get(name)
+            .expect("parameter order should reference parsed parameters");
         let rendered = match parameter.kind {
             ParameterKind::VarPositional => format!("*{}", parameter.name),
             ParameterKind::VarKeyword => format!("**{}", parameter.name),
@@ -88,12 +92,6 @@ pub(crate) fn format_parameter_signature(signature: &ParameterSignature) -> Stri
             ParameterKind::VarKeyword => var_keyword.push(rendered),
         }
     }
-
-    positional_only.sort();
-    positional_or_keyword.sort();
-    keyword_only.sort();
-    var_positional.sort();
-    var_keyword.sort();
 
     let mut parts = vec![];
     parts.extend(positional_only);

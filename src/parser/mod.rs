@@ -122,6 +122,7 @@ pub(super) fn parse_parameters(lex: &mut Lexer) -> Result<Option<ParameterSignat
     }
 
     let mut parameters = HashMap::new();
+    let mut order = vec![];
 
     let mut got_slash = false;
     let mut now_kwonly = false;
@@ -148,6 +149,7 @@ pub(super) fn parse_parameters(lex: &mut Lexer) -> Result<Option<ParameterSignat
                     default: None,
                 },
             );
+            order.push(extrakw.clone());
 
             if lex.rmatch(r"=".into()).is_some() {
                 return Err(lex.parse_error(format!(
@@ -170,7 +172,6 @@ pub(super) fn parse_parameters(lex: &mut Lexer) -> Result<Option<ParameterSignat
             }
 
             now_kwonly = true;
-            kind = ParameterKind::VarPositional;
             now_default = false;
 
             match lex.name() {
@@ -189,15 +190,19 @@ pub(super) fn parse_parameters(lex: &mut Lexer) -> Result<Option<ParameterSignat
                             default: None,
                         },
                     );
+                    order.push(extrapos.clone());
 
                     if lex.rmatch(r"=".into()).is_some() {
                         return Err(lex.parse_error(format!(
                             "a var-positional parameter (*{extrapos}) cannot have a default value"
                         )));
                     }
+
+                    kind = ParameterKind::KeywordOnly;
                 }
                 None => {
                     missing_kwonly = true;
+                    kind = ParameterKind::KeywordOnly;
                 }
             };
         } else if lex.rmatch(r"/\*".into()).is_some() {
@@ -257,11 +262,12 @@ pub(super) fn parse_parameters(lex: &mut Lexer) -> Result<Option<ParameterSignat
             parameters.insert(
                 name.clone(),
                 Parameter {
-                    name,
+                    name: name.clone(),
                     kind: kind.clone(),
                     default,
                 },
             );
+            order.push(name);
         }
 
         if lex.rmatch(r"\)".into()).is_some() {
@@ -275,7 +281,7 @@ pub(super) fn parse_parameters(lex: &mut Lexer) -> Result<Option<ParameterSignat
         return Err(lex.parse_error("a bare * must be followed by a parameter"));
     }
 
-    Ok(Some(ParameterSignature { parameters }))
+    Ok(Some(ParameterSignature { order, parameters }))
 }
 
 fn parse_label(lex: &mut Lexer, loc: (PathBuf, usize), init: bool) -> Result<Vec<AstNode>> {

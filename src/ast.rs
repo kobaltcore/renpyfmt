@@ -40,6 +40,7 @@ pub enum ParameterKind {
 
 #[derive(Debug, Clone, Default)]
 pub struct ParameterSignature {
+    pub order: Vec<String>,
     pub parameters: HashMap<String, Parameter>,
 }
 

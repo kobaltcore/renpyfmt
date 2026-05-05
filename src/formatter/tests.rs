@@ -321,6 +321,23 @@ fn formats_implicit_init_statements_without_init_blocks() {
 }
 
 #[test]
+fn preserves_style_aliases_and_parameter_order() {
+    assert_formats(
+        concat!(
+            "style window is default\n",
+            "label start(z, a=1, *rest, y=2, **kwargs):\n",
+            "    pass"
+        ),
+        concat!(
+            "style window is default\n",
+            "\n",
+            "label start(z, a=1, *rest, y=2, **kwargs):\n",
+            "    pass"
+        ),
+    );
+}
+
+#[test]
 fn formats_layeredimage_blocks() {
     assert_formats(
         concat!(

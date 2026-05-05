@@ -535,7 +535,7 @@ impl Formatter {
         }
 
         if clauses.is_empty() {
-            self.line_with_trailing(&format!("{line}:"));
+            self.line_with_trailing(&line);
         } else {
             self.line_with_trailing(&format!("{line}:"));
             self.indented(|formatter| {
