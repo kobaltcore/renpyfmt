@@ -507,6 +507,97 @@ fn screen_displayables_and_use_parse() {
 }
 
 #[test]
+fn screen_use_block_properties_parse() {
+    let ast = assert_parse(parse_script(concat!(
+        "screen about():\n",
+        "    use game_menu(_(\"About\"), scroll=\"viewport\"):\n",
+        "        style_prefix \"about\"\n",
+        "        vbox:\n",
+        "            transclude\n",
+    )));
+
+    let AstNode::Screen(screen) = &ast[0] else {
+        panic!("expected screen node");
+    };
+    let crate::slast::Node::Use(use_node) = &screen.screen.children[0] else {
+        panic!("expected use node");
+    };
+    let block = use_node.block.as_ref().expect("expected use block");
+
+    assert_eq!(
+        block.properties,
+        vec![("style_prefix".to_string(), "\"about\"".to_string())]
+    );
+    assert!(matches!(
+        &block.children[0],
+        crate::slast::Node::Displayable(node) if node.name == "vbox"
+    ));
+}
+
+#[test]
+fn zero_child_displayable_allows_conditional_properties() {
+    let ast = assert_parse(parse_script(concat!(
+        "screen filters(ssa):\n",
+        "    input value ssa prefix \" \":\n",
+        "        if not renpy.variant(\"small\"):\n",
+        "            line_leading 6\n",
+        "        length 20\n",
+        "        copypaste True\n",
+    )));
+
+    let AstNode::Screen(screen) = &ast[0] else {
+        panic!("expected screen node");
+    };
+    let crate::slast::Node::Displayable(input) = &screen.screen.children[0] else {
+        panic!("expected input displayable");
+    };
+    let crate::slast::Node::If(if_node) = &input.children[0] else {
+        panic!("expected conditional child");
+    };
+
+    assert_eq!(
+        if_node.entries[0].1.properties,
+        vec![("line_leading".to_string(), "6".to_string())]
+    );
+    assert!(
+        input
+            .properties
+            .iter()
+            .any(|(name, expr)| name == "length" && expr == "20")
+    );
+}
+
+#[test]
+fn screen_block_property_line_allows_multiple_properties() {
+    let ast = assert_parse(parse_script(concat!(
+        "screen musicroom(musicRoomType):\n",
+        "    viewport id musicRoomType:\n",
+        "        draggable True mousewheel True\n",
+        "        has vbox\n",
+    )));
+
+    let AstNode::Screen(screen) = &ast[0] else {
+        panic!("expected screen node");
+    };
+    let crate::slast::Node::Displayable(viewport) = &screen.screen.children[0] else {
+        panic!("expected viewport displayable");
+    };
+
+    assert!(
+        viewport
+            .properties
+            .iter()
+            .any(|(name, expr)| name == "draggable" && expr == "True")
+    );
+    assert!(
+        viewport
+            .properties
+            .iter()
+            .any(|(name, expr)| name == "mousewheel" && expr == "True")
+    );
+}
+
+#[test]
 fn screen_if_showif_and_for_parse() {
     let ast = assert_parse(parse_script(concat!(
         "screen complex(slots):\n",
@@ -611,6 +702,35 @@ fn screen_window_properties_with_commas_and_add_parse() {
         add.properties
             .iter()
             .any(|(name, expr)| name == "xoffset" && expr == "-10")
+    );
+}
+
+#[test]
+fn screen_displayable_at_property_before_block_parses() {
+    let ast = assert_parse(parse_script(concat!(
+        "screen navigation():\n",
+        "    on \"hide\" action SetField(renpy.store, \"from_intro\", False)\n",
+        "    vbox at (alpha_blend(1.0) if renpy.store.from_intro else None):\n",
+        "        style_prefix \"navigation\"\n",
+        "        xpos gui.navigation_xpos\n",
+    )));
+
+    let AstNode::Screen(screen) = &ast[0] else {
+        panic!("expected screen node");
+    };
+    let crate::slast::Node::Displayable(vbox) = &screen.screen.children[1] else {
+        panic!("expected vbox displayable");
+    };
+
+    assert!(
+        vbox.properties.iter().any(|(name, expr)| {
+            name == "at" && expr == "(alpha_blend(1.0) if renpy.store.from_intro else None)"
+        })
+    );
+    assert!(
+        vbox.properties
+            .iter()
+            .any(|(name, expr)| name == "style_prefix" && expr == "\"navigation\"")
     );
 }
 

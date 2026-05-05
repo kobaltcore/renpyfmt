@@ -242,6 +242,8 @@ const SCREEN_PROPERTY_NAMES: &[&str] = &[
     "tag",
 ];
 
+const USE_BLOCK_PROPERTY_NAMES: &[&str] = &["style_group", "style_prefix"];
+
 const RESERVED_CHILD_NAMES: &[&str] = &[
     "if",
     "elif",
@@ -262,6 +264,7 @@ const RESERVED_CHILD_NAMES: &[&str] = &[
 struct PropertyContext<'a> {
     owner: &'a str,
     allow_default_properties: bool,
+    allowed_names: Option<&'a [&'a str]>,
 }
 
 #[derive(Clone, Copy)]
@@ -292,7 +295,7 @@ pub(super) fn parse_screen(lex: &mut Lexer, loc: (PathBuf, usize)) -> Result<sla
         if lex.rmatch(RegexType::Simple(":")).is_some() {
             break;
         }
-        parse_named_property(lex, &mut screen.properties, &mut seen, true, "screen")?;
+        parse_named_property(lex, &mut screen.properties, &mut seen, true, "screen", None)?;
     }
 
     lex.expect_eol()?;
@@ -359,7 +362,7 @@ fn try_parse_screen_block_property(
     }
 
     lex.revert(state);
-    parse_named_property(lex, properties, seen, true, "screen")?;
+    parse_named_property(lex, properties, seen, true, "screen", None)?;
     lex.expect_eol()?;
     lex.expect_noblock()?;
     lex.advance();
@@ -652,12 +655,16 @@ fn parse_use(lex: &mut Lexer, loc: (PathBuf, usize)) -> Result<slast::Node> {
     let block = if lex.rmatch(RegexType::Simple(":")).is_some() {
         lex.expect_eol()?;
         lex.expect_block()?;
-        Some(parse_children_only(
+        Some(parse_block(
             &mut lex.subblock_lexer(false),
             BlockContext {
                 container_name: "use",
                 allow_break_continue: false,
-                property_context: None,
+                property_context: Some(PropertyContext {
+                    owner: "use",
+                    allow_default_properties: false,
+                    allowed_names: Some(USE_BLOCK_PROPERTY_NAMES),
+                }),
             },
         )?)
     } else {
@@ -728,8 +735,8 @@ fn parse_displayable(
             continue;
         }
 
+        let state = lex.checkpoint();
         if lex.keyword("at".into()).is_some() {
-            let state = lex.checkpoint();
             if lex.keyword("transform".into()).is_some()
                 && lex.rmatch(RegexType::Simple(":")).is_some()
             {
@@ -742,8 +749,8 @@ fn parse_displayable(
                 lex.advance();
                 return Ok(slast::Node::Displayable(displayable));
             }
-            lex.revert(state);
         }
+        lex.revert(state);
 
         parse_named_property(
             lex,
@@ -751,6 +758,7 @@ fn parse_displayable(
             &mut seen_properties,
             spec.default_properties,
             spec.name,
+            None,
         )?;
     }
 
@@ -793,6 +801,7 @@ fn parse_displayable_block(
                     property_context: Some(PropertyContext {
                         owner: spec.name,
                         allow_default_properties: spec.default_properties,
+                        allowed_names: None,
                     }),
                 },
             )?));
@@ -823,15 +832,12 @@ fn parse_displayable_block(
             &mut seen_properties,
             spec.default_properties,
             spec.name,
+            None,
         )? {
             continue;
         }
 
-        if spec.nchildren == ChildCount::Zero {
-            return Err(sub.parse_error(format!("{} does not take children", spec.name)));
-        }
-
-        displayable.children.push(parse_node(
+        let node = parse_node(
             &mut sub,
             BlockContext {
                 container_name: spec.name,
@@ -839,16 +845,26 @@ fn parse_displayable_block(
                 property_context: Some(PropertyContext {
                     owner: spec.name,
                     allow_default_properties: spec.default_properties,
+                    allowed_names: None,
                 }),
             },
-        )?);
+        )?;
+
+        if spec.nchildren == ChildCount::Zero
+            && matches!(
+                node,
+                slast::Node::Displayable(_)
+                    | slast::Node::Use(_)
+                    | slast::Node::Transclude(_)
+            )
+        {
+            return Err(sub.parse_error(format!("{} does not take children", spec.name)));
+        }
+
+        displayable.children.push(node);
     }
 
     Ok(())
-}
-
-fn parse_children_only(lex: &mut Lexer, ctx: BlockContext<'_>) -> Result<Vec<slast::Node>> {
-    Ok(parse_block(lex, ctx)?.children)
 }
 
 fn parse_block(lex: &mut Lexer, ctx: BlockContext<'_>) -> Result<slast::Block> {
@@ -867,6 +883,7 @@ fn parse_block(lex: &mut Lexer, ctx: BlockContext<'_>) -> Result<slast::Block> {
                 &mut seen_properties,
                 property_ctx.allow_default_properties,
                 property_ctx.owner,
+                property_ctx.allowed_names,
             )? {
                 continue;
             }
@@ -884,6 +901,7 @@ fn try_parse_property_line(
     seen: &mut HashSet<String>,
     allow_default_properties: bool,
     owner: &str,
+    allowed_names: Option<&[&str]>,
 ) -> Result<bool> {
     let state = lex.checkpoint();
     let Some(word) = lex.word() else {
@@ -896,7 +914,16 @@ fn try_parse_property_line(
     }
 
     lex.revert(state);
-    parse_named_property(lex, properties, seen, allow_default_properties, owner)?;
+    while !lex.eol() {
+        parse_named_property(
+            lex,
+            properties,
+            seen,
+            allow_default_properties,
+            owner,
+            allowed_names,
+        )?;
+    }
     lex.expect_eol()?;
     lex.expect_noblock()?;
     lex.advance();
@@ -909,12 +936,14 @@ fn parse_named_property(
     seen: &mut HashSet<String>,
     allow_default_properties: bool,
     owner: &str,
+    allowed_names: Option<&[&str]>,
 ) -> Result<()> {
     let name = lex.require_or_error(
         LexerType::Type(LexerTypeOptions::Word),
         "expected property name",
     )?;
-    if !allow_default_properties && !SCREEN_PROPERTY_NAMES.contains(&name.as_str()) {
+    let allowed_names = allowed_names.unwrap_or(SCREEN_PROPERTY_NAMES);
+    if !allow_default_properties && !allowed_names.contains(&name.as_str()) {
         return Err(lex.parse_error(format!(
             "{name:?} is not a keyword argument or valid child of the {owner} statement."
         )));

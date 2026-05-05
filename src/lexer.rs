@@ -77,7 +77,7 @@ lazy_static! {
     static ref RE_IMAGE_NAME: Regex = RegexBuilder::new("^[-0-9a-zA-Z_\u{00a0}-\u{fffd}][-0-9a-zA-Z_\u{00a0}-\u{fffd}]*").dot_matches_new_line(true).build().unwrap();
     static ref RE_FLOAT: Regex = RegexBuilder::new(r"^(\+|\-)?(\d+\.?\d*|\.\d+)([eE][-+]?\d+)?").dot_matches_new_line(true).build().unwrap();
     static ref RE_INTEGER: Regex = RegexBuilder::new(r"^(\+|\-)?\d+").dot_matches_new_line(true).build().unwrap();
-    static ref RE_PYTHON_STRING: Regex = RegexBuilder::new("^[urfURF]*(\"\"\"|\'\'\'|\"|\')").dot_matches_new_line(true).build().unwrap();
+    static ref RE_PYTHON_STRING: Regex = RegexBuilder::new("^[urfFURF]*(\"\"\"|\'\'\'|\"|\')").dot_matches_new_line(true).build().unwrap();
     static ref RE_STRING_NEWLINE_REPLACE: Regex = Regex::new(r"[ \n]+").unwrap();
     static ref RE_STRING_INTERNAL_1: Regex = Regex::new(r"\\(u([0-9a-fA-F]{1,4})|.)").unwrap();
     static ref RE_NEWLINES: Regex = Regex::new(r" *\n *").unwrap();
@@ -681,7 +681,7 @@ impl Lexer {
             return Ok(false);
         }
 
-        let delim: String = start.unwrap().trim_start_matches("urfURF").into();
+        let delim: String = start.unwrap().trim_start_matches(['u', 'r', 'f', 'U', 'R', 'F']).into();
 
         loop {
             if self.eol() {
@@ -1116,6 +1116,10 @@ mod tests {
             python.python_expression().as_deref(),
             Ok("value[foo(\"bar\")]")
         );
+
+        let mut fstring = single_line_lexer("f\"{name} ??\"");
+        assert_eq!(fstring.python_string(), Ok(true));
+        assert!(fstring.eol());
 
         let mut dotted = single_line_lexer("store.module.value");
         assert_eq!(dotted.dotted_name(), Ok(Some("store.module.value".into())));

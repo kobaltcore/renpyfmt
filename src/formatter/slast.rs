@@ -240,7 +240,7 @@ impl Formatter {
 
         if let Some(block) = &node.block {
             self.line(&format!("{line}:"));
-            self.indented(|formatter| formatter.emit_sl_nodes(block));
+            self.indented(|formatter| formatter.emit_sl_block(block));
         } else {
             self.line(&line);
         }

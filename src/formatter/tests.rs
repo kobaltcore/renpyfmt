@@ -486,6 +486,26 @@ fn formats_screen_python_and_transclude() {
 }
 
 #[test]
+fn formats_use_block_properties() {
+    assert_formats(
+        concat!(
+            "screen about():\n",
+            "    use game_menu(_(\"About\"),scroll=\"viewport\"):\n",
+            "        style_prefix \"about\"\n",
+            "        vbox:\n",
+            "            transclude"
+        ),
+        concat!(
+            "screen about():\n",
+            "    use game_menu(_(\"About\"), scroll=\"viewport\"):\n",
+            "        style_prefix \"about\"\n",
+            "        vbox:\n",
+            "            transclude"
+        ),
+    );
+}
+
+#[test]
 fn formats_screen_fixture_from_reference_style() {
     assert_formats(
         concat!(

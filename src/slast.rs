@@ -88,7 +88,7 @@ pub struct Use {
     pub id_expr: Option<String>,
     pub variable: Option<String>,
     pub pass_context: bool,
-    pub block: Option<Vec<Node>>,
+    pub block: Option<Block>,
 }
 
 #[derive(Debug, Clone, Default)]
