@@ -136,18 +136,9 @@ impl Parser for UserStatement {
         let text = lex.text.clone();
         let subblock = lex.subblock.clone();
 
-        let mut code_block = None;
+        let code_block = None;
 
-        let block = UserStatementBlock::False;
-
-        match block {
-            UserStatementBlock::True => lex.expect_block()?,
-            UserStatementBlock::False => lex.expect_noblock()?,
-            UserStatementBlock::Script => {
-                lex.expect_block()?;
-                code_block = Some(parse_block(&mut lex.subblock_lexer(false))?);
-            }
-        };
+        lex.expect_noblock()?;
 
         let start_line = lex.line;
 

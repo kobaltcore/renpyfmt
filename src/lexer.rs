@@ -6,6 +6,9 @@ use regex::{Regex, RegexBuilder};
 
 #[derive(Debug, Clone)]
 pub struct SubParse {
+    // Kept for parity with the upstream Ren'Py lexer API; the port does not
+    // consume stored subparse blocks yet.
+    #[allow(dead_code)]
     block: Block,
 }
 

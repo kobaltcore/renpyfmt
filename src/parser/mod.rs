@@ -1322,12 +1322,6 @@ fn parse_layered_image_attribute_body(
     Ok(())
 }
 
-enum UserStatementBlock {
-    True,
-    False,
-    Script,
-}
-
 fn parse_menu(
     lex: &mut Lexer,
     loc: (PathBuf, usize),
