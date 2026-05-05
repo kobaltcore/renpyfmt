@@ -2,6 +2,10 @@
 name = "renpyfmt"
 version = "0.1.0"
 edition = "2024"
+repository = "https://github.com/kobaltcore/renpyfmt"
+description = "An opinionated source code formatter for Ren'Py script."
+homepage = "https://github.com/kobaltcore/renpyfmt"
+license = "MIT"
 
 [dependencies]
 toml = "1.0.0"
@@ -36,6 +40,12 @@ harness = false
 [[bench]]
 name = "end_to_end"
 harness = false
+
+# The profile that 'cargo dist' will build with
+[profile.dist]
+inherits = "release"
+lto = "thin"
+strip = true
 
 [profile.release]
 strip = true
