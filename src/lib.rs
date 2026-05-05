@@ -6,6 +6,7 @@ pub mod formatter;
 pub mod lexer;
 pub mod parser;
 pub mod project;
+mod ruff_config;
 pub mod slast;
 #[cfg(test)]
 pub(crate) mod test_support;

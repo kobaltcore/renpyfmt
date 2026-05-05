@@ -1,17 +1,65 @@
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
-use ruff_python_formatter::{PyFormatOptions, format_module_source};
-use ruff_workspace::FormatterSettings;
+use ruff_formatter::FormatOptions;
+use ruff_formatter::printer::LineEnding;
+use ruff_formatter::{IndentStyle, IndentWidth, LineWidth};
+use ruff_python_ast::{PySourceType, PythonVersion};
+use ruff_python_formatter::{
+    DocstringCode, DocstringCodeLineWidth, MagicTrailingComma, NestedStringQuoteStyle, PreviewMode,
+    PyFormatOptions, QuoteStyle, format_module_source,
+};
 
 #[derive(Clone, Debug)]
 pub struct PythonFormatConfig {
-    formatter_settings: FormatterSettings,
+    formatter_settings: PythonFormatterSettings,
     synthetic_path: PathBuf,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ConfiguredLineEnding {
+    Auto,
+    Lf,
+    CrLf,
+    Native,
+}
+
+#[derive(Clone, Debug)]
+pub struct PythonFormatterSettings {
+    pub target_version: PythonVersion,
+    pub indent_style: IndentStyle,
+    pub indent_width: IndentWidth,
+    pub quote_style: QuoteStyle,
+    pub nested_string_quote_style: NestedStringQuoteStyle,
+    pub magic_trailing_comma: MagicTrailingComma,
+    pub line_width: LineWidth,
+    pub line_ending: ConfiguredLineEnding,
+    pub docstring_code: DocstringCode,
+    pub docstring_code_line_width: DocstringCodeLineWidth,
+    pub preview: PreviewMode,
+}
+
+impl Default for PythonFormatterSettings {
+    fn default() -> Self {
+        let options = PyFormatOptions::default();
+        Self {
+            target_version: options.target_version(),
+            indent_style: options.indent_style(),
+            indent_width: options.indent_width(),
+            quote_style: options.quote_style(),
+            nested_string_quote_style: options.nested_string_quote_style(),
+            magic_trailing_comma: options.magic_trailing_comma(),
+            line_width: options.line_width(),
+            line_ending: ConfiguredLineEnding::Auto,
+            docstring_code: options.docstring_code(),
+            docstring_code_line_width: options.docstring_code_line_width(),
+            preview: options.preview(),
+        }
+    }
+}
+
 impl PythonFormatConfig {
-    pub fn new(root: PathBuf, formatter_settings: FormatterSettings) -> Self {
+    pub fn new(root: PathBuf, formatter_settings: PythonFormatterSettings) -> Self {
         Self {
             formatter_settings,
             synthetic_path: root.join("__renpyfmt__.py"),
@@ -29,9 +77,69 @@ impl Default for PythonFormatConfig {
     fn default() -> Self {
         Self::new(
             std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")),
-            FormatterSettings::default(),
+            PythonFormatterSettings::default(),
         )
     }
+}
+
+impl PythonFormatterSettings {
+    fn to_format_options(
+        &self,
+        source_type: PySourceType,
+        source: &str,
+        _path: Option<&Path>,
+    ) -> PyFormatOptions {
+        PyFormatOptions::from_source_type(source_type)
+            .with_target_version(self.target_version)
+            .with_indent_style(self.indent_style)
+            .with_indent_width(self.indent_width)
+            .with_quote_style(self.quote_style)
+            .with_nested_string_quote_style(self.nested_string_quote_style)
+            .with_magic_trailing_comma(self.magic_trailing_comma)
+            .with_preview(self.preview)
+            .with_line_ending(resolve_line_ending(self.line_ending, source))
+            .with_line_width(self.line_width)
+            .with_docstring_code(self.docstring_code)
+            .with_docstring_code_line_width(self.docstring_code_line_width)
+    }
+}
+
+fn resolve_line_ending(configured: ConfiguredLineEnding, source: &str) -> LineEnding {
+    match configured {
+        ConfiguredLineEnding::Auto => detect_line_ending(source),
+        ConfiguredLineEnding::Lf => LineEnding::LineFeed,
+        ConfiguredLineEnding::CrLf => LineEnding::CarriageReturnLineFeed,
+        ConfiguredLineEnding::Native => {
+            if cfg!(windows) {
+                LineEnding::CarriageReturnLineFeed
+            } else {
+                LineEnding::LineFeed
+            }
+        }
+    }
+}
+
+fn detect_line_ending(source: &str) -> LineEnding {
+    let bytes = source.as_bytes();
+    let mut index = 0;
+    while index < bytes.len() {
+        match bytes[index] {
+            b'\n' => {
+                if index > 0 && bytes[index - 1] == b'\r' {
+                    return LineEnding::CarriageReturnLineFeed;
+                }
+                return LineEnding::LineFeed;
+            }
+            b'\r' => {
+                if bytes.get(index + 1) == Some(&b'\n') {
+                    return LineEnding::CarriageReturnLineFeed;
+                }
+                return LineEnding::CarriageReturn;
+            }
+            _ => index += 1,
+        }
+    }
+    LineEnding::LineFeed
 }
 
 pub fn format_python_block(source: &str, config: &PythonFormatConfig) -> String {

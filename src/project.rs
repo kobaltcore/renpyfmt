@@ -1,5 +1,6 @@
 use crate::comments::{Comment, CommentMap, EOF_LINE};
 use crate::parser::parse_block;
+use crate::ruff_config::resolve_python_format_config;
 use crate::{
     ast::AstNode,
     formatter::{PythonFormatConfig, format_ast_with_config_owned, format_python_file},
@@ -14,26 +15,9 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use walkdir::WalkDir;
 
-use ruff_workspace::Settings;
-use ruff_workspace::configuration::Configuration;
-use ruff_workspace::pyproject::{
-    find_fallback_target_version, find_settings_toml, find_user_settings_toml,
-};
-use ruff_workspace::resolver::{
-    ConfigurationOrigin, ConfigurationTransformer, resolve_root_settings,
-};
-
 #[derive(Clone, Debug)]
 struct FormatContext {
     python_format_config: PythonFormatConfig,
-}
-
-struct NoOpTransformer;
-
-impl ConfigurationTransformer for NoOpTransformer {
-    fn transform(&self, config: Configuration) -> Configuration {
-        config
-    }
 }
 
 struct LexerContext {
@@ -593,65 +577,6 @@ fn parse_file(input_dir: &Path, input_file: &PathBuf) -> Result<()> {
     Ok(())
 }
 
-fn resolve_python_format_config(
-    input_dir: &Path,
-    ruff_config: Option<&Path>,
-) -> Result<PythonFormatConfig> {
-    let input_dir = fs::canonicalize(input_dir)
-        .with_context(|| format!("Failed to resolve input directory {}", input_dir.display()))?;
-
-    let settings = resolve_ruff_settings(&input_dir, ruff_config)?;
-
-    Ok(PythonFormatConfig::new(input_dir, settings.formatter))
-}
-
-fn resolve_ruff_settings(input_dir: &Path, ruff_config: Option<&Path>) -> Result<Settings> {
-    if let Some(ruff_config) = ruff_config {
-        let ruff_config = fs::canonicalize(ruff_config).with_context(|| {
-            format!(
-                "Failed to resolve Ruff config path {}",
-                ruff_config.display()
-            )
-        })?;
-
-        return resolve_root_settings(
-            &ruff_config,
-            &NoOpTransformer,
-            ConfigurationOrigin::UserSpecified,
-        )
-        .with_context(|| format!("Failed to load Ruff config {}", ruff_config.display()));
-    }
-
-    if let Some(ruff_config) = find_settings_toml(input_dir).with_context(|| {
-        format!(
-            "Failed to discover Ruff config from {}",
-            input_dir.display()
-        )
-    })? {
-        return resolve_root_settings(
-            &ruff_config,
-            &NoOpTransformer,
-            ConfigurationOrigin::Ancestor,
-        )
-        .with_context(|| format!("Failed to load Ruff config {}", ruff_config.display()));
-    }
-
-    if let Some(ruff_config) = find_user_settings_toml() {
-        return resolve_root_settings(
-            &ruff_config,
-            &NoOpTransformer,
-            ConfigurationOrigin::UserSettings,
-        )
-        .with_context(|| format!("Failed to load Ruff config {}", ruff_config.display()));
-    }
-
-    let mut settings = Settings::default();
-    if let Some(target_version) = find_fallback_target_version(input_dir) {
-        settings.formatter.unresolved_target_version = target_version.into();
-    }
-    Ok(settings)
-}
-
 fn format_file(
     input_dir: &Path,
     input_file: &PathBuf,
@@ -1099,6 +1024,29 @@ mod tests {
 
         let formatted = std::fs::read_to_string(&script_path).unwrap();
         assert_eq!(formatted, "python:\n    message = \"hi\"\n");
+
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn format_uses_pyproject_ruff_format_config() {
+        let root = create_temp_test_dir("ruff-pyproject-config");
+        std::fs::write(
+            root.join("pyproject.toml"),
+            "[tool.ruff.format]\nquote-style = \"single\"\n",
+        )
+        .unwrap();
+
+        let script_path = root.join("script.rpy");
+        std::fs::write(&script_path, "python:\n    message=\"hi\"\n").unwrap();
+
+        let ctx = FormatContext {
+            python_format_config: resolve_python_format_config(&root, None).unwrap(),
+        };
+        format_file(&root, &script_path, &ctx, FormatMode::Write).unwrap();
+
+        let formatted = std::fs::read_to_string(&script_path).unwrap();
+        assert_eq!(formatted, "python:\n    message = 'hi'\n");
 
         let _ = std::fs::remove_dir_all(&root);
     }
