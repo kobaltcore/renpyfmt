@@ -29,8 +29,8 @@ mod screen_language;
 mod statements_flow;
 mod statements_init;
 mod statements_media;
-mod test_language;
 mod statements_translate;
+mod test_language;
 #[cfg(test)]
 mod tests;
 
@@ -94,7 +94,7 @@ impl From<Vec<AstNode>> for ParseNodes {
 }
 
 pub fn parse_statement(lex: &mut Lexer) -> Result<ParseNodes> {
-    let parser = registry::new_parser();
+    let parser = registry::parser();
 
     with_parse_error_boundary(lex, |lex| parser.parse(lex))
 }
@@ -103,7 +103,7 @@ pub fn parse_block(lex: &mut Lexer) -> Result<Vec<AstNode>> {
 
     let mut result = vec![];
 
-    let parser = registry::new_parser();
+    let parser = registry::parser();
 
     // println!("parsing block: {:?} {} {}", lex.text, lex.pos, lex.eob);
 
@@ -1155,9 +1155,9 @@ fn parse_layered_image_property(
 
             properties.push(LayeredImageProperty {
                 name,
-                value: LayeredImagePropertyValue::Expression(
-                    parse_layered_image_when_expression(lex)?,
-                ),
+                value: LayeredImagePropertyValue::Expression(parse_layered_image_when_expression(
+                    lex,
+                )?),
             });
         }
         "at" => {
@@ -1184,9 +1184,9 @@ fn parse_layered_image_property(
                     return Err(lex.parse_error("Duplicate property: at"));
                 }
 
-                let expr = lex
-                    .simple_expression(true, true)?
-                    .ok_or_else(|| lex.parse_error("the at keyword argument was not given a value"))?;
+                let expr = lex.simple_expression(true, true)?.ok_or_else(|| {
+                    lex.parse_error("the at keyword argument was not given a value")
+                })?;
                 properties.push(LayeredImageProperty {
                     name,
                     value: LayeredImagePropertyValue::Expression(expr),
@@ -1200,9 +1200,9 @@ fn parse_layered_image_property(
 
             let value = match lex.image_name_component() {
                 Some(value) => value,
-                None => lex
-                    .simple_expression(false, true)?
-                    .ok_or_else(|| lex.parse_error(format!("the {name} keyword argument was not given a value")))?,
+                None => lex.simple_expression(false, true)?.ok_or_else(|| {
+                    lex.parse_error(format!("the {name} keyword argument was not given a value"))
+                })?,
             };
 
             properties.push(LayeredImageProperty {
@@ -1215,9 +1215,9 @@ fn parse_layered_image_property(
                 return Err(lex.parse_error(format!("Duplicate property: {name}")));
             }
 
-            let expr = lex
-                .simple_expression(true, true)?
-                .ok_or_else(|| lex.parse_error(format!("the {name} keyword argument was not given a value")))?;
+            let expr = lex.simple_expression(true, true)?.ok_or_else(|| {
+                lex.parse_error(format!("the {name} keyword argument was not given a value"))
+            })?;
             properties.push(LayeredImageProperty {
                 name,
                 value: LayeredImagePropertyValue::Expression(expr),
@@ -1247,10 +1247,7 @@ fn parse_layered_image_displayable(lex: &mut Lexer) -> Result<Option<LayeredImag
         .map(LayeredImageDisplayable::Expression))
 }
 
-fn validate_layered_image_attribute(
-    lex: &Lexer,
-    attribute: &LayeredImageAttribute,
-) -> Result<()> {
+fn validate_layered_image_attribute(lex: &Lexer, attribute: &LayeredImageAttribute) -> Result<()> {
     if attribute.displayable.is_some()
         && layered_image_has_property(&attribute.properties, "variant", |_| true)
     {
@@ -1332,6 +1329,7 @@ fn parse_menu(
     let mut has_choice = false;
 
     let mut say_ast = None;
+    let mut say_caption = None;
     let mut has_caption = false;
 
     let mut with_ = None;
@@ -1402,6 +1400,10 @@ fn parse_menu(
                 false,
             )?;
 
+            if let Some(AstNode::Say(node)) = say_ast.as_ref().and_then(|nodes| nodes.first()) {
+                say_caption = Some(node.clone());
+            }
+
             l.expect_eol()?;
             l.expect_noblock()?;
             continue;
@@ -1471,6 +1473,7 @@ fn parse_menu(
         set,
         with_,
         has_caption: say_ast.is_some() || has_caption,
+        say_caption,
         arguments,
         item_arguments,
         statement_start: None,

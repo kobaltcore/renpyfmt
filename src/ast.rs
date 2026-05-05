@@ -258,6 +258,7 @@ pub struct Menu {
     pub set: Option<String>,
     pub with_: Option<String>,
     pub has_caption: bool,
+    pub say_caption: Option<Say>,
     pub arguments: Option<ArgumentInfo>,
     pub item_arguments: Vec<Option<ArgumentInfo>>,
     pub statement_start: Option<Box<AstNode>>,

@@ -1,11 +1,9 @@
 use crate::{
-    ast::{
-        AstNode, AudioOperation, AudioTarget, ScreenStatementKind, WindowAutoKind,
-    },
+    ast::{AstNode, AudioOperation, AudioTarget, ScreenStatementKind, WindowAutoKind},
     atl::AtlStatement,
     error::{ParseError, Result},
-    testast::{TestCondition, TestNode, TestSelector, TestSuiteEntry},
     test_support::{block, parse, parse_script},
+    testast::{TestCondition, TestNode, TestSelector, TestSuiteEntry},
 };
 use std::path::PathBuf;
 
@@ -170,26 +168,24 @@ fn show_layer_statement_parses() {
 
 #[test]
 fn registered_builtin_user_statements_parse() {
-    let ast = assert_parse(parse_script(
-        concat!(
-            "play music \"theme.ogg\" fadeout 1.0 fadein 0.5 if_changed volume 0.8\n",
-            "queue music [\"a.ogg\", \"b.ogg\"] channel music_loop loop fadein 1.25\n",
-            "stop music fadeout 2.0 channel music_loop\n",
-            "play sound \"click.ogg\" channel sfx noloop volume 0.4\n",
-            "queue sound \"next.ogg\" channel sfx loop fadein 0.2\n",
-            "stop sound fadeout 0.5 channel sfx\n",
-            "play ambient \"wind.ogg\" fadein 0.1\n",
-            "queue ambient \"gust.ogg\" loop\n",
-            "stop ambient fadeout 0.75\n",
-            "pause 0.25\n",
-            "show screen preferences(page=\"audio\") nopredict with dissolve onlayer screens zorder 20 as prefs\n",
-            "call screen confirm(\"Quit?\") with dissolve\n",
-            "hide screen preferences with fade onlayer screens\n",
-            "window show Dissolve(0.2)\n",
-            "window hide\n",
-            "window auto hide Dissolve(0.3)\n",
-        ),
-    ));
+    let ast = assert_parse(parse_script(concat!(
+        "play music \"theme.ogg\" fadeout 1.0 fadein 0.5 if_changed volume 0.8\n",
+        "queue music [\"a.ogg\", \"b.ogg\"] channel music_loop loop fadein 1.25\n",
+        "stop music fadeout 2.0 channel music_loop\n",
+        "play sound \"click.ogg\" channel sfx noloop volume 0.4\n",
+        "queue sound \"next.ogg\" channel sfx loop fadein 0.2\n",
+        "stop sound fadeout 0.5 channel sfx\n",
+        "play ambient \"wind.ogg\" fadein 0.1\n",
+        "queue ambient \"gust.ogg\" loop\n",
+        "stop ambient fadeout 0.75\n",
+        "pause 0.25\n",
+        "show screen preferences(page=\"audio\") nopredict with dissolve onlayer screens zorder 20 as prefs\n",
+        "call screen confirm(\"Quit?\") with dissolve\n",
+        "hide screen preferences with fade onlayer screens\n",
+        "window show Dissolve(0.2)\n",
+        "window hide\n",
+        "window auto hide Dissolve(0.3)\n",
+    )));
 
     assert_eq!(ast.len(), 16);
     assert!(matches!(
@@ -225,17 +221,15 @@ fn registered_builtin_user_statements_parse() {
 
 #[test]
 fn registered_builtin_user_statements_parse_expression_screen_and_window_auto_variants() {
-    let ast = assert_parse(parse_script(
-        concat!(
-            "show screen expression current_screen pass (page=selected) with dissolve onlayer overlay zorder 7 as current\n",
-            "call screen expression current_screen pass (page=selected)\n",
-            "hide screen expression current_screen with fade onlayer overlay\n",
-            "window auto\n",
-            "window auto True\n",
-            "window auto show\n",
-            "window auto hide Dissolve(0.3)\n",
-        ),
-    ));
+    let ast = assert_parse(parse_script(concat!(
+        "show screen expression current_screen pass (page=selected) with dissolve onlayer overlay zorder 7 as current\n",
+        "call screen expression current_screen pass (page=selected)\n",
+        "hide screen expression current_screen with fade onlayer overlay\n",
+        "window auto\n",
+        "window auto True\n",
+        "window auto show\n",
+        "window auto hide Dissolve(0.3)\n",
+    )));
 
     assert!(matches!(
         &ast[0],
@@ -291,36 +285,20 @@ fn malformed_registered_builtin_user_statements_return_parse_errors() {
         "expected simple expression",
         1,
     );
-    assert_error(
-        parse_script("queue ambient"),
-        "queue requires a file",
-        1,
-    );
-    assert_error(
-        parse_script("stop"),
-        "stop requires a channel",
-        1,
-    );
+    assert_error(parse_script("queue ambient"), "queue requires a file", 1);
+    assert_error(parse_script("stop"), "stop requires a channel", 1);
     assert_error(
         parse_script("show screen preferences zorder"),
         "expected simple expression",
         1,
     );
-    assert_error(
-        parse_script("hide screen"),
-        "expected screen name",
-        1,
-    );
+    assert_error(parse_script("hide screen"), "expected screen name", 1);
     assert_error(
         parse_script("window auto hide extra junk"),
         "end of line expected",
         1,
     );
-    assert_error(
-        parse_script("pause 1 2"),
-        "end of line expected",
-        1,
-    );
+    assert_error(parse_script("pause 1 2"), "end of line expected", 1);
 }
 
 #[test]
@@ -383,19 +361,23 @@ fn layeredimage_statement_parses() {
         "layeredimage eileen happy:",
         vec![
             block(2, "offer_screen False", vec![]),
-            block(3, "attribute body default:", vec![block(4, "\"body.png\"", vec![])]),
+            block(
+                3,
+                "attribute body default:",
+                vec![block(4, "\"body.png\"", vec![])],
+            ),
             block(
                 5,
                 "group face auto:",
                 vec![block(6, "attribute smile", vec![])],
             ),
-            block(
-                7,
-                "if wearing_hat:",
-                vec![block(8, "\"hat.png\"", vec![])],
-            ),
+            block(7, "if wearing_hat:", vec![block(8, "\"hat.png\"", vec![])]),
             block(9, "elif True:", vec![block(10, "null", vec![])]),
-            block(11, "always:", vec![block(12, "image:", vec![block(13, "pass", vec![])])]),
+            block(
+                11,
+                "always:",
+                vec![block(12, "image:", vec![block(13, "pass", vec![])])],
+            ),
         ],
     )]));
 
@@ -407,7 +389,10 @@ fn layeredimage_statement_parses() {
     let AstNode::LayeredImage(layered) = &init.block[0] else {
         panic!("expected layeredimage child");
     };
-    assert_eq!(layered.name, vec!["eileen".to_string(), "happy".to_string()]);
+    assert_eq!(
+        layered.name,
+        vec!["eileen".to_string(), "happy".to_string()]
+    );
     assert_eq!(layered.children.len(), 4);
 }
 
@@ -417,7 +402,11 @@ fn layeredimage_attribute_rejects_variant_with_displayable() {
         parse(vec![block(
             1,
             "layeredimage eileen:",
-            vec![block(2, "attribute happy variant alt \"happy.png\"", vec![])],
+            vec![block(
+                2,
+                "attribute happy variant alt \"happy.png\"",
+                vec![],
+            )],
         )]),
         "Attribute \"happy\" cannot have a variant if it is provided a displayable.",
         2,
@@ -475,7 +464,10 @@ fn screen_with_basic_pass_parses() {
         panic!("expected screen node");
     };
     assert_eq!(screen.screen.name, "simple");
-    assert!(matches!(&screen.screen.children[0], crate::slast::Node::Pass(_)));
+    assert!(matches!(
+        &screen.screen.children[0],
+        crate::slast::Node::Pass(_)
+    ));
 }
 
 #[test]
@@ -516,75 +508,83 @@ fn screen_displayables_and_use_parse() {
 
 #[test]
 fn screen_if_showif_and_for_parse() {
-    let ast = assert_parse(parse_script(
-        concat!(
-            "screen complex(slots):\n",
-            "    if persistent.foo:\n",
-            "        text \"yes\"\n",
-            "    elif persistent.bar:\n",
-            "        text \"maybe\"\n",
-            "    else:\n",
-            "        pass\n",
-            "    showif visible:\n",
-            "        text \"shown\"\n",
-            "    for slot index i in slots:\n",
-            "        if slot.hidden:\n",
-            "            continue\n",
-            "        text slot.name\n",
-        ),
-    ));
+    let ast = assert_parse(parse_script(concat!(
+        "screen complex(slots):\n",
+        "    if persistent.foo:\n",
+        "        text \"yes\"\n",
+        "    elif persistent.bar:\n",
+        "        text \"maybe\"\n",
+        "    else:\n",
+        "        pass\n",
+        "    showif visible:\n",
+        "        text \"shown\"\n",
+        "    for slot index i in slots:\n",
+        "        if slot.hidden:\n",
+        "            continue\n",
+        "        text slot.name\n",
+    )));
 
     let AstNode::Screen(screen) = &ast[0] else {
         panic!("expected screen node");
     };
-    assert!(matches!(&screen.screen.children[0], crate::slast::Node::If(node) if node.entries.len() == 3));
-    assert!(matches!(&screen.screen.children[1], crate::slast::Node::ShowIf(node) if node.entries.len() == 1));
-    assert!(matches!(&screen.screen.children[2], crate::slast::Node::For(node) if node.index_expression.as_deref() == Some("i")));
+    assert!(
+        matches!(&screen.screen.children[0], crate::slast::Node::If(node) if node.entries.len() == 3)
+    );
+    assert!(
+        matches!(&screen.screen.children[1], crate::slast::Node::ShowIf(node) if node.entries.len() == 1)
+    );
+    assert!(
+        matches!(&screen.screen.children[2], crate::slast::Node::For(node) if node.index_expression.as_deref() == Some("i"))
+    );
 }
 
 #[test]
 fn screen_python_default_transclude_and_at_transform_parse() {
-    let ast = assert_parse(parse_script(
-        concat!(
-            "screen tools(default_name):\n",
-            "    default current = default_name\n",
-            "    $ current = current.upper()\n",
-            "    python:\n",
-            "        current = current.lower()\n",
-            "    use panel:\n",
-            "        transclude\n",
-            "    text current:\n",
-            "        at transform:\n",
-            "            linear 1.0 alpha 1.0\n",
-        ),
-    ));
+    let ast = assert_parse(parse_script(concat!(
+        "screen tools(default_name):\n",
+        "    default current = default_name\n",
+        "    $ current = current.upper()\n",
+        "    python:\n",
+        "        current = current.lower()\n",
+        "    use panel:\n",
+        "        transclude\n",
+        "    text current:\n",
+        "        at transform:\n",
+        "            linear 1.0 alpha 1.0\n",
+    )));
 
     let AstNode::Screen(screen) = &ast[0] else {
         panic!("expected screen node");
     };
-    assert!(matches!(&screen.screen.children[0], crate::slast::Node::Default(_)));
+    assert!(matches!(
+        &screen.screen.children[0],
+        crate::slast::Node::Default(_)
+    ));
     assert!(matches!(&screen.screen.children[1], crate::slast::Node::Python(node) if !node.block));
     assert!(matches!(&screen.screen.children[2], crate::slast::Node::Python(node) if node.block));
-    assert!(matches!(&screen.screen.children[3], crate::slast::Node::Use(_)));
-    assert!(matches!(&screen.screen.children[4], crate::slast::Node::Displayable(node) if node.atl_transform.is_some()));
+    assert!(matches!(
+        &screen.screen.children[3],
+        crate::slast::Node::Use(_)
+    ));
+    assert!(
+        matches!(&screen.screen.children[4], crate::slast::Node::Displayable(node) if node.atl_transform.is_some())
+    );
 }
 
 #[test]
 fn screen_window_properties_with_commas_and_add_parse() {
-    let ast = assert_parse(parse_script(
-        concat!(
-            "screen physics_quiz():\n",
-            "    window:\n",
-            "        pos (int(1280 / 2), int(88 / 2))\n",
-            "        anchor (0.5, 0.5)\n",
-            "        xmargin 24\n",
-            "        ymargin 16\n",
-            "        yminimum 0\n",
-            "        ymaximum 88\n",
-            "        at quizshow_show_hide\n",
-            "        add LiveMarquee(Text(u\"Speed of an Egg\", slow=True, style='quizshow')) crop 0, 0, 900, 58 xoffset -10\n",
-        ),
-    ));
+    let ast = assert_parse(parse_script(concat!(
+        "screen physics_quiz():\n",
+        "    window:\n",
+        "        pos (int(1280 / 2), int(88 / 2))\n",
+        "        anchor (0.5, 0.5)\n",
+        "        xmargin 24\n",
+        "        ymargin 16\n",
+        "        yminimum 0\n",
+        "        ymaximum 88\n",
+        "        at quizshow_show_hide\n",
+        "        add LiveMarquee(Text(u\"Speed of an Egg\", slow=True, style='quizshow')) crop 0, 0, 900, 58 xoffset -10\n",
+    )));
 
     let AstNode::Screen(screen) = &ast[0] else {
         panic!("expected screen node");
@@ -593,26 +593,37 @@ fn screen_window_properties_with_commas_and_add_parse() {
         panic!("expected window displayable");
     };
     assert_eq!(window.properties[0].0, "pos");
-    assert!(window.properties.iter().any(|(name, expr)| name == "at" && expr == "quizshow_show_hide"));
+    assert!(
+        window
+            .properties
+            .iter()
+            .any(|(name, expr)| name == "at" && expr == "quizshow_show_hide")
+    );
     let crate::slast::Node::Displayable(add) = &window.children[0] else {
         panic!("expected add displayable");
     };
-    assert!(add.properties.iter().any(|(name, expr)| name == "crop" && expr == "0, 0, 900, 58"));
-    assert!(add.properties.iter().any(|(name, expr)| name == "xoffset" && expr == "-10"));
+    assert!(
+        add.properties
+            .iter()
+            .any(|(name, expr)| name == "crop" && expr == "0, 0, 900, 58")
+    );
+    assert!(
+        add.properties
+            .iter()
+            .any(|(name, expr)| name == "xoffset" && expr == "-10")
+    );
 }
 
 #[test]
 fn screen_icon_and_iconbutton_parse() {
-    let ast = assert_parse(parse_script(
-        concat!(
-            "screen toolbar():\n",
-            "    icon \"save\" color \"#fff\"\n",
-            "    iconbutton \"prefs\":\n",
-            "        caption _(\"Preferences\")\n",
-            "        action ShowMenu(\"preferences\")\n",
-            "        icon_color \"#8cf\"\n",
-        ),
-    ));
+    let ast = assert_parse(parse_script(concat!(
+        "screen toolbar():\n",
+        "    icon \"save\" color \"#fff\"\n",
+        "    iconbutton \"prefs\":\n",
+        "        caption _(\"Preferences\")\n",
+        "        action ShowMenu(\"preferences\")\n",
+        "        icon_color \"#8cf\"\n",
+    )));
 
     let AstNode::Screen(screen) = &ast[0] else {
         panic!("expected screen node");
@@ -623,24 +634,41 @@ fn screen_icon_and_iconbutton_parse() {
     };
     assert_eq!(icon.name, "icon");
     assert_eq!(icon.positional, vec!["\"save\"".to_string()]);
-    assert!(icon.properties.iter().any(|(name, expr)| name == "color" && expr == "\"#fff\""));
+    assert!(
+        icon.properties
+            .iter()
+            .any(|(name, expr)| name == "color" && expr == "\"#fff\"")
+    );
 
     let crate::slast::Node::Displayable(iconbutton) = &screen.screen.children[1] else {
         panic!("expected iconbutton displayable");
     };
     assert_eq!(iconbutton.name, "iconbutton");
     assert_eq!(iconbutton.positional, vec!["\"prefs\"".to_string()]);
-    assert!(iconbutton.properties.iter().any(|(name, expr)| name == "caption" && expr == "_(\"Preferences\")"));
-    assert!(iconbutton.properties.iter().any(|(name, expr)| name == "action" && expr == "ShowMenu(\"preferences\")"));
-    assert!(iconbutton.properties.iter().any(|(name, expr)| name == "icon_color" && expr == "\"#8cf\""));
+    assert!(
+        iconbutton
+            .properties
+            .iter()
+            .any(|(name, expr)| name == "caption" && expr == "_(\"Preferences\")")
+    );
+    assert!(
+        iconbutton
+            .properties
+            .iter()
+            .any(|(name, expr)| name == "action" && expr == "ShowMenu(\"preferences\")")
+    );
+    assert!(
+        iconbutton
+            .properties
+            .iter()
+            .any(|(name, expr)| name == "icon_color" && expr == "\"#8cf\"")
+    );
 }
 
 #[test]
 fn screen_duplicate_property_returns_parse_error() {
     assert_error_contains(
-        parse_script(
-            "screen dupes:\n    text \"Hello\" xalign 0.0 xalign 1.0",
-        ),
+        parse_script("screen dupes:\n    text \"Hello\" xalign 0.0 xalign 1.0"),
         "appears more than once",
         2,
     );
@@ -649,9 +677,7 @@ fn screen_duplicate_property_returns_parse_error() {
 #[test]
 fn screen_unknown_child_returns_parse_error() {
     assert_error_contains(
-        parse_script(
-            "screen odd:\n    mystery_widget:",
-        ),
+        parse_script("screen odd:\n    mystery_widget:"),
         "not a valid child statement",
         2,
     );
@@ -688,7 +714,10 @@ fn testcase_parses_structured_body_and_properties() {
     };
 
     assert_eq!(node.test.name, "foo.bar");
-    assert_eq!(node.test.properties.description.as_deref(), Some("\"desc\""));
+    assert_eq!(
+        node.test.properties.description.as_deref(),
+        Some("\"desc\"")
+    );
     assert_eq!(node.test.properties.enabled.as_deref(), Some("flag"));
     assert_eq!(node.test.properties.parameters.len(), 1);
     assert_eq!(node.test.properties.parameters[0].names, vec!["x", "y"]);
@@ -741,9 +770,7 @@ fn testsuite_parses_hooks_and_nested_children() {
 #[test]
 fn testcase_rejects_property_after_statement() {
     assert_error_contains(
-        parse_script(
-            "testcase foo.bar:\n    pass\n    enabled flag",
-        ),
+        parse_script("testcase foo.bar:\n    pass\n    enabled flag"),
         "Property enabled must be defined before any test statements.",
         3,
     );
@@ -752,9 +779,7 @@ fn testcase_rejects_property_after_statement() {
 #[test]
 fn testsuite_rejects_duplicate_hook() {
     assert_error_contains(
-        parse_script(
-            "testsuite foo.bar:\n    setup:\n        pass\n    setup:\n        pass",
-        ),
+        parse_script("testsuite foo.bar:\n    setup:\n        pass\n    setup:\n        pass"),
         "Only one 'setup' block is allowed in a testsuite.",
         4,
     );
@@ -763,9 +788,7 @@ fn testsuite_rejects_duplicate_hook() {
 #[test]
 fn testsuite_rejects_invalid_before_clause() {
     assert_error_contains(
-        parse_script(
-            "testsuite foo.bar:\n    before something:\n        pass",
-        ),
+        parse_script("testsuite foo.bar:\n    before something:\n        pass"),
         "Expected 'before testsuite' or 'before testcase'.",
         2,
     );
@@ -774,9 +797,7 @@ fn testsuite_rejects_invalid_before_clause() {
 #[test]
 fn testcase_rejects_nested_testcase_in_block() {
     assert_error_contains(
-        parse_script(
-            "testcase foo.bar:\n    testcase inner:\n        pass",
-        ),
+        parse_script("testcase foo.bar:\n    testcase inner:\n        pass"),
         "may not be nested inside a block",
         2,
     );
@@ -854,9 +875,7 @@ testcase foo.bar:
 #[test]
 fn selector_rejects_two_text_patterns() {
     assert_error_contains(
-        parse_script(
-            "testcase foo.bar:\n    click \"One\" \"Two\"",
-        ),
+        parse_script("testcase foo.bar:\n    click \"One\" \"Two\""),
         "Only one text pattern may be specified in a selector.",
         2,
     );
@@ -865,9 +884,7 @@ fn selector_rejects_two_text_patterns() {
 #[test]
 fn selector_rejects_text_with_screen() {
     assert_error_contains(
-        parse_script(
-            "testcase foo.bar:\n    click \"One\" screen \"menu\"",
-        ),
+        parse_script("testcase foo.bar:\n    click \"One\" screen \"menu\""),
         "may not be specified with a screen or id",
         2,
     );
@@ -876,9 +893,7 @@ fn selector_rejects_text_with_screen() {
 #[test]
 fn parameter_rejects_duplicate_names() {
     assert_error_contains(
-        parse_script(
-            "testcase foo.bar:\n    parameter (x, x) = [(1, 2)]",
-        ),
+        parse_script("testcase foo.bar:\n    parameter (x, x) = [(1, 2)]"),
         "must be unique",
         2,
     );
@@ -887,9 +902,7 @@ fn parameter_rejects_duplicate_names() {
 #[test]
 fn parameter_rejects_empty_tuple() {
     assert_error_contains(
-        parse_script(
-            "testcase foo.bar:\n    parameter () = []",
-        ),
+        parse_script("testcase foo.bar:\n    parameter () = []"),
         "Expected at least one name",
         2,
     );

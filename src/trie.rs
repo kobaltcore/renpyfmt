@@ -7,8 +7,8 @@ use crate::{
 use std::collections::HashMap;
 
 pub struct ParseTrie {
-    default: Option<Box<dyn Parser>>,
-    words: HashMap<String, ParseTrie>,
+    default: Option<Box<dyn Parser + Send + Sync>>,
+    words: HashMap<&'static str, ParseTrie>,
 }
 
 impl ParseTrie {
@@ -21,18 +21,12 @@ impl ParseTrie {
         parser
     }
 
-    pub fn add(&mut self, name: Vec<String>, parser: Box<dyn Parser>) {
-        if name.len() > 0 {
-            let first = name.first().unwrap();
-            let rest = name[1..].into();
-
-            if !self.words.contains_key(first) {
-                self.words.insert(first.clone(), ParseTrie::new());
-            }
-
-            self.words.entry(first.clone()).and_modify(|e| {
-                e.add(rest, parser);
-            });
+    pub fn add(&mut self, name: &[&'static str], parser: Box<dyn Parser + Send + Sync>) {
+        if let Some((first, rest)) = name.split_first() {
+            self.words
+                .entry(first)
+                .or_insert_with(ParseTrie::new)
+                .add(rest, parser);
         } else {
             self.default = Some(parser);
         }
@@ -45,30 +39,28 @@ impl ParseTrie {
 
         let word = match match lex.word() {
             Some(word) => Some(word),
-            None => lex.rmatch(r"\$".into()),
+            None => lex.rmatch_literal("$"),
         } {
             Some(word) => Some(word),
             None => Some("".into()),
         };
 
-        if word.is_none() || !self.words.contains_key(&word.clone().unwrap()) {
+        let Some(word) = word else {
             lex.pos = old_pos;
-            match self.default.as_ref() {
-                Some(parse_cmd) => {
-                    return parse_cmd.parse(lex, loc);
-                }
-                None => {
-                    return Say::default().parse(lex, loc);
-                    // panic!("unexpected word: {}", word.unwrap());
-                    // lex.advance();
-                    // return Ok(vec![]);
-                }
+            return match self.default.as_ref() {
+                Some(parse_cmd) => parse_cmd.parse(lex, loc),
+                None => Say::default().parse(lex, loc),
             };
+        };
+
+        if let Some(trie) = self.words.get(word.as_str()) {
+            return trie.parse(lex);
         }
 
-        // println!("match, parsing");
-
-        let trie = self.words.get(&word.unwrap()).unwrap();
-        return trie.parse(lex);
+        lex.pos = old_pos;
+        match self.default.as_ref() {
+            Some(parse_cmd) => parse_cmd.parse(lex, loc),
+            None => Say::default().parse(lex, loc),
+        }
     }
 }

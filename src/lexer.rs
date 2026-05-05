@@ -1,6 +1,6 @@
 use crate::error::{ParseError, Result};
 use lazy_static::lazy_static;
-use std::{collections::HashSet, path::PathBuf};
+use std::path::PathBuf;
 
 use regex::{Regex, RegexBuilder};
 
@@ -23,10 +23,6 @@ pub struct Block {
 #[derive(Debug, Clone)]
 pub struct LexerState {
     line: Option<usize>,
-    filename: PathBuf,
-    number: usize,
-    text: String,
-    subblock: Vec<Block>,
     pos: usize,
 }
 
@@ -48,7 +44,6 @@ pub struct Lexer {
     pub word_cache_pos: Option<usize>,
     pub word_cache_newpos: Option<usize>,
     pub word_cache: String,
-    pub keywords: HashSet<String>,
 }
 
 pub enum LexerTypeOptions {
@@ -113,8 +108,6 @@ pub enum RegexType {
     Simple(String),
     /// Will be parsed into a Regex
     String(String),
-    /// Will be matched as-is
-    Regex(Regex),
     GlobalRegex(GlobalRegex),
 }
 
@@ -130,9 +123,73 @@ impl Into<RegexType> for &str {
     }
 }
 
-impl Into<RegexType> for Regex {
-    fn into(self) -> RegexType {
-        RegexType::Regex(self)
+fn is_keyword(word: &str) -> bool {
+    matches!(
+        word,
+        "$" | "as"
+            | "at"
+            | "behind"
+            | "call"
+            | "expression"
+            | "hide"
+            | "if"
+            | "in"
+            | "image"
+            | "init"
+            | "jump"
+            | "menu"
+            | "onlayer"
+            | "python"
+            | "return"
+            | "scene"
+            | "show"
+            | "transform"
+            | "while"
+            | "with"
+            | "zorder"
+    )
+}
+
+fn literal_pattern(pattern: &str) -> Option<&'static str> {
+    match pattern {
+        r"\(" => Some("("),
+        r"\)" => Some(")"),
+        r"\*" => Some("*"),
+        r"\*\*" => Some("**"),
+        r"\$" => Some("$"),
+        r"\." => Some("."),
+        r"\[" => Some("["),
+        r"\+=" => Some("+="),
+        r"\|=" => Some("|="),
+        r"\@" => Some("@"),
+        r"/\*" => Some("/*"),
+        "=" => Some("="),
+        "," => Some(","),
+        ":" => Some(":"),
+        "-" => Some("-"),
+        "/" => Some("/"),
+        "3" => Some("3"),
+        _ => None,
+    }
+}
+
+fn global_regex(regex: GlobalRegex) -> &'static Regex {
+    match regex {
+        GlobalRegex::Operator => &RE_OPERATOR,
+        GlobalRegex::Word => &RE_WORD,
+        GlobalRegex::Whitespace => &RE_WHITESPACE,
+        GlobalRegex::StringDouble => &RE_STRING_DOUBLE,
+        GlobalRegex::StringSingle => &RE_STRING_SINGLE,
+        GlobalRegex::StringBack => &RE_STRING_BACK,
+        GlobalRegex::StringTripleDouble => &RE_STRING_TRIPLE_DOUBLE,
+        GlobalRegex::StringTripleSingle => &RE_STRING_TRIPLE_SINGLE,
+        GlobalRegex::StringTripleBack => &RE_STRING_TRIPLE_BACK,
+        GlobalRegex::ImageName => &RE_IMAGE_NAME,
+        GlobalRegex::Float => &RE_FLOAT,
+        GlobalRegex::Integer => &RE_INTEGER,
+        GlobalRegex::PythonString => &RE_PYTHON_STRING,
+        GlobalRegex::StringNewLineReplace => &RE_STRING_NEWLINE_REPLACE,
+        GlobalRegex::PythonStringInternal1 => &RE_PYTHON_STRING_INTERNAL_1,
     }
 }
 
@@ -156,30 +213,6 @@ impl Lexer {
             word_cache_pos: None,
             word_cache_newpos: None,
             word_cache: "".into(),
-            keywords: HashSet::from_iter(vec![
-                "$".into(),
-                "as".into(),
-                "at".into(),
-                "behind".into(),
-                "call".into(),
-                "expression".into(),
-                "hide".into(),
-                "if".into(),
-                "in".into(),
-                "image".into(),
-                "init".into(),
-                "jump".into(),
-                "menu".into(),
-                "onlayer".into(),
-                "python".into(),
-                "return".into(),
-                "scene".into(),
-                "show".into(),
-                "with".into(),
-                "while".into(),
-                "zorder".into(),
-                "transform".into(),
-            ]),
         }
     }
 
@@ -220,11 +253,7 @@ impl Lexer {
             return false;
         }
 
-        let block = self.block[self.line.unwrap()].clone();
-        self.filename = block.filename;
-        self.number = block.number;
-        self.text = block.text;
-        self.subblock = block.block;
+        self.restore_line_state(self.line.unwrap());
 
         self.pos = 0;
         self.word_cache_pos = None;
@@ -236,14 +265,18 @@ impl Lexer {
         self.line = Some(self.line.unwrap() - 1);
         self.eob = false;
 
-        let block = self.block[self.line.unwrap()].clone();
-        self.filename = block.filename;
-        self.number = block.number;
-        self.text = block.text;
-        self.subblock = block.block;
+        self.restore_line_state(self.line.unwrap());
 
         self.pos = self.text.len();
         self.word_cache_pos = None;
+    }
+
+    fn restore_line_state(&mut self, line: usize) {
+        let block = &self.block[line];
+        self.filename = block.filename.clone();
+        self.number = block.number;
+        self.text = block.text.clone();
+        self.subblock = block.block.clone();
     }
 
     pub fn match_regexp(&mut self, regexp: RegexType) -> Option<String> {
@@ -260,46 +293,38 @@ impl Lexer {
             RegexType::Simple(s) => {
                 if substr.starts_with(&s) {
                     self.pos += s.len();
-                    return Some(s.clone());
+                    return Some(s);
                 }
                 return None;
             }
-            RegexType::String(s) => RegexBuilder::new(&format!("^{s}"))
-                .dot_matches_new_line(true)
-                .build()
-                .unwrap(),
-            RegexType::Regex(r) => r.clone(),
-            RegexType::GlobalRegex(r) => match r {
-                GlobalRegex::Operator => RE_OPERATOR.clone(),
-                GlobalRegex::Word => RE_WORD.clone(),
-                GlobalRegex::Whitespace => RE_WHITESPACE.clone(),
-                GlobalRegex::StringDouble => RE_STRING_DOUBLE.clone(),
-                GlobalRegex::StringSingle => RE_STRING_SINGLE.clone(),
-                GlobalRegex::StringBack => RE_STRING_BACK.clone(),
-                GlobalRegex::StringTripleDouble => RE_STRING_TRIPLE_DOUBLE.clone(),
-                GlobalRegex::StringTripleSingle => RE_STRING_TRIPLE_SINGLE.clone(),
-                GlobalRegex::StringTripleBack => RE_STRING_TRIPLE_BACK.clone(),
-                GlobalRegex::ImageName => RE_IMAGE_NAME.clone(),
-                GlobalRegex::Float => RE_FLOAT.clone(),
-                GlobalRegex::PythonString => RE_PYTHON_STRING.clone(),
-                GlobalRegex::StringNewLineReplace => RE_STRING_NEWLINE_REPLACE.clone(),
-                GlobalRegex::PythonStringInternal1 => RE_PYTHON_STRING_INTERNAL_1.clone(),
-                GlobalRegex::Integer => RE_INTEGER.clone(),
-            },
+            RegexType::String(s) => {
+                if let Some(literal) = literal_pattern(&s) {
+                    if substr.starts_with(literal) {
+                        self.pos += literal.len();
+                        return Some(literal.to_string());
+                    }
+                    return None;
+                }
+
+                return RegexBuilder::new(&format!("^{s}"))
+                    .dot_matches_new_line(true)
+                    .build()
+                    .unwrap()
+                    .find(substr)
+                    .filter(|m| m.end() > 0)
+                    .map(|m| {
+                        self.pos += m.end();
+                        m.as_str().to_string()
+                    });
+            }
+            RegexType::GlobalRegex(r) => global_regex(r),
         };
-        // println!("matching '{}' against '{}'", substr, regexp);
+
         if let Some(m) = pattern.find(substr) {
             if m.end() == 0 {
                 return None;
             }
             self.pos += m.end();
-            // println!(
-            //     "matched: '{}' from {} to {} | new substring: '{}'",
-            //     m.as_str(),
-            //     m.start(),
-            //     m.end(),
-            //     self.text[self.pos..].chars().collect::<String>()
-            // );
             return Some(m.as_str().into());
         }
 
@@ -315,10 +340,18 @@ impl Lexer {
         self.match_regexp(regexp)
     }
 
+    pub fn match_literal(&mut self, literal: &'static str) -> Option<String> {
+        self.match_regexp(RegexType::Simple(literal.into()))
+    }
+
+    pub fn rmatch_literal(&mut self, literal: &'static str) -> Option<String> {
+        self.skip_whitespace();
+        self.match_literal(literal)
+    }
+
     pub fn keyword(&mut self, word: String) -> Option<String> {
         let oldpos = self.pos;
-        if self.word() == Some(word.clone()) {
-            // println!("keyword: {:?}", word);
+        if self.word().as_deref() == Some(word.as_str()) {
             return Some(word);
         }
 
@@ -578,7 +611,7 @@ impl Lexer {
                     return None;
                 }
 
-                if self.keywords.contains(&rv) {
+                if is_keyword(&rv) {
                     self.pos = old_pos;
                     return None;
                 }
@@ -830,10 +863,6 @@ impl Lexer {
     pub fn checkpoint(&mut self) -> LexerState {
         LexerState {
             line: self.line,
-            filename: self.filename.clone(),
-            number: self.number,
-            text: self.text.clone(),
-            subblock: self.subblock.clone(),
             pos: self.pos,
         }
     }
@@ -849,7 +878,7 @@ impl Lexer {
             }
         }
 
-        if rv.is_some() && self.keywords.contains(rv.as_ref().unwrap()) {
+        if rv.as_deref().is_some_and(is_keyword) {
             self.pos = oldpos;
             return None;
         }
@@ -859,18 +888,23 @@ impl Lexer {
 
     pub fn revert(&mut self, state: LexerState) {
         self.line = state.line;
-        self.filename = state.filename;
-        self.number = state.number;
-        self.text = state.text;
-        self.subblock = state.subblock;
         self.pos = state.pos;
 
         self.word_cache_pos = None;
 
-        if self.line < Some(self.block.len()) {
-            self.eob = false;
+        if let Some(line) = self.line {
+            if line < self.block.len() {
+                self.restore_line_state(line);
+                self.eob = false;
+            } else {
+                self.eob = true;
+            }
         } else {
-            self.eob = true;
+            self.filename.clear();
+            self.number = 0;
+            self.text.clear();
+            self.subblock.clear();
+            self.eob = false;
         }
     }
 
@@ -956,7 +990,7 @@ impl Lexer {
 
         let mut line = self.number;
 
-        process(&mut rv, &mut line, self.subblock.clone(), "".into());
+        process(&mut rv, &mut line, &self.subblock, "");
 
         if rv.len() == 0 {
             return None;
@@ -966,11 +1000,15 @@ impl Lexer {
     }
 }
 
-fn process(rv: &mut Vec<String>, line: &mut usize, blocks: Vec<Block>, indent: String) {
+fn process(rv: &mut Vec<String>, line: &mut usize, blocks: &[Block], indent: &str) {
+    let mut next_indent = String::with_capacity(indent.len() + 4);
+    next_indent.push_str(indent);
+    next_indent.push_str("    ");
+
     for b in blocks {
         let ln = b.number;
-        let text = b.text;
-        let subblock = b.block;
+        let text = &b.text;
+        let subblock = &b.block;
 
         while *line < ln {
             rv.push(format!("{indent}\n"));
@@ -982,7 +1020,7 @@ fn process(rv: &mut Vec<String>, line: &mut usize, blocks: Vec<Block>, indent: S
         rv.push(linetext.clone());
         *line += linetext.matches("\n").count();
 
-        process(rv, line, subblock, format!("{indent}    "));
+        process(rv, line, subblock, &next_indent);
     }
 }
 

@@ -51,6 +51,25 @@ fn formats_if_elif_else_blocks() {
 }
 
 #[test]
+fn formats_if_with_trailing_elif_without_else() {
+    assert_formats(
+        concat!(
+            "if flag:\n",
+            "    \"yes\"\n",
+            "elif other:\n",
+            "    jump other_label"
+        ),
+        concat!(
+            "if flag:\n",
+            "    \"yes\"\n",
+            "\n",
+            "elif other:\n",
+            "    jump other_label"
+        ),
+    );
+}
+
+#[test]
 fn formats_menu_with_caption_and_condition() {
     assert_formats(
         concat!(
@@ -63,6 +82,24 @@ fn formats_menu_with_caption_and_condition() {
             "menu:\n",
             "    \"Caption\"\n",
             "    \"Choice\" if seen:\n",
+            "        jump next"
+        ),
+    );
+}
+
+#[test]
+fn formats_menu_with_say_caption() {
+    assert_formats(
+        concat!(
+            "menu:\n",
+            "    think \"I'll give them something to really talk about.\" nointeract\n",
+            "    \"I decided to keep it simple. A direct proof of my magic.\":\n",
+            "        jump next"
+        ),
+        concat!(
+            "menu:\n",
+            "    think \"I'll give them something to really talk about.\" nointeract\n",
+            "    \"I decided to keep it simple. A direct proof of my magic.\":\n",
             "        jump next"
         ),
     );

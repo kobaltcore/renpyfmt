@@ -193,13 +193,16 @@ fn parse_testsuite_entries(lex: &mut Lexer) -> Result<(Vec<TestSuiteEntry>, Test
             entries.push(TestSuiteEntry::Hook(hook));
         } else if lex.keyword("testcase".into()).is_some() {
             let parsed = parse_testcase_statement(lex, line_loc)?.into_vec();
-            let AstNode::Testcase(node) = parsed.into_iter().next().expect("single testcase node") else {
+            let AstNode::Testcase(node) = parsed.into_iter().next().expect("single testcase node")
+            else {
                 unreachable!();
             };
             entries.push(TestSuiteEntry::TestCase(node.test));
         } else if lex.keyword("testsuite".into()).is_some() {
             let parsed = parse_testsuite_statement(lex, line_loc)?.into_vec();
-            let AstNode::Testsuite(node) = parsed.into_iter().next().expect("single testsuite node") else {
+            let AstNode::Testsuite(node) =
+                parsed.into_iter().next().expect("single testsuite node")
+            else {
                 unreachable!();
             };
             entries.push(TestSuiteEntry::TestSuite(node.suite));
@@ -343,7 +346,9 @@ fn try_parse_test_property(
         }
         "parameter" => {
             if statements_started {
-                return Err(lex.parse_error("Property parameter must be defined before any test statements."));
+                return Err(lex.parse_error(
+                    "Property parameter must be defined before any test statements.",
+                ));
             }
             let parameter_loc = lex.get_location();
             let parameter = parse_parameter(lex, parameter_loc)?;
@@ -430,9 +435,7 @@ fn parse_parameter(lex: &mut Lexer, loc: testast::Loc) -> Result<TestParameter> 
     unique.sort();
     unique.dedup();
     if unique.len() != names.len() {
-        return Err(
-            lex.parse_error("Parameter names in a parameter statement must be unique.")
-        );
+        return Err(lex.parse_error("Parameter names in a parameter statement must be unique."));
     }
 
     lex.require_or_error(LexerType::String("=".into()), "expected '='")?;
@@ -742,7 +745,10 @@ fn parse_run_statement(lex: &mut Lexer, loc: testast::Loc) -> Result<TestNode> {
     let expr = lex
         .simple_expression(false, true)?
         .ok_or_else(|| lex.parse_error("expected action expression"))?;
-    let mut node = TestNode::Run(TestRun { loc: loc.clone(), expr });
+    let mut node = TestNode::Run(TestRun {
+        loc: loc.clone(),
+        expr,
+    });
     if let Some(wrapped) = parse_until_or_repeat(lex, loc.clone(), node.clone())? {
         node = wrapped;
     }
@@ -965,7 +971,9 @@ fn parse_selector(lex: &mut Lexer, loc: testast::Loc) -> Result<Option<TestSelec
         } else if lex.keyword("expression".into()).is_some() {
             expression = true;
             if pattern.is_some() {
-                return Err(lex.parse_error("Only one text pattern may be specified in a selector."));
+                return Err(
+                    lex.parse_error("Only one text pattern may be specified in a selector.")
+                );
             }
             pattern = Some(
                 lex.simple_expression(false, false)?
@@ -975,7 +983,9 @@ fn parse_selector(lex: &mut Lexer, loc: testast::Loc) -> Result<Option<TestSelec
             raw = true;
         } else if let Some(text) = lex.string() {
             if pattern.is_some() {
-                return Err(lex.parse_error("Only one text pattern may be specified in a selector."));
+                return Err(
+                    lex.parse_error("Only one text pattern may be specified in a selector.")
+                );
             }
             pattern = Some(text);
         } else {
@@ -989,9 +999,7 @@ fn parse_selector(lex: &mut Lexer, loc: testast::Loc) -> Result<Option<TestSelec
     }
 
     if pattern.is_some() && (screen.is_some() || id.is_some()) {
-        return Err(lex.parse_error(
-            "A text pattern may not be specified with a screen or id.",
-        ));
+        return Err(lex.parse_error("A text pattern may not be specified with a screen or id."));
     }
 
     if let Some(pattern) = pattern {
@@ -1025,7 +1033,8 @@ fn parse_condition(
             right: Box::new(right),
         })
     } else if lex.keyword("and".into()).is_some() {
-        let left = left.ok_or_else(|| lex.parse_error("Expected a left-hand side for \"and\" condition."))?;
+        let left = left
+            .ok_or_else(|| lex.parse_error("Expected a left-hand side for \"and\" condition."))?;
         let right = parse_condition(lex, loc.clone(), None)?;
         Ok(TestCondition::And {
             loc,
@@ -1033,7 +1042,8 @@ fn parse_condition(
             right: Box::new(right),
         })
     } else if lex.keyword("or".into()).is_some() {
-        let left = left.ok_or_else(|| lex.parse_error("Expected a left-hand side for \"or\" condition."))?;
+        let left =
+            left.ok_or_else(|| lex.parse_error("Expected a left-hand side for \"or\" condition."))?;
         let right = parse_condition(lex, loc.clone(), None)?;
         Ok(TestCondition::Or {
             loc,

@@ -20,6 +20,7 @@ enum NodeKind {
 pub(crate) struct Formatter {
     out: String,
     indent: usize,
+    indent_text: String,
     pub(crate) mode: Mode,
     at_line_start: bool,
     previous_node_kind: Option<NodeKind>,
@@ -36,6 +37,7 @@ impl Formatter {
         Self {
             out: String::new(),
             indent: 0,
+            indent_text: String::new(),
             mode: Mode::Script,
             at_line_start: true,
             previous_node_kind: None,
@@ -50,15 +52,13 @@ impl Formatter {
 
     pub(crate) fn finish(mut self) -> String {
         self.flush_remaining_comments();
-        while self.out.ends_with('\n') {
-            self.out.pop();
+        while self.out.ends_with('\n') || self.out.ends_with(' ') || self.out.ends_with('\t') {
+            if self.out.ends_with('\n') {
+                self.out.pop();
+            } else {
+                trim_trailing_horizontal_whitespace(&mut self.out);
+            }
         }
-        self.out = self
-            .out
-            .split('\n')
-            .map(|line| line.trim_end())
-            .collect::<Vec<_>>()
-            .join("\n");
         self.out
     }
 
@@ -68,6 +68,16 @@ impl Formatter {
             let node = &nodes[i];
 
             self.emit_leading_comments(node.line_number());
+
+            if matches!(node, AstNode::Say(_))
+                && matches!(
+                    nodes.get(i + 1),
+                    Some(AstNode::Menu(menu)) if menu.say_caption.is_some()
+                )
+            {
+                i += 1;
+                continue;
+            }
 
             let with_suffix = match node {
                 AstNode::Say(_) => nodes.get(i + 1).and_then(|next| match next {
@@ -370,14 +380,23 @@ impl Formatter {
             }
         }
 
-        while merged_lines.first().is_some_and(String::is_empty) {
-            merged_lines.remove(0);
-        }
-        while merged_lines.last().is_some_and(String::is_empty) {
-            merged_lines.pop();
-        }
+        let start = merged_lines
+            .iter()
+            .position(|line| !line.is_empty())
+            .unwrap_or(merged_lines.len());
+        let end = merged_lines
+            .iter()
+            .rposition(|line| !line.is_empty())
+            .map(|index| index + 1)
+            .unwrap_or(start);
 
-        super::python::format_python_block(&merged_lines.join("\n"), &self.python_format_config)
+        let source = if start == end {
+            String::new()
+        } else {
+            merged_lines[start..end].join("\n")
+        };
+
+        super::python::format_python_block(&source, &self.python_format_config)
     }
 
     fn take_trailing_comment_for_current_line(&mut self, text: &str) -> String {
@@ -424,7 +443,9 @@ impl Formatter {
     }
 
     pub(crate) fn line(&mut self, text: &str) {
-        self.write_indent();
+        if !text.is_empty() {
+            self.write_indent();
+        }
         self.out.push_str(text);
         self.out.push('\n');
         self.at_line_start = true;
@@ -432,7 +453,9 @@ impl Formatter {
 
     pub(crate) fn line_with_trailing(&mut self, text: &str) {
         let full_text = self.take_trailing_comment_for_current_line(text);
-        self.write_indent();
+        if !full_text.is_empty() {
+            self.write_indent();
+        }
         self.out.push_str(&full_text);
         self.out.push('\n');
         self.at_line_start = true;
@@ -458,8 +481,10 @@ impl Formatter {
         let previous_kind = self.previous_node_kind;
         self.previous_node_kind = None;
         self.indent += 4;
+        self.indent_text.push_str("    ");
         f(self);
         self.indent -= 4;
+        self.indent_text.truncate(self.indent);
         self.previous_node_kind = previous_kind;
     }
 
@@ -477,9 +502,15 @@ impl Formatter {
 
     fn write_indent(&mut self) {
         if self.at_line_start {
-            self.out.push_str(&" ".repeat(self.indent));
+            self.out.push_str(&self.indent_text);
             self.at_line_start = false;
         }
+    }
+}
+
+fn trim_trailing_horizontal_whitespace(out: &mut String) {
+    while matches!(out.as_bytes().last(), Some(b' ' | b'\t')) {
+        out.pop();
     }
 }
 
@@ -487,7 +518,7 @@ pub fn format_ast(ast: &[AstNode], comments: &CommentMap) -> String {
     format_ast_with_config(ast, comments, &PythonFormatConfig::default())
 }
 
-pub(crate) fn format_ast_with_config(
+pub fn format_ast_with_config(
     ast: &[AstNode],
     comments: &CommentMap,
     python_format_config: &PythonFormatConfig,

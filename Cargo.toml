@@ -16,6 +16,25 @@ clap = { version = "4.6.1", features = ["derive"] }
 ruff_workspace = { git = "https://github.com/astral-sh/ruff.git", tag = "0.15.10" }
 ruff_python_formatter = { git = "https://github.com/astral-sh/ruff.git", tag = "0.15.10" }
 
+[dev-dependencies]
+criterion = "0.5.1"
+
+[[bench]]
+name = "logical_lines"
+harness = false
+
+[[bench]]
+name = "parser"
+harness = false
+
+[[bench]]
+name = "formatter"
+harness = false
+
+[[bench]]
+name = "end_to_end"
+harness = false
+
 [profile.release]
 strip = true
 opt-level = 3

@@ -5,38 +5,40 @@ use ruff_python_formatter::{PyFormatOptions, format_module_source};
 use ruff_workspace::FormatterSettings;
 
 #[derive(Clone, Debug)]
-pub(crate) struct PythonFormatConfig {
-    root: PathBuf,
+pub struct PythonFormatConfig {
     formatter_settings: FormatterSettings,
+    synthetic_path: PathBuf,
 }
 
 impl PythonFormatConfig {
-    pub(crate) fn new(root: PathBuf, formatter_settings: FormatterSettings) -> Self {
+    pub fn new(root: PathBuf, formatter_settings: FormatterSettings) -> Self {
         Self {
-            root,
             formatter_settings,
+            synthetic_path: root.join("__renpyfmt__.py"),
         }
     }
 
     fn format_options(&self, source: &str) -> PyFormatOptions {
-        let synthetic_path = self.root.join("__renpyfmt__.py");
         let source_type = PyFormatOptions::from_extension(Path::new("renpyfmt.py")).source_type();
-
         self.formatter_settings
-            .to_format_options(source_type, source, Some(&synthetic_path))
+            .to_format_options(source_type, source, Some(&self.synthetic_path))
     }
 }
 
 impl Default for PythonFormatConfig {
     fn default() -> Self {
-        Self {
-            root: std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")),
-            formatter_settings: FormatterSettings::default(),
-        }
+        Self::new(
+            std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")),
+            FormatterSettings::default(),
+        )
     }
 }
 
-pub(crate) fn format_python_block(source: &str, config: &PythonFormatConfig) -> String {
+pub fn format_python_block(source: &str, config: &PythonFormatConfig) -> String {
+    if source.trim().is_empty() {
+        return source.to_string();
+    }
+
     let base_indent = base_leading_indent(source);
     let dedented = strip_leading_indent(source, &base_indent);
 
@@ -53,7 +55,7 @@ pub(crate) fn format_python_block(source: &str, config: &PythonFormatConfig) -> 
     }
 }
 
-pub(crate) fn format_python_file(source: &str, config: &PythonFormatConfig) -> Result<String> {
+pub fn format_python_file(source: &str, config: &PythonFormatConfig) -> Result<String> {
     let formatted = format_module_source(source, config.format_options(source))
         .context("Ruff could not parse or format Python source")?;
 
@@ -79,28 +81,37 @@ fn strip_leading_indent(source: &str, indent: &str) -> String {
         return source.to_string();
     }
 
-    source
-        .lines()
-        .map(|line| match line.strip_prefix(indent) {
-            Some(stripped) if !line.trim().is_empty() => stripped,
-            _ => line,
-        })
-        .collect::<Vec<_>>()
-        .join("\n")
+    let mut out = String::with_capacity(source.len());
+
+    for (index, line) in source.lines().enumerate() {
+        if index > 0 {
+            out.push('\n');
+        }
+
+        match line.strip_prefix(indent) {
+            Some(stripped) if !line.trim().is_empty() => out.push_str(stripped),
+            _ => out.push_str(line),
+        }
+    }
+
+    out
 }
 
 fn restore_leading_indent(source: &str, indent: &str) -> String {
-    source
-        .lines()
-        .map(|line| {
-            if line.is_empty() {
-                String::new()
-            } else {
-                format!("{indent}{line}")
-            }
-        })
-        .collect::<Vec<_>>()
-        .join("\n")
+    let mut out = String::with_capacity(source.len() + indent.len() * source.lines().count());
+
+    for (index, line) in source.lines().enumerate() {
+        if index > 0 {
+            out.push('\n');
+        }
+
+        if !line.is_empty() {
+            out.push_str(indent);
+            out.push_str(line);
+        }
+    }
+
+    out
 }
 
 fn normalize_standalone_multiline_strings(source: &str) -> String {
@@ -152,7 +163,10 @@ fn normalize_standalone_multiline_strings(source: &str) -> String {
 fn standalone_triple_quote_delimiter(line: &str) -> Option<&'static str> {
     let trimmed = line.trim();
 
-    if matches!(trimmed, "\"\"\"" | "r\"\"\"" | "R\"\"\"" | "u\"\"\"" | "U\"\"\"") {
+    if matches!(
+        trimmed,
+        "\"\"\"" | "r\"\"\"" | "R\"\"\"" | "u\"\"\"" | "U\"\"\""
+    ) {
         Some("\"\"\"")
     } else if matches!(trimmed, "'''" | "r'''" | "R'''" | "u'''" | "U'''") {
         Some("'''")
@@ -222,18 +236,10 @@ mod tests {
     fn preserves_assigned_multiline_string_contents() {
         assert_eq!(
             format_python_block(
-                concat!(
-                    "text = \"\"\"\n",
-                    "    keep this indent\n",
-                    "\"\"\"\n",
-                ),
+                concat!("text = \"\"\"\n", "    keep this indent\n", "\"\"\"\n",),
                 &PythonFormatConfig::default(),
             ),
-            concat!(
-                "text = \"\"\"\n",
-                "    keep this indent\n",
-                "\"\"\""
-            )
+            concat!("text = \"\"\"\n", "    keep this indent\n", "\"\"\"")
         );
     }
 
@@ -247,6 +253,8 @@ mod tests {
 
     #[test]
     fn returns_error_for_invalid_python_file() {
-        assert!(format_python_file("if True print('hi')\n", &PythonFormatConfig::default()).is_err());
+        assert!(
+            format_python_file("if True print('hi')\n", &PythonFormatConfig::default()).is_err()
+        );
     }
 }

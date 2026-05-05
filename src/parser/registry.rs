@@ -6,6 +6,7 @@ use crate::{
     },
     trie::ParseTrie,
 };
+use once_cell::sync::Lazy;
 
 use super::statements_media::{
     AudioStatementParser, HideScreenStatementParser, PauseStatementParser, PlayLikeMode,
@@ -14,139 +15,134 @@ use super::statements_media::{
 };
 use crate::ast::{AudioTarget, ScreenStatementKind, WindowKind};
 
-pub(super) fn new_parser() -> ParseTrie {
+static PARSER: Lazy<ParseTrie> = Lazy::new(|| {
     let mut parser = ParseTrie::new();
     register_statements(&mut parser);
     parser
+});
+
+pub(super) fn parser() -> &'static ParseTrie {
+    &PARSER
 }
 
 fn register_statements(parser: &mut ParseTrie) {
-    parser.add(vec!["label".into()], Box::new(Label::default()));
-    parser.add(vec!["scene".into()], Box::new(Scene::default()));
-    parser.add(vec!["with".into()], Box::new(With::default()));
-    parser.add(vec!["".into()], Box::new(Say::default()));
-    parser.add(vec!["show".into()], Box::new(Show::default()));
-    parser.add(vec!["hide".into()], Box::new(Hide::default()));
-    parser.add(vec!["$".into()], Box::new(PythonOneLine::default()));
-    parser.add(vec!["jump".into()], Box::new(Jump::default()));
-    parser.add(vec!["menu".into()], Box::new(Menu::default()));
-    parser.add(vec!["if".into()], Box::new(If::default()));
-    parser.add(vec!["IF".into()], Box::new(CompileIf::default()));
-    parser.add(vec!["while".into()], Box::new(While::default()));
-    parser.add(vec!["return".into()], Box::new(Return::default()));
-    parser.add(vec!["style".into()], Box::new(Style::default()));
-    parser.add(vec!["init".into()], Box::new(Init::default()));
-    parser.add(vec!["python".into()], Box::new(Python::default()));
-    parser.add(vec!["define".into()], Box::new(Define::default()));
-    parser.add(vec!["default".into()], Box::new(Default_::default()));
-    parser.add(vec!["call".into()], Box::new(Call::default()));
-    parser.add(vec!["pass".into()], Box::new(Pass::default()));
-    parser.add(vec!["transform".into()], Box::new(Transform::default()));
-    parser.add(vec!["camera".into()], Box::new(Camera::default()));
-    parser.add(vec!["screen".into()], Box::new(Screen::default()));
-    parser.add(vec!["image".into()], Box::new(Image::default()));
-    parser.add(vec!["layeredimage".into()], Box::new(LayeredImage::default()));
-    parser.add(vec!["rpy".into()], Box::new(RPY::default()));
-    parser.add(vec!["translate".into()], Box::new(Translate::default()));
-    parser.add(vec!["testcase".into()], Box::new(Testcase::default()));
-    parser.add(vec!["testsuite".into()], Box::new(Testsuite::default()));
+    parser.add(&["label"], Box::new(Label::default()));
+    parser.add(&["scene"], Box::new(Scene::default()));
+    parser.add(&["with"], Box::new(With::default()));
+    parser.add(&[""], Box::new(Say::default()));
+    parser.add(&["show"], Box::new(Show::default()));
+    parser.add(&["hide"], Box::new(Hide::default()));
+    parser.add(&["$"], Box::new(PythonOneLine::default()));
+    parser.add(&["jump"], Box::new(Jump::default()));
+    parser.add(&["menu"], Box::new(Menu::default()));
+    parser.add(&["if"], Box::new(If::default()));
+    parser.add(&["IF"], Box::new(CompileIf::default()));
+    parser.add(&["while"], Box::new(While::default()));
+    parser.add(&["return"], Box::new(Return::default()));
+    parser.add(&["style"], Box::new(Style::default()));
+    parser.add(&["init"], Box::new(Init::default()));
+    parser.add(&["python"], Box::new(Python::default()));
+    parser.add(&["define"], Box::new(Define::default()));
+    parser.add(&["default"], Box::new(Default_::default()));
+    parser.add(&["call"], Box::new(Call::default()));
+    parser.add(&["pass"], Box::new(Pass::default()));
+    parser.add(&["transform"], Box::new(Transform::default()));
+    parser.add(&["camera"], Box::new(Camera::default()));
+    parser.add(&["screen"], Box::new(Screen::default()));
+    parser.add(&["image"], Box::new(Image::default()));
+    parser.add(&["layeredimage"], Box::new(LayeredImage::default()));
+    parser.add(&["rpy"], Box::new(RPY::default()));
+    parser.add(&["translate"], Box::new(Translate::default()));
+    parser.add(&["testcase"], Box::new(Testcase::default()));
+    parser.add(&["testsuite"], Box::new(Testsuite::default()));
 
     parser.add(
-        vec!["play".into(), "music".into()],
+        &["play", "music"],
         Box::new(AudioStatementParser {
             target: AudioTarget::Music,
             mode: PlayLikeMode::Play,
         }),
     );
     parser.add(
-        vec!["queue".into(), "music".into()],
+        &["queue", "music"],
         Box::new(AudioStatementParser {
             target: AudioTarget::Music,
             mode: PlayLikeMode::Queue,
         }),
     );
     parser.add(
-        vec!["stop".into(), "music".into()],
+        &["stop", "music"],
         Box::new(StopAudioStatementParser {
             target: AudioTarget::Music,
         }),
     );
     parser.add(
-        vec!["play".into(), "sound".into()],
+        &["play", "sound"],
         Box::new(AudioStatementParser {
             target: AudioTarget::Sound,
             mode: PlayLikeMode::Play,
         }),
     );
     parser.add(
-        vec!["queue".into(), "sound".into()],
+        &["queue", "sound"],
         Box::new(AudioStatementParser {
             target: AudioTarget::Sound,
             mode: PlayLikeMode::Queue,
         }),
     );
     parser.add(
-        vec!["stop".into(), "sound".into()],
+        &["stop", "sound"],
         Box::new(StopAudioStatementParser {
             target: AudioTarget::Sound,
         }),
     );
     parser.add(
-        vec!["play".into()],
+        &["play"],
         Box::new(AudioStatementParser {
             target: AudioTarget::Generic(String::new()),
             mode: PlayLikeMode::Play,
         }),
     );
     parser.add(
-        vec!["queue".into()],
+        &["queue"],
         Box::new(AudioStatementParser {
             target: AudioTarget::Generic(String::new()),
             mode: PlayLikeMode::Queue,
         }),
     );
     parser.add(
-        vec!["stop".into()],
+        &["stop"],
         Box::new(StopAudioStatementParser {
             target: AudioTarget::Generic(String::new()),
         }),
     );
+    parser.add(&["pause"], Box::new(PauseStatementParser));
     parser.add(
-        vec!["pause".into()],
-        Box::new(PauseStatementParser),
-    );
-    parser.add(
-        vec!["show".into(), "screen".into()],
+        &["show", "screen"],
         Box::new(ScreenStatementParser {
             kind: ScreenStatementKind::Show,
         }),
     );
     parser.add(
-        vec!["call".into(), "screen".into()],
+        &["call", "screen"],
         Box::new(ScreenStatementParser {
             kind: ScreenStatementKind::Call,
         }),
     );
+    parser.add(&["hide", "screen"], Box::new(HideScreenStatementParser));
     parser.add(
-        vec!["hide".into(), "screen".into()],
-        Box::new(HideScreenStatementParser),
-    );
-    parser.add(
-        vec!["window".into(), "show".into()],
+        &["window", "show"],
         Box::new(WindowStatementParser {
             kind: WindowKind::Show,
         }),
     );
     parser.add(
-        vec!["window".into(), "hide".into()],
+        &["window", "hide"],
         Box::new(WindowStatementParser {
             kind: WindowKind::Hide,
         }),
     );
-    parser.add(
-        vec!["window".into(), "auto".into()],
-        Box::new(WindowAutoStatementParser),
-    );
+    parser.add(&["window", "auto"], Box::new(WindowAutoStatementParser));
 
     let custom_statements = vec![
         "nvl show",
@@ -178,7 +174,7 @@ fn register_statements(parser: &mut ParseTrie) {
 
     for stmt in custom_statements {
         parser.add(
-            stmt.split(' ').map(|s| s.to_string()).collect(),
+            &stmt.split(' ').collect::<Vec<_>>(),
             Box::new(UserStatement::default()),
         );
     }

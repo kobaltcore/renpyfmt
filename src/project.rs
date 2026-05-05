@@ -65,9 +65,8 @@ enum FileFormatOutcome {
 }
 
 fn ren_py_to_rpy(data: &str, filename: Option<&PathBuf>) -> Result<String> {
-    let lines = data.lines().collect::<Vec<_>>();
-    let mut result = vec![];
-    let mut prefix = String::from("");
+    let mut result = String::with_capacity(data.len());
+    let mut prefix_len = 0usize;
 
     // IGNORE = 0
     // RENPY = 1
@@ -75,54 +74,53 @@ fn ren_py_to_rpy(data: &str, filename: Option<&PathBuf>) -> Result<String> {
     let mut state = 0;
     let mut open_linenumber = 0;
 
-    for (line_num, line) in lines.iter().enumerate() {
+    for (line_num, line) in data.lines().enumerate() {
         if state != 1 {
             if line.starts_with("\"\"\"renpy") {
                 state = 1;
-                result.push("".into());
+                result.push('\n');
                 open_linenumber = line_num;
                 continue;
             }
         }
         if state == 1 {
-            if *line == "\"\"\"" {
+            if line == "\"\"\"" {
                 state = 2;
-                result.push("".into());
+                result.push('\n');
                 continue;
             }
 
             let line_trimmed = line.trim();
             if line_trimmed.is_empty() {
-                result.push(line.to_string());
+                result.push_str(line);
+                result.push('\n');
                 continue;
             }
 
             if line_trimmed.starts_with('#') {
-                result.push(line.to_string());
+                result.push_str(line);
+                result.push('\n');
                 continue;
             }
 
-            prefix = "".into();
-            for c in line.chars() {
-                if c != ' ' {
-                    break;
-                }
-                prefix = format!("{prefix} ");
-            }
+            prefix_len = line.len() - line.trim_start_matches(' ').len();
 
             if line_trimmed.ends_with(':') {
-                prefix = format!("{prefix}    ");
+                prefix_len += 4;
             }
 
-            result.push(line.to_string());
+            result.push_str(line);
+            result.push('\n');
             continue;
         }
         if state == 2 {
-            result.push(format!("{prefix}{line}"));
+            result.push_str(&" ".repeat(prefix_len));
+            result.push_str(line);
+            result.push('\n');
             continue;
         }
         if state == 0 {
-            result.push("".into());
+            result.push('\n');
             continue;
         }
     }
@@ -145,7 +143,8 @@ fn ren_py_to_rpy(data: &str, filename: Option<&PathBuf>) -> Result<String> {
         None => {}
     }
 
-    Ok(result.join("\n"))
+    result.pop();
+    Ok(result)
 }
 
 fn munge_filename(path: &PathBuf) -> Result<String> {
@@ -173,49 +172,47 @@ fn elide_filename(ctx: &LexerContext, path: &PathBuf) -> Result<PathBuf> {
 }
 
 fn letterlike(c: char) -> bool {
-    match c {
-        'a'..='z' | 'A'..='Z' | '0'..='9' | '_' => true,
-        _ => false,
-    }
+    c.is_alphanumeric() || c == '_'
 }
 
-fn match_logical_word(s: &Vec<char>, pos: usize) -> (String, bool, usize) {
-    let mut pos = pos;
+fn match_logical_word(s: &str, pos: usize) -> (&str, bool, usize) {
+    let bytes = s.as_bytes();
     let start = pos;
-    let len_s = s.len();
-    let c = s[pos];
+    let mut end = pos;
+    let byte = bytes[pos];
 
-    if c == ' ' {
-        pos += 1;
-
-        while pos < len_s {
-            if s[pos] != ' ' {
-                break;
-            }
-
-            pos += 1;
+    if byte == b' ' {
+        end += 1;
+        while end < bytes.len() && bytes[end] == b' ' {
+            end += 1;
         }
-    } else if letterlike(c) {
-        pos += 1;
-
-        while pos < len_s {
-            if !letterlike(s[pos]) {
-                break;
-            }
-
-            pos += 1;
+    } else if byte.is_ascii_alphanumeric() || byte == b'_' {
+        end += 1;
+        while end < bytes.len() && (bytes[end].is_ascii_alphanumeric() || bytes[end] == b'_') {
+            end += 1;
         }
     } else {
-        pos += 1;
+        let mut chars = s[pos..].char_indices();
+        let (_, first) = chars.next().expect("position must be at a char boundary");
+        end += first.len_utf8();
+        if letterlike(first) {
+            for (offset, c) in chars {
+                if !letterlike(c) {
+                    end = pos + offset;
+                    break;
+                }
+                end = pos + offset + c.len_utf8();
+            }
+        }
     }
 
-    let word = s[start..pos].iter().collect::<String>();
+    let word = &s[start..end];
 
-    if (pos - start) >= 3 && word.starts_with("__") {
-        return (word, true, pos);
+    if (end - start) >= 3 && word.starts_with("__") {
+        return (word, true, end);
     }
 
-    (word, false, pos)
+    (word, false, end)
 }
 
 fn list_logical_lines(
@@ -241,11 +238,11 @@ fn list_logical_lines(
     let mut number = line_number;
     let mut pos = 0;
 
-    let chars = data.chars().collect::<Vec<_>>();
-    let data_len = chars.len();
+    let bytes = data.as_bytes();
+    let data_len = bytes.len();
 
-    if data_len > 0 && chars[0] == '\u{feff}' {
-        pos += 1;
+    if data.starts_with('\u{feff}') {
+        pos = '\u{feff}'.len_utf8();
     }
 
     let mut start_number;
@@ -253,16 +250,15 @@ fn list_logical_lines(
 
     while pos < data_len {
         start_number = number;
-        let mut line: Vec<String> = vec![];
+        let mut line = String::new();
         let mut parendepth = 0;
-        let mut endpos: Option<usize> = None;
         let mut trailing_comment: Option<String> = None;
 
         while pos < data_len {
             let startpos = pos;
-            let c = chars[pos];
+            let c = bytes[pos];
 
-            if c == '\t' {
+            if c == b'\t' {
                 bail!(
                     "Tab characters are not allowed in Ren'Py scripts: {}:{}",
                     path.display(),
@@ -270,9 +266,7 @@ fn list_logical_lines(
                 )
             }
 
-            if c == '\n' && parendepth == 0 {
-                let final_line = line.join("");
-
+            if c == b'\n' && parendepth == 0 {
                 if let Some(ref comment_text) = trailing_comment {
                     comment_map
                         .entry(start_number)
@@ -283,6 +277,7 @@ fn list_logical_lines(
                         });
                 }
 
+                let final_line = std::mem::take(&mut line);
                 if !final_line.trim().is_empty() {
                     pending_standalone.iter().for_each(|sc| {
                         comment_map
@@ -296,56 +291,46 @@ fn list_logical_lines(
                     result.push((path.clone(), start_number, final_line));
                 }
 
-                if endpos.is_none() {
-                    endpos = Some(pos);
-                }
-
-                while endpos > Some(0) && [' ', '\r'].contains(&chars[endpos.unwrap() - 1]) {
-                    endpos = Some(endpos.unwrap() - 1);
-                }
-
                 pos += 1;
                 number += 1;
-                line.clear();
                 break;
             }
 
-            if c == '\n' {
+            if c == b'\n' {
                 number += 1;
-                endpos = None;
             }
 
-            if c == '\r' {
+            if c == b'\r' {
                 pos += 1;
                 continue;
             }
 
-            if c == '\\' && chars[pos + 1] == '\n' {
+            if c == b'\\' && bytes[pos + 1] == b'\n' {
                 pos += 2;
                 number += 1;
-                line.push("\\\n".into());
+                line.push('\\');
+                line.push('\n');
                 continue;
             }
 
-            if ['(', '[', '{'].contains(&c) {
+            if matches!(c, b'(' | b'[' | b'{') {
                 parendepth += 1;
             }
 
-            if [')', ']', '}'].contains(&c) && parendepth > 0 {
+            if matches!(c, b')' | b']' | b'}') && parendepth > 0 {
                 parendepth -= 1;
             }
 
-            if c == '#' {
+            if c == b'#' {
                 let comment_start = pos;
-                while pos < data_len && chars[pos] != '\n' {
+                while pos < data_len && bytes[pos] != b'\n' {
                     pos += 1;
                 }
-                let comment_text: String = chars[comment_start..pos].iter().collect();
+                let comment_text = data[comment_start..pos].to_string();
 
-                let line_so_far = line.join("");
-                if line_so_far.trim().is_empty() && parendepth == 0 {
+                if line.trim().is_empty() && parendepth == 0 {
                     pending_standalone.push(Comment::Standalone {
-                        indent: line_so_far.len() - line_so_far.trim_start().len(),
+                        indent: line.len() - line.trim_start().len(),
                         text: comment_text,
                         line_number: start_number,
                     });
@@ -353,35 +338,34 @@ fn list_logical_lines(
                     trailing_comment = Some(comment_text);
                 }
 
-                endpos = Some(startpos);
                 continue;
             }
 
-            if ['\"', '\'', '`'].contains(&c) {
+            if matches!(c, b'"' | b'\'' | b'`') {
                 let delim = c;
-                line.push(c.into());
+                line.push(delim as char);
                 pos += 1;
 
                 let mut escape = false;
                 let mut triple_quote = false;
 
-                if (pos < data_len - 1) && chars[pos] == delim && chars[pos + 1] == delim {
-                    line.push(delim.into());
-                    line.push(delim.into());
+                if (pos < data_len - 1) && bytes[pos] == delim && bytes[pos + 1] == delim {
+                    line.push(delim as char);
+                    line.push(delim as char);
                     pos += 2;
                     triple_quote = true;
                 }
 
-                let mut s: Vec<String> = vec![];
+                let string_start = pos;
 
                 while pos < data_len {
-                    let c = chars[pos];
+                    let c = bytes[pos];
 
-                    if c == '\n' {
+                    if c == b'\n' {
                         number += 1;
                     }
 
-                    if c == '\r' {
+                    if c == b'\r' {
                         pos += 1;
                         continue;
                     }
@@ -389,59 +373,56 @@ fn list_logical_lines(
                     if escape {
                         escape = false;
                         pos += 1;
-                        s.push(c.into());
                         continue;
                     }
 
                     if c == delim {
                         if !triple_quote {
                             pos += 1;
-                            s.push(c.into());
                             break;
                         }
 
                         if (pos < data_len - 2)
-                            && chars[pos + 1] == delim
-                            && chars[pos + 2] == delim
+                            && bytes[pos + 1] == delim
+                            && bytes[pos + 2] == delim
                         {
                             pos += 3;
-                            s.push(delim.into());
-                            s.push(delim.into());
-                            s.push(delim.into());
                             break;
                         }
                     }
 
-                    if c == '\\' {
+                    if c == b'\\' {
                         escape = true;
                     }
 
-                    s.push(c.into());
                     pos += 1;
                 }
 
-                let s = s.join("");
+                let s = &data[string_start..pos];
 
                 if s.contains("[__") {
                     // TODO: munge substitutions
                 }
 
-                line.push(s);
+                line.push_str(s);
 
                 continue;
             }
 
-            let (mut word, magic, end) = match_logical_word(&chars, pos);
+            let (word, magic, end) = match_logical_word(&data, pos);
 
             if magic {
                 let rest = &word[2..];
 
                 if !rest.contains("__") {
-                    word = format!("{prefix}{rest}");
+                    line.push_str(&prefix);
+                    line.push_str(rest);
+                    pos = end;
+                    continue;
                 }
             }
 
-            line.push(word);
+            line.push_str(word);
 
             pos = end;
 
@@ -473,27 +454,13 @@ fn list_logical_lines(
     Ok((result, comment_map))
 }
 
-fn depth_split(s: String) -> Result<(usize, String)> {
-    let mut depth = 0;
-    let mut index = 0;
-
-    let chars = s.chars().collect::<Vec<_>>();
-
-    loop {
-        if chars[index] == ' ' {
-            depth += 1;
-            index += 1;
-            continue;
-        }
-
-        break;
-    }
-
-    Ok((depth, s[index..].into()))
+fn depth_split(s: &str) -> (usize, &str) {
+    let depth = s.len() - s.trim_start_matches(' ').len();
+    (depth, &s[depth..])
 }
 
 fn gll_core(
-    lines: &Vec<(PathBuf, usize, String)>,
+    lines: &[(PathBuf, usize, String)],
     i: usize,
     min_depth: usize,
 ) -> Result<(Vec<Block>, usize)> {
@@ -504,7 +471,7 @@ fn gll_core(
     while idx < lines.len() {
         let (filename, number, text) = &lines[idx];
 
-        let (line_depth, rest) = depth_split(text.clone())?;
+        let (line_depth, rest) = depth_split(text);
 
         if line_depth < min_depth {
             break;
@@ -526,7 +493,7 @@ fn gll_core(
         result.push(Block {
             filename: filename.clone(),
             number: *number,
-            text: rest,
+            text: rest.to_string(),
             block,
         });
     }
@@ -534,14 +501,14 @@ fn gll_core(
     Ok((result, idx))
 }
 
-fn group_logical_lines(lines: Vec<(PathBuf, usize, String)>) -> Result<Vec<Block>> {
+pub fn group_logical_lines(lines: Vec<(PathBuf, usize, String)>) -> Result<Vec<Block>> {
     if lines.is_empty() {
         return Ok(vec![]);
     }
 
     let (filename, number, text) = lines.first().unwrap();
 
-    let (depth, _) = depth_split(text.clone())?;
+    let (depth, _) = depth_split(text);
     if depth != 0 {
         bail!(
             "Unexpected indentation at start of file: {}:{}",
@@ -553,6 +520,17 @@ fn group_logical_lines(lines: Vec<(PathBuf, usize, String)>) -> Result<Vec<Block
     let (block, _) = gll_core(&lines, 0, 0)?;
 
     Ok(block)
+}
+
+pub fn list_logical_lines_for_path(
+    input_dir: &Path,
+    input_file: &PathBuf,
+) -> Result<(Vec<(PathBuf, usize, String)>, CommentMap)> {
+    let ctx = LexerContext {
+        input_dir: input_dir.to_path_buf(),
+    };
+
+    list_logical_lines(&ctx, input_file)
 }
 
 fn collect_rpy_files(path: &Path) -> Result<Vec<PathBuf>> {
@@ -593,12 +571,11 @@ fn collect_files(path: &Path, mut include: impl FnMut(&str) -> bool) -> Result<V
     Ok(files)
 }
 
-fn parse_file_ast(input_dir: &Path, input_file: &PathBuf) -> Result<(Vec<AstNode>, CommentMap)> {
-    let ctx = LexerContext {
-        input_dir: input_dir.to_path_buf(),
-    };
-
-    let (lines, comments) = list_logical_lines(&ctx, input_file)
+pub fn parse_file_ast(
+    input_dir: &Path,
+    input_file: &PathBuf,
+) -> Result<(Vec<AstNode>, CommentMap)> {
+    let (lines, comments) = list_logical_lines_for_path(input_dir, input_file)
         .with_context(|| format!("Failed to list logical lines for {}", input_file.display()))?;
     let nested = group_logical_lines(lines)
         .with_context(|| format!("Failed to group logical lines for {}", input_file.display()))?;
@@ -682,25 +659,7 @@ fn format_file(
 ) -> Result<FileFormatOutcome> {
     let existing = fs::read_to_string(input_file)
         .with_context(|| format!("Failed to read {}", input_file.display()))?;
-    let extension = input_file
-        .extension()
-        .and_then(|ext| ext.to_str())
-        .with_context(|| format!("Unsupported file type for {}", input_file.display()))?;
-
-    let formatted = match extension {
-        "rpy" => {
-            let (ast, comments) = parse_file_ast(input_dir, input_file)?;
-            format_ast_with_config(&ast, &comments, &ctx.python_format_config)
-        }
-        "py" => format_python_file(&existing, &ctx.python_format_config)
-            .with_context(|| format!("Failed to format {}", input_file.display()))?,
-        _ => bail!("Unsupported file type for {}", input_file.display()),
-    };
-    let output = if formatted.is_empty() {
-        String::new()
-    } else {
-        format!("{}\n", formatted.trim_end_matches('\n'))
-    };
+    let output = format_file_source(input_dir, input_file, &ctx.python_format_config)?;
 
     if existing == output {
         return Ok(FileFormatOutcome::Unchanged);
@@ -712,6 +671,35 @@ fn format_file(
     }
 
     Ok(FileFormatOutcome::Changed)
+}
+
+pub fn format_file_source(
+    input_dir: &Path,
+    input_file: &PathBuf,
+    python_format_config: &PythonFormatConfig,
+) -> Result<String> {
+    let existing = fs::read_to_string(input_file)
+        .with_context(|| format!("Failed to read {}", input_file.display()))?;
+    let extension = input_file
+        .extension()
+        .and_then(|ext| ext.to_str())
+        .with_context(|| format!("Unsupported file type for {}", input_file.display()))?;
+
+    let formatted = match extension {
+        "rpy" => {
+            let (ast, comments) = parse_file_ast(input_dir, input_file)?;
+            format_ast_with_config(&ast, &comments, python_format_config)
+        }
+        "py" => format_python_file(&existing, python_format_config)
+            .with_context(|| format!("Failed to format {}", input_file.display()))?,
+        _ => bail!("Unsupported file type for {}", input_file.display()),
+    };
+
+    Ok(if formatted.is_empty() {
+        String::new()
+    } else {
+        format!("{}\n", formatted.trim_end_matches('\n'))
+    })
 }
 
 pub fn parse_directory(path: PathBuf, pb: ProgressBar) -> Result<()> {
@@ -947,6 +935,13 @@ mod tests {
         dir
     }
 
+    fn bench_fixture(name: &str) -> PathBuf {
+        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("benches")
+            .join("fixtures")
+            .join(name)
+    }
+
     #[test]
     fn format_uses_ruff_config_discovered_from_cli_input_directory() {
         let root = create_temp_test_dir("ruff-root-discovery");
@@ -976,6 +971,94 @@ mod tests {
         assert_eq!(formatted, "python:\n    message = 'hi'\n");
 
         let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn logical_lines_handle_crlf_escaped_newlines_unicode_and_magic_names() {
+        let root = create_temp_test_dir("logical-lines-edge-cases");
+        let script_path = root.join("unicode_script.rpy");
+        std::fs::write(
+            &script_path,
+            concat!(
+                "\u{feff}label café_start:\r\n",
+                "    $ café_value = 1 + \\\n",
+                "        2\r\n",
+                "    \"[__voice]\"\r\n",
+            ),
+        )
+        .unwrap();
+
+        let (lines, _) = list_logical_lines_for_path(&root, &script_path).unwrap();
+        assert_eq!(lines.len(), 3);
+        assert_eq!(lines[0].2, "label café_start:");
+        assert!(lines[1].2.contains("café_value = 1 + \\\n        2"));
+        assert!(lines[2].2.contains("[__voice]"));
+
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn logical_lines_keep_eof_comments() {
+        let root = create_temp_test_dir("logical-lines-eof-comment");
+        let script_path = root.join("script.rpy");
+        std::fs::write(
+            &script_path,
+            "label start:\n    \"Hello\"\n# trailing eof\n",
+        )
+        .unwrap();
+
+        let (_, comments) = list_logical_lines_for_path(&root, &script_path).unwrap();
+        assert!(matches!(
+            comments.get(&EOF_LINE).and_then(|items| items.first()),
+            Some(Comment::Standalone { text, .. }) if text == "# trailing eof"
+        ));
+
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn logical_lines_convert_ren_py_blocks() {
+        let root = create_temp_test_dir("logical-lines-ren-py");
+        let script_path = root.join("entry_ren.py");
+        std::fs::write(
+            &script_path,
+            concat!(
+                "\"\"\"renpy\n",
+                "label start:\n",
+                "    \"Hello\"\n",
+                "\"\"\"\n",
+                "print('ignored by parser path')\n",
+            ),
+        )
+        .unwrap();
+
+        let (lines, _) = list_logical_lines_for_path(&root, &script_path).unwrap();
+        assert!(lines.len() >= 2);
+        assert_eq!(lines[0].2, "label start:");
+        assert_eq!(lines[1].2, "    \"Hello\"");
+
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn benchmark_fixtures_format_stably() {
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("benches")
+            .join("fixtures");
+
+        for fixture in [
+            "dialogue_heavy.rpy",
+            "nested_control_flow.rpy",
+            "screen_language.rpy",
+            "atl_heavy.rpy",
+            "embedded_python.rpy",
+        ] {
+            let path = bench_fixture(fixture);
+            let config = resolve_python_format_config(&root, None).unwrap();
+            let formatted = format_file_source(&root, &path, &config).unwrap();
+            let expected = std::fs::read_to_string(&path).unwrap();
+            assert_eq!(formatted, expected, "fixture {fixture} changed");
+        }
     }
 
     #[test]
@@ -1291,10 +1374,7 @@ mod tests {
 
         let files = collect_format_files(&root).unwrap();
 
-        assert_eq!(
-            files,
-            vec![root.join("normal.py"), root.join("script.rpy")]
-        );
+        assert_eq!(files, vec![root.join("normal.py"), root.join("script.rpy")]);
 
         let _ = std::fs::remove_dir_all(&root);
     }

@@ -6,10 +6,7 @@ use crate::{
     },
 };
 
-use super::{
-    core::Formatter,
-    inline::encode_say_string,
-};
+use super::{core::Formatter, inline::encode_say_string};
 
 impl Formatter {
     pub(crate) fn emit_testcase(&mut self, node: &Testcase) {
@@ -447,7 +444,11 @@ impl Formatter {
         let precedence = self.test_condition_precedence(condition);
         let rendered = match condition {
             TestCondition::BoolLiteral { value, .. } => {
-                if *value { "True".into() } else { "False".into() }
+                if *value {
+                    "True".into()
+                } else {
+                    "False".into()
+                }
             }
             TestCondition::Eval { expr, .. } => format!("eval {expr}"),
             TestCondition::Label { name, .. } => format!("label {name}"),

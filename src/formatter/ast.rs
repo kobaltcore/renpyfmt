@@ -4,19 +4,59 @@ use crate::ast::{
     LayeredImageChild, LayeredImageDisplayable, LayeredImageProperty, LayeredImagePropertyValue,
     Menu, Pass, PauseStatement, Python, PythonOneLine, RPY, Return, Say, Scene, ScreenStatement,
     ScreenStatementKind, Show, ShowLayer, Style, Transform, Translate, TranslateBlock,
-    TranslateEarlyBlock, TranslateString, While, WindowAutoKind, WindowAutoStatement,
-    WindowKind, WindowStatement, With,
+    TranslateEarlyBlock, TranslateString, While, WindowAutoKind, WindowAutoStatement, WindowKind,
+    WindowStatement, With,
 };
 
 use super::{
     core::{Formatter, Mode},
     inline::{
-        encode_say_string, format_argument_info, format_image_specifier,
-        format_parameter_signature,
+        encode_say_string, format_argument_info, format_image_specifier, format_parameter_signature,
     },
 };
 
 impl Formatter {
+    fn format_say_line(node: &Say, with_suffix: Option<&With>) -> String {
+        let mut parts = vec![];
+
+        if let Some(who) = &node.who {
+            parts.push(who.clone());
+        }
+
+        if let Some(attributes) = &node.attributes {
+            parts.extend(attributes.clone());
+        }
+
+        if let Some(temporary_attributes) = &node.temporary_attributes {
+            parts.push("@".to_string());
+            parts.extend(temporary_attributes.clone());
+        }
+
+        parts.push(encode_say_string(&node.what));
+
+        if let Some(arguments) = &node.arguments {
+            parts.push(format_argument_info(arguments));
+        }
+
+        if let Some(with_clause) = &node.with {
+            parts.push(format!("with {with_clause}"));
+        }
+
+        if !node.interact {
+            parts.push("nointeract".to_string());
+        }
+
+        if let Some(identifier) = &node.identifier {
+            parts.push(format!("id {identifier}"));
+        }
+
+        if let Some(with) = with_suffix {
+            parts.push(format!("with {}", with.expr));
+        }
+
+        parts.join(" ")
+    }
+
     pub(crate) fn emit_label(&mut self, node: &Label) {
         let mut line = format!("label {}", node.name);
         if let Some(parameters) = &node.parameters {
@@ -210,44 +250,7 @@ impl Formatter {
     }
 
     pub(crate) fn emit_say(&mut self, node: &Say, with_suffix: Option<&With>) {
-        let mut parts = vec![];
-
-        if let Some(who) = &node.who {
-            parts.push(who.clone());
-        }
-
-        if let Some(attributes) = &node.attributes {
-            parts.extend(attributes.clone());
-        }
-
-        if let Some(temporary_attributes) = &node.temporary_attributes {
-            parts.push("@".to_string());
-            parts.extend(temporary_attributes.clone());
-        }
-
-        parts.push(encode_say_string(&node.what));
-
-        if let Some(arguments) = &node.arguments {
-            parts.push(format_argument_info(arguments));
-        }
-
-        if let Some(with_clause) = &node.with {
-            parts.push(format!("with {with_clause}"));
-        }
-
-        if !node.interact {
-            parts.push("nointeract".to_string());
-        }
-
-        if let Some(identifier) = &node.identifier {
-            parts.push(format!("id {identifier}"));
-        }
-
-        if let Some(with) = with_suffix {
-            parts.push(format!("with {}", with.expr));
-        }
-
-        self.line_with_trailing(&parts.join(" "));
+        self.line_with_trailing(&Self::format_say_line(node, with_suffix));
         self.blank_line();
     }
 
@@ -290,6 +293,10 @@ impl Formatter {
         self.line_with_trailing(&header);
 
         self.indented(|formatter| {
+            if let Some(say_caption) = &node.say_caption {
+                formatter.line(&Self::format_say_line(say_caption, None));
+            }
+
             if let Some(with_clause) = &node.with_ {
                 formatter.line(&format!("with {with_clause}"));
             }
@@ -299,7 +306,7 @@ impl Formatter {
             }
 
             for (index, (label, condition, block)) in node.items.iter().enumerate() {
-                if node.has_caption && index == 0 {
+                if node.say_caption.is_none() && node.has_caption && index == 0 {
                     formatter.line(&encode_say_string(
                         label
                             .as_ref()
@@ -351,7 +358,7 @@ impl Formatter {
     ) {
         let first = if compile { "IF" } else { "if" };
         let middle = if compile { "ELIF" } else { "elif" };
-        let final_with_condition = if compile { "ELIF" } else { "else if" };
+        let final_with_condition = if compile { "ELIF" } else { "elif" };
         let final_without_condition = if compile { "ELSE" } else { "else" };
         let last_index = entries.len().saturating_sub(1);
 
@@ -802,8 +809,7 @@ impl Formatter {
         if always.properties.is_empty()
             && matches!(
                 always.displayable,
-                Some(LayeredImageDisplayable::Expression(_))
-                    | Some(LayeredImageDisplayable::Null)
+                Some(LayeredImageDisplayable::Expression(_)) | Some(LayeredImageDisplayable::Null)
             )
         {
             match always.displayable.as_ref().expect("checked above") {

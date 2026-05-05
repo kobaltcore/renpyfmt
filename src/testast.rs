@@ -253,11 +253,23 @@ pub struct TestRepeat {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TestCondition {
-    BoolLiteral { loc: Loc, value: bool },
-    Eval { loc: Loc, expr: String },
-    Label { loc: Loc, name: String },
+    BoolLiteral {
+        loc: Loc,
+        value: bool,
+    },
+    Eval {
+        loc: Loc,
+        expr: String,
+    },
+    Label {
+        loc: Loc,
+        name: String,
+    },
     Selector(TestSelector),
-    Not { loc: Loc, right: Box<TestCondition> },
+    Not {
+        loc: Loc,
+        right: Box<TestCondition>,
+    },
     And {
         loc: Loc,
         left: Box<TestCondition>,
@@ -268,7 +280,10 @@ pub enum TestCondition {
         left: Box<TestCondition>,
         right: Box<TestCondition>,
     },
-    Grouped { loc: Loc, inner: Box<TestCondition> },
+    Grouped {
+        loc: Loc,
+        inner: Box<TestCondition>,
+    },
 }
 
 impl Default for TestCondition {

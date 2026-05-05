@@ -162,12 +162,18 @@ impl Formatter {
         self.emit_sl_nodes(&node.children);
     }
 
-    fn emit_sl_conditional(&mut self, first_keyword: &str, entries: &[(Option<String>, Vec<Node>)]) {
+    fn emit_sl_conditional(
+        &mut self,
+        first_keyword: &str,
+        entries: &[(Option<String>, Vec<Node>)],
+    ) {
         for (index, (condition, children)) in entries.iter().enumerate() {
             let header = if index == 0 {
                 format!(
                     "{first_keyword} {}:",
-                    condition.as_deref().expect("screen conditionals should have a first condition")
+                    condition
+                        .as_deref()
+                        .expect("screen conditionals should have a first condition")
                 )
             } else if let Some(condition) = condition {
                 format!("elif {condition}:")

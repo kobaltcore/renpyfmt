@@ -16,4 +16,26 @@
 
 It ships with a complete, standalone parser for the Ren'Py language, allowing for deep understanding of the code and thus proper formatting. Embedded Python blocks are formatted via `ruff`.
 
+## Benchmarks
+
+Run the full benchmark suite with:
+
+```sh
+cargo bench
+```
+
+The benchmark targets are split by phase:
+
+- `logical_lines`: logical-line scanning and grouping.
+- `parser`: parse from fixture files and pre-grouped blocks.
+- `formatter`: Ren'Py AST formatting and embedded Python formatting.
+- `end_to_end`: full `.rpy` format/check flows on representative fixtures.
+
+To compare before and after a change, run `cargo bench` on each revision and compare the Criterion reports under `target/criterion/`.
+
+Correctness gates stay separate from performance measurement:
+
+- `cargo test`
+- `cargo tarpaulin`
+
 <a href="https://unsplash.com/photos/E8Ufcyxz514?utm_source=unsplash&utm_medium=referral&utm_content=creditShareLink">Photo by Milad Fakurian on Unsplash</a>

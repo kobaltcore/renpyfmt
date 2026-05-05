@@ -222,13 +222,12 @@ fn parse_play_like(
     mode: PlayLikeMode,
 ) -> Result<ParseNodes> {
     let target = match target {
-        AudioTarget::Generic(_) => AudioTarget::Generic(
-            lex.name()
-                .ok_or_else(|| lex.parse_error(match mode {
-                    PlayLikeMode::Play => "play requires a channel",
-                    PlayLikeMode::Queue => "queue requires a channel",
-                }))?,
-        ),
+        AudioTarget::Generic(_) => AudioTarget::Generic(lex.name().ok_or_else(|| {
+            lex.parse_error(match mode {
+                PlayLikeMode::Play => "play requires a channel",
+                PlayLikeMode::Queue => "queue requires a channel",
+            })
+        })?),
         target => target,
     };
 
@@ -249,7 +248,10 @@ fn parse_play_like(
 
     while !lex.eol() {
         if lex.keyword("channel".into()).is_some() {
-            channel = Some(require_simple_expression(lex, "expected simple expression")?);
+            channel = Some(require_simple_expression(
+                lex,
+                "expected simple expression",
+            )?);
             continue;
         }
 
@@ -269,17 +271,26 @@ fn parse_play_like(
         }
 
         if lex.keyword("fadeout".into()).is_some() {
-            fadeout = Some(require_simple_expression(lex, "expected simple expression")?);
+            fadeout = Some(require_simple_expression(
+                lex,
+                "expected simple expression",
+            )?);
             continue;
         }
 
         if lex.keyword("fadein".into()).is_some() {
-            fadein = Some(require_simple_expression(lex, "expected simple expression")?);
+            fadein = Some(require_simple_expression(
+                lex,
+                "expected simple expression",
+            )?);
             continue;
         }
 
         if lex.keyword("volume".into()).is_some() {
-            volume = Some(require_simple_expression(lex, "expected simple expression")?);
+            volume = Some(require_simple_expression(
+                lex,
+                "expected simple expression",
+            )?);
             continue;
         }
 
@@ -308,7 +319,11 @@ fn parse_play_like(
     .into())
 }
 
-fn parse_stop_like(lex: &mut Lexer, loc: (PathBuf, usize), target: AudioTarget) -> Result<ParseNodes> {
+fn parse_stop_like(
+    lex: &mut Lexer,
+    loc: (PathBuf, usize),
+    target: AudioTarget,
+) -> Result<ParseNodes> {
     let target = match target {
         AudioTarget::Generic(_) => AudioTarget::Generic(
             lex.name()
@@ -322,12 +337,18 @@ fn parse_stop_like(lex: &mut Lexer, loc: (PathBuf, usize), target: AudioTarget) 
 
     while !lex.eol() {
         if lex.keyword("fadeout".into()).is_some() {
-            fadeout = Some(require_simple_expression(lex, "expected simple expression")?);
+            fadeout = Some(require_simple_expression(
+                lex,
+                "expected simple expression",
+            )?);
             continue;
         }
 
         if lex.keyword("channel".into()).is_some() {
-            channel = Some(require_simple_expression(lex, "expected simple expression")?);
+            channel = Some(require_simple_expression(
+                lex,
+                "expected simple expression",
+            )?);
             continue;
         }
 
@@ -400,17 +421,24 @@ fn parse_show_call_screen_statement(
             continue;
         }
         if lex.keyword("with".into()).is_some() {
-            with = Some(require_simple_expression(lex, "expected simple expression")?);
+            with = Some(require_simple_expression(
+                lex,
+                "expected simple expression",
+            )?);
             continue;
         }
         if lex.keyword("onlayer".into()).is_some() {
-            layer = Some(
-                lex.require_or_error(LexerType::Type(LexerTypeOptions::Name), "expected layer name")?,
-            );
+            layer = Some(lex.require_or_error(
+                LexerType::Type(LexerTypeOptions::Name),
+                "expected layer name",
+            )?);
             continue;
         }
         if lex.keyword("zorder".into()).is_some() {
-            zorder = Some(require_simple_expression(lex, "expected simple expression")?);
+            zorder = Some(require_simple_expression(
+                lex,
+                "expected simple expression",
+            )?);
             continue;
         }
         if lex.keyword("as".into()).is_some() {
@@ -448,13 +476,17 @@ fn parse_hide_screen_statement(lex: &mut Lexer, loc: (PathBuf, usize)) -> Result
 
     while !lex.eol() {
         if lex.keyword("with".into()).is_some() {
-            with = Some(require_simple_expression(lex, "expected simple expression")?);
+            with = Some(require_simple_expression(
+                lex,
+                "expected simple expression",
+            )?);
             continue;
         }
         if lex.keyword("onlayer".into()).is_some() {
-            layer = Some(
-                lex.require_or_error(LexerType::Type(LexerTypeOptions::Name), "expected layer name")?,
-            );
+            layer = Some(lex.require_or_error(
+                LexerType::Type(LexerTypeOptions::Name),
+                "expected layer name",
+            )?);
             continue;
         }
 
@@ -508,7 +540,11 @@ fn parse_window_auto_statement(lex: &mut Lexer, loc: (PathBuf, usize)) -> Result
     lex.expect_eol()?;
     lex.expect_noblock()?;
     lex.advance();
-    Ok(vec![AstNode::WindowAutoStatement(WindowAutoStatement { loc, kind })].into())
+    Ok(vec![AstNode::WindowAutoStatement(WindowAutoStatement {
+        loc,
+        kind,
+    })]
+    .into())
 }
 
 impl Parser for Show {
@@ -789,10 +825,8 @@ impl Parser for LayeredImage {
                                 name: attribute_name,
                                 ..Default::default()
                             };
-                            let nested_block = parse_layered_image_attribute_line(
-                                &mut group_sub,
-                                &mut attribute,
-                            )?;
+                            let nested_block =
+                                parse_layered_image_attribute_line(&mut group_sub, &mut attribute)?;
                             if nested_block {
                                 validate_layered_image_attribute(&group_sub, &attribute)?;
                                 group.attributes.push(attribute);
@@ -886,7 +920,8 @@ impl Parser for LayeredImage {
                             properties: std::mem::take(&mut branch_node.properties),
                             displayable: branch_node.displayable.take(),
                         };
-                        let got_block = parse_layered_image_attribute_line(&mut branch_sub, &mut holder)?;
+                        let got_block =
+                            parse_layered_image_attribute_line(&mut branch_sub, &mut holder)?;
                         branch_node.properties = holder.properties;
                         branch_node.displayable = holder.displayable;
                         if !got_block {
@@ -911,9 +946,11 @@ impl Parser for LayeredImage {
                     sub.unadvance();
                 }
 
-                layered_image.children.push(LayeredImageChild::ConditionGroup(
-                    LayeredImageConditionGroup { branches },
-                ));
+                layered_image
+                    .children
+                    .push(LayeredImageChild::ConditionGroup(
+                        LayeredImageConditionGroup { branches },
+                    ));
                 continue;
             }
 
@@ -948,7 +985,9 @@ impl Parser for LayeredImage {
                     return Err(sub.parse_error("The always statement must have a displayable."));
                 }
 
-                layered_image.children.push(LayeredImageChild::Always(always));
+                layered_image
+                    .children
+                    .push(LayeredImageChild::Always(always));
                 continue;
             }
 

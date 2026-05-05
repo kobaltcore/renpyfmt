@@ -1,5 +1,5 @@
-use super::*;
 use super::test_language::{parse_testcase_statement, parse_testsuite_statement};
+use super::*;
 
 impl Parser for Translate {
     fn parse(&self, lex: &mut Lexer, loc: (PathBuf, usize)) -> Result<ParseNodes> {

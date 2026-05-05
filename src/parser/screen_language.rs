@@ -23,40 +23,210 @@ struct DisplayableSpec {
 }
 
 const DISPLAYABLE_SPECS: &[DisplayableSpec] = &[
-    DisplayableSpec { name: "null", positional: &[], nchildren: ChildCount::Zero, default_properties: true },
-    DisplayableSpec { name: "text", positional: &["text"], nchildren: ChildCount::Zero, default_properties: true },
-    DisplayableSpec { name: "hbox", positional: &[], nchildren: ChildCount::Many, default_properties: true },
-    DisplayableSpec { name: "vbox", positional: &[], nchildren: ChildCount::Many, default_properties: true },
-    DisplayableSpec { name: "fixed", positional: &[], nchildren: ChildCount::Many, default_properties: true },
-    DisplayableSpec { name: "grid", positional: &["cols", "rows"], nchildren: ChildCount::Many, default_properties: true },
-    DisplayableSpec { name: "side", positional: &["positions"], nchildren: ChildCount::Many, default_properties: true },
-    DisplayableSpec { name: "window", positional: &[], nchildren: ChildCount::One, default_properties: true },
-    DisplayableSpec { name: "frame", positional: &[], nchildren: ChildCount::One, default_properties: true },
-    DisplayableSpec { name: "key", positional: &["key"], nchildren: ChildCount::Zero, default_properties: true },
-    DisplayableSpec { name: "timer", positional: &["delay"], nchildren: ChildCount::Zero, default_properties: true },
-    DisplayableSpec { name: "input", positional: &[], nchildren: ChildCount::Zero, default_properties: true },
-    DisplayableSpec { name: "button", positional: &[], nchildren: ChildCount::One, default_properties: true },
-    DisplayableSpec { name: "imagebutton", positional: &[], nchildren: ChildCount::Zero, default_properties: true },
-    DisplayableSpec { name: "textbutton", positional: &["label"], nchildren: ChildCount::One, default_properties: true },
-    DisplayableSpec { name: "iconbutton", positional: &["icon"], nchildren: ChildCount::One, default_properties: true },
-    DisplayableSpec { name: "label", positional: &["label"], nchildren: ChildCount::One, default_properties: true },
-    DisplayableSpec { name: "bar", positional: &[], nchildren: ChildCount::Zero, default_properties: true },
-    DisplayableSpec { name: "vbar", positional: &[], nchildren: ChildCount::Zero, default_properties: true },
-    DisplayableSpec { name: "viewport", positional: &[], nchildren: ChildCount::One, default_properties: true },
-    DisplayableSpec { name: "vpgrid", positional: &[], nchildren: ChildCount::One, default_properties: true },
-    DisplayableSpec { name: "imagemap", positional: &[], nchildren: ChildCount::Many, default_properties: true },
-    DisplayableSpec { name: "hotspot", positional: &[], nchildren: ChildCount::Zero, default_properties: true },
-    DisplayableSpec { name: "hotbar", positional: &[], nchildren: ChildCount::Zero, default_properties: true },
-    DisplayableSpec { name: "transform", positional: &[], nchildren: ChildCount::One, default_properties: true },
-    DisplayableSpec { name: "add", positional: &["displayable"], nchildren: ChildCount::Zero, default_properties: true },
-    DisplayableSpec { name: "drag", positional: &[], nchildren: ChildCount::Many, default_properties: true },
-    DisplayableSpec { name: "draggroup", positional: &[], nchildren: ChildCount::Many, default_properties: true },
-    DisplayableSpec { name: "mousearea", positional: &[], nchildren: ChildCount::One, default_properties: true },
-    DisplayableSpec { name: "on", positional: &["event"], nchildren: ChildCount::One, default_properties: true },
-    DisplayableSpec { name: "nearrect", positional: &[], nchildren: ChildCount::One, default_properties: true },
-    DisplayableSpec { name: "dismiss", positional: &[], nchildren: ChildCount::Zero, default_properties: true },
-    DisplayableSpec { name: "areapicker", positional: &[], nchildren: ChildCount::Zero, default_properties: true },
-    DisplayableSpec { name: "icon", positional: &["name"], nchildren: ChildCount::Zero, default_properties: true },
+    DisplayableSpec {
+        name: "null",
+        positional: &[],
+        nchildren: ChildCount::Zero,
+        default_properties: true,
+    },
+    DisplayableSpec {
+        name: "text",
+        positional: &["text"],
+        nchildren: ChildCount::Zero,
+        default_properties: true,
+    },
+    DisplayableSpec {
+        name: "hbox",
+        positional: &[],
+        nchildren: ChildCount::Many,
+        default_properties: true,
+    },
+    DisplayableSpec {
+        name: "vbox",
+        positional: &[],
+        nchildren: ChildCount::Many,
+        default_properties: true,
+    },
+    DisplayableSpec {
+        name: "fixed",
+        positional: &[],
+        nchildren: ChildCount::Many,
+        default_properties: true,
+    },
+    DisplayableSpec {
+        name: "grid",
+        positional: &["cols", "rows"],
+        nchildren: ChildCount::Many,
+        default_properties: true,
+    },
+    DisplayableSpec {
+        name: "side",
+        positional: &["positions"],
+        nchildren: ChildCount::Many,
+        default_properties: true,
+    },
+    DisplayableSpec {
+        name: "window",
+        positional: &[],
+        nchildren: ChildCount::One,
+        default_properties: true,
+    },
+    DisplayableSpec {
+        name: "frame",
+        positional: &[],
+        nchildren: ChildCount::One,
+        default_properties: true,
+    },
+    DisplayableSpec {
+        name: "key",
+        positional: &["key"],
+        nchildren: ChildCount::Zero,
+        default_properties: true,
+    },
+    DisplayableSpec {
+        name: "timer",
+        positional: &["delay"],
+        nchildren: ChildCount::Zero,
+        default_properties: true,
+    },
+    DisplayableSpec {
+        name: "input",
+        positional: &[],
+        nchildren: ChildCount::Zero,
+        default_properties: true,
+    },
+    DisplayableSpec {
+        name: "button",
+        positional: &[],
+        nchildren: ChildCount::One,
+        default_properties: true,
+    },
+    DisplayableSpec {
+        name: "imagebutton",
+        positional: &[],
+        nchildren: ChildCount::Zero,
+        default_properties: true,
+    },
+    DisplayableSpec {
+        name: "textbutton",
+        positional: &["label"],
+        nchildren: ChildCount::One,
+        default_properties: true,
+    },
+    DisplayableSpec {
+        name: "iconbutton",
+        positional: &["icon"],
+        nchildren: ChildCount::One,
+        default_properties: true,
+    },
+    DisplayableSpec {
+        name: "label",
+        positional: &["label"],
+        nchildren: ChildCount::One,
+        default_properties: true,
+    },
+    DisplayableSpec {
+        name: "bar",
+        positional: &[],
+        nchildren: ChildCount::Zero,
+        default_properties: true,
+    },
+    DisplayableSpec {
+        name: "vbar",
+        positional: &[],
+        nchildren: ChildCount::Zero,
+        default_properties: true,
+    },
+    DisplayableSpec {
+        name: "viewport",
+        positional: &[],
+        nchildren: ChildCount::One,
+        default_properties: true,
+    },
+    DisplayableSpec {
+        name: "vpgrid",
+        positional: &[],
+        nchildren: ChildCount::One,
+        default_properties: true,
+    },
+    DisplayableSpec {
+        name: "imagemap",
+        positional: &[],
+        nchildren: ChildCount::Many,
+        default_properties: true,
+    },
+    DisplayableSpec {
+        name: "hotspot",
+        positional: &[],
+        nchildren: ChildCount::Zero,
+        default_properties: true,
+    },
+    DisplayableSpec {
+        name: "hotbar",
+        positional: &[],
+        nchildren: ChildCount::Zero,
+        default_properties: true,
+    },
+    DisplayableSpec {
+        name: "transform",
+        positional: &[],
+        nchildren: ChildCount::One,
+        default_properties: true,
+    },
+    DisplayableSpec {
+        name: "add",
+        positional: &["displayable"],
+        nchildren: ChildCount::Zero,
+        default_properties: true,
+    },
+    DisplayableSpec {
+        name: "drag",
+        positional: &[],
+        nchildren: ChildCount::Many,
+        default_properties: true,
+    },
+    DisplayableSpec {
+        name: "draggroup",
+        positional: &[],
+        nchildren: ChildCount::Many,
+        default_properties: true,
+    },
+    DisplayableSpec {
+        name: "mousearea",
+        positional: &[],
+        nchildren: ChildCount::One,
+        default_properties: true,
+    },
+    DisplayableSpec {
+        name: "on",
+        positional: &["event"],
+        nchildren: ChildCount::One,
+        default_properties: true,
+    },
+    DisplayableSpec {
+        name: "nearrect",
+        positional: &[],
+        nchildren: ChildCount::One,
+        default_properties: true,
+    },
+    DisplayableSpec {
+        name: "dismiss",
+        positional: &[],
+        nchildren: ChildCount::Zero,
+        default_properties: true,
+    },
+    DisplayableSpec {
+        name: "areapicker",
+        positional: &[],
+        nchildren: ChildCount::Zero,
+        default_properties: true,
+    },
+    DisplayableSpec {
+        name: "icon",
+        positional: &["name"],
+        nchildren: ChildCount::Zero,
+        default_properties: true,
+    },
 ];
 
 const SCREEN_PROPERTY_NAMES: &[&str] = &[
@@ -95,7 +265,10 @@ struct BlockContext<'a> {
 }
 
 pub(super) fn parse_screen(lex: &mut Lexer, loc: (PathBuf, usize)) -> Result<slast::Screen> {
-    let name = lex.require_or_error(LexerType::Type(LexerTypeOptions::Word), "expected screen name")?;
+    let name = lex.require_or_error(
+        LexerType::Type(LexerTypeOptions::Word),
+        "expected screen name",
+    )?;
     let parameters = parse_parameters(lex)?;
 
     let mut screen = slast::Screen {
@@ -134,7 +307,13 @@ pub(super) fn parse_screen(lex: &mut Lexer, loc: (PathBuf, usize)) -> Result<sla
                 continue;
             }
 
-            let node = parse_node(&mut sub, BlockContext { container_name: "screen", allow_break_continue: false })?;
+            let node = parse_node(
+                &mut sub,
+                BlockContext {
+                    container_name: "screen",
+                    allow_break_continue: false,
+                },
+            )?;
             screen.children.push(node);
         }
     }
@@ -197,9 +376,12 @@ fn parse_node(lex: &mut Lexer, ctx: BlockContext<'_>) -> Result<slast::Node> {
         }));
     }
 
-    let word = lex
-        .word()
-        .ok_or_else(|| lex.parse_error(format!("expected child statement in {}", ctx.container_name)))?;
+    let word = lex.word().ok_or_else(|| {
+        lex.parse_error(format!(
+            "expected child statement in {}",
+            ctx.container_name
+        ))
+    })?;
 
     match word.as_str() {
         "if" => parse_conditional(lex, start_loc, false, ctx),
@@ -207,7 +389,9 @@ fn parse_node(lex: &mut Lexer, ctx: BlockContext<'_>) -> Result<slast::Node> {
         "for" => parse_for(lex, start_loc),
         "break" => {
             if !ctx.allow_break_continue {
-                return Err(lex.parse_error("break may only appear inside a screen language for block"));
+                return Err(
+                    lex.parse_error("break may only appear inside a screen language for block")
+                );
             }
             lex.expect_eol()?;
             lex.expect_noblock()?;
@@ -216,7 +400,9 @@ fn parse_node(lex: &mut Lexer, ctx: BlockContext<'_>) -> Result<slast::Node> {
         }
         "continue" => {
             if !ctx.allow_break_continue {
-                return Err(lex.parse_error("continue may only appear inside a screen language for block"));
+                return Err(
+                    lex.parse_error("continue may only appear inside a screen language for block")
+                );
             }
             lex.expect_eol()?;
             lex.expect_noblock()?;
@@ -236,7 +422,9 @@ fn parse_node(lex: &mut Lexer, ctx: BlockContext<'_>) -> Result<slast::Node> {
             lex.expect_eol()?;
             lex.expect_noblock()?;
             lex.advance();
-            Ok(slast::Node::Transclude(slast::Transclude { loc: start_loc }))
+            Ok(slast::Node::Transclude(slast::Transclude {
+                loc: start_loc,
+            }))
         }
         _ => {
             if let Some(spec) = displayable_spec(&word) {
@@ -264,7 +452,10 @@ fn parse_conditional(
     lex.expect_eol()?;
     lex.expect_block()?;
 
-    let mut entries = vec![(Some(condition), parse_children_only(&mut lex.subblock_lexer(false), nested_ctx(showif, ctx))?)];
+    let mut entries = vec![(
+        Some(condition),
+        parse_children_only(&mut lex.subblock_lexer(false), nested_ctx(showif, ctx))?,
+    )];
     lex.advance();
     while !lex.eob {
         let state = lex.checkpoint();
@@ -275,7 +466,10 @@ fn parse_conditional(
             lex.require_or_error(LexerType::String(":".into()), "expected ':'")?;
             lex.expect_eol()?;
             lex.expect_block()?;
-            entries.push((Some(condition), parse_children_only(&mut lex.subblock_lexer(false), nested_ctx(showif, ctx))?));
+            entries.push((
+                Some(condition),
+                parse_children_only(&mut lex.subblock_lexer(false), nested_ctx(showif, ctx))?,
+            ));
             lex.advance();
             continue;
         }
@@ -284,7 +478,10 @@ fn parse_conditional(
             lex.require_or_error(LexerType::String(":".into()), "expected ':'")?;
             lex.expect_eol()?;
             lex.expect_block()?;
-            entries.push((None, parse_children_only(&mut lex.subblock_lexer(false), nested_ctx(showif, ctx))?));
+            entries.push((
+                None,
+                parse_children_only(&mut lex.subblock_lexer(false), nested_ctx(showif, ctx))?,
+            ));
             lex.advance();
             break;
         }
@@ -302,7 +499,10 @@ fn parse_conditional(
 
 fn nested_ctx(showif: bool, ctx: BlockContext<'_>) -> BlockContext<'_> {
     if showif {
-        BlockContext { container_name: "showif", allow_break_continue: ctx.allow_break_continue }
+        BlockContext {
+            container_name: "showif",
+            allow_break_continue: ctx.allow_break_continue,
+        }
     } else {
         ctx
     }
@@ -400,7 +600,10 @@ fn parse_use(lex: &mut Lexer, loc: (PathBuf, usize)) -> Result<slast::Node> {
         let pass_context = lex.keyword("pass".into()).is_some();
         (slast::UseTarget::Expression(expr), pass_context)
     } else {
-        let name = lex.require_or_error(LexerType::Type(LexerTypeOptions::Word), "expected screen name")?;
+        let name = lex.require_or_error(
+            LexerType::Type(LexerTypeOptions::Word),
+            "expected screen name",
+        )?;
         (slast::UseTarget::Name(name), false)
     };
 
@@ -411,7 +614,9 @@ fn parse_use(lex: &mut Lexer, loc: (PathBuf, usize)) -> Result<slast::Node> {
     while !lex.eol() {
         if lex.keyword("id".into()).is_some() {
             if id_expr.is_some() {
-                return Err(lex.parse_error("the id keyword may only appear once in a use statement"));
+                return Err(
+                    lex.parse_error("the id keyword may only appear once in a use statement")
+                );
             }
             id_expr = Some(
                 lex.simple_expression(false, true)?
@@ -421,11 +626,14 @@ fn parse_use(lex: &mut Lexer, loc: (PathBuf, usize)) -> Result<slast::Node> {
         }
         if lex.keyword("as".into()).is_some() {
             if variable.is_some() {
-                return Err(lex.parse_error("the as keyword may only appear once in a use statement"));
+                return Err(
+                    lex.parse_error("the as keyword may only appear once in a use statement")
+                );
             }
-            variable = Some(
-                lex.require_or_error(LexerType::Type(LexerTypeOptions::Word), "expected variable name")?,
-            );
+            variable = Some(lex.require_or_error(
+                LexerType::Type(LexerTypeOptions::Word),
+                "expected variable name",
+            )?);
             continue;
         }
         break;
@@ -497,11 +705,15 @@ fn parse_displayable(
 
         if lex.keyword("as".into()).is_some() {
             if displayable.variable.is_some() {
-                return Err(lex.parse_error(format!("an as clause may only appear once in a {} statement", spec.name)));
+                return Err(lex.parse_error(format!(
+                    "an as clause may only appear once in a {} statement",
+                    spec.name
+                )));
             }
-            displayable.variable = Some(
-                lex.require_or_error(LexerType::Type(LexerTypeOptions::Word), "expected variable name")?,
-            );
+            displayable.variable = Some(lex.require_or_error(
+                LexerType::Type(LexerTypeOptions::Word),
+                "expected variable name",
+            )?);
             continue;
         }
 
@@ -661,12 +873,19 @@ fn parse_named_property(
     allow_default_properties: bool,
     owner: &str,
 ) -> Result<()> {
-    let name = lex.require_or_error(LexerType::Type(LexerTypeOptions::Word), "expected property name")?;
+    let name = lex.require_or_error(
+        LexerType::Type(LexerTypeOptions::Word),
+        "expected property name",
+    )?;
     if !allow_default_properties && !SCREEN_PROPERTY_NAMES.contains(&name.as_str()) {
-        return Err(lex.parse_error(format!("{name:?} is not a keyword argument or valid child of the {owner} statement.")));
+        return Err(lex.parse_error(format!(
+            "{name:?} is not a keyword argument or valid child of the {owner} statement."
+        )));
     }
     if !seen.insert(name.clone()) {
-        return Err(lex.parse_error(format!("keyword argument {name:?} appears more than once in a {owner} statement")));
+        return Err(lex.parse_error(format!(
+            "keyword argument {name:?} appears more than once in a {owner} statement"
+        )));
     }
 
     let expr = if name == "tag" {
@@ -676,8 +895,9 @@ fn parse_named_property(
             &parse_arguments(lex)?.ok_or_else(|| lex.parse_error("expected arguments"))?,
         )
     } else {
-        lex.simple_expression(true, true)?
-            .ok_or_else(|| lex.parse_error(format!("the {name} keyword argument was not given a value")))?
+        lex.simple_expression(true, true)?.ok_or_else(|| {
+            lex.parse_error(format!("the {name} keyword argument was not given a value"))
+        })?
     };
 
     properties.push((name, expr));
@@ -704,7 +924,10 @@ fn arguments_to_string(arguments: &ArgumentInfo) -> String {
 }
 
 fn displayable_spec(name: &str) -> Option<DisplayableSpec> {
-    DISPLAYABLE_SPECS.iter().copied().find(|spec| spec.name == name)
+    DISPLAYABLE_SPECS
+        .iter()
+        .copied()
+        .find(|spec| spec.name == name)
 }
 
 fn take_python_until_keyword(lex: &mut Lexer, keyword: &str) -> Result<String> {
