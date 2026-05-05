@@ -689,7 +689,7 @@ impl Parser for Image {
 
         let mut atl = None;
         let mut expr = None;
-        if lex.rmatch(RegexType::Simple(":".into())).is_some() {
+        if lex.rmatch(RegexType::Simple(":")).is_some() {
             lex.expect_eol()?;
             lex.expect_block()?;
             atl = Some(parse_atl(&mut lex.subblock_lexer(false))?);
@@ -897,7 +897,7 @@ impl Parser for LayeredImage {
                         None
                     } else {
                         Some(
-                            sub.delimited_python(":".into(), false)?
+                            sub.delimited_python(":", false)?
                                 .ok_or_else(|| sub.parse_error("expected condition"))?
                                 .trim()
                                 .to_string(),

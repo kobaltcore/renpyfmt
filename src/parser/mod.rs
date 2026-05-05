@@ -236,7 +236,7 @@ pub(super) fn parse_parameters(lex: &mut Lexer) -> Result<Option<ParameterSignat
 
             if lex.rmatch(r"=".into()).is_some() {
                 lex.skip_whitespace();
-                default = lex.delimited_python("),".into(), false)?;
+                default = lex.delimited_python("),", false)?;
                 now_default = true;
 
                 if default.is_none() {
@@ -910,7 +910,7 @@ pub(super) fn parse_arguments(lex: &mut Lexer) -> Result<Option<ArgumentInfo>> {
         }
 
         lex.skip_whitespace();
-        arguments.push((name, lex.delimited_python("),".into(), false)?));
+        arguments.push((name, lex.delimited_python("),", false)?));
 
         if lex.rmatch(r"\)".into()).is_some() {
             break;

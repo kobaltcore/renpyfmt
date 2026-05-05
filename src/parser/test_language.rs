@@ -45,7 +45,7 @@ impl TestParseTrie {
 
         let word = match lex.word() {
             Some(word) => Some(word),
-            None => lex.rmatch(RegexType::Simple("$".into())),
+            None => lex.rmatch(RegexType::Simple("$")),
         };
 
         let Some(word) = word else {
@@ -407,12 +407,12 @@ fn parse_parameter(lex: &mut Lexer, loc: testast::Loc) -> Result<TestParameter> 
     lex.expect_noblock()?;
 
     let mut names = vec![];
-    if lex.rmatch(RegexType::Simple("(".into())).is_some() {
+    if lex.rmatch(RegexType::Simple("(")).is_some() {
         loop {
-            if lex.rmatch(RegexType::Simple(")".into())).is_some() {
+            if lex.rmatch(RegexType::Simple(")")).is_some() {
                 break;
             }
-            if lex.rmatch(RegexType::Simple(",".into())).is_some() {
+            if lex.rmatch(RegexType::Simple(",")).is_some() {
                 continue;
             }
             names.push(lex.require_or_error(
@@ -1051,7 +1051,7 @@ fn parse_condition(
             right: Box::new(right),
         })
     } else {
-        let mut rv = if lex.rmatch(RegexType::Simple("(".into())).is_some() {
+        let mut rv = if lex.rmatch(RegexType::Simple("(")).is_some() {
             let inner = parse_condition(lex, loc.clone(), None)?;
             lex.require_or_error(LexerType::String(r"\)".into()), "expected ')'")?;
             TestCondition::Grouped {

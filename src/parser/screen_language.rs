@@ -289,7 +289,7 @@ pub(super) fn parse_screen(lex: &mut Lexer, loc: (PathBuf, usize)) -> Result<sla
 
     let mut seen = HashSet::new();
     while !lex.eol() {
-        if lex.rmatch(RegexType::Simple(":".into())).is_some() {
+        if lex.rmatch(RegexType::Simple(":")).is_some() {
             break;
         }
         parse_named_property(lex, &mut screen.properties, &mut seen, true, "screen")?;
@@ -368,7 +368,7 @@ fn try_parse_screen_block_property(
 
 fn parse_node(lex: &mut Lexer, ctx: BlockContext<'_>) -> Result<slast::Node> {
     let start_loc = lex.get_location();
-    if lex.rmatch(RegexType::Simple("$".into())).is_some() {
+    if lex.rmatch(RegexType::Simple("$")).is_some() {
         let source = lex
             .rest_statement()
             .ok_or_else(|| lex.parse_error("expected python code"))?
@@ -649,7 +649,7 @@ fn parse_use(lex: &mut Lexer, loc: (PathBuf, usize)) -> Result<slast::Node> {
         break;
     }
 
-    let block = if lex.rmatch(RegexType::Simple(":".into())).is_some() {
+    let block = if lex.rmatch(RegexType::Simple(":")).is_some() {
         lex.expect_eol()?;
         lex.expect_block()?;
         Some(parse_children_only(
@@ -706,7 +706,7 @@ fn parse_displayable(
 
     let mut seen_properties = HashSet::new();
     while !lex.eol() {
-        if lex.rmatch(RegexType::Simple(":".into())).is_some() {
+        if lex.rmatch(RegexType::Simple(":")).is_some() {
             lex.expect_eol()?;
             lex.expect_block()?;
             parse_displayable_block(lex, &mut displayable, spec)?;
@@ -731,7 +731,7 @@ fn parse_displayable(
         if lex.keyword("at".into()).is_some() {
             let state = lex.checkpoint();
             if lex.keyword("transform".into()).is_some()
-                && lex.rmatch(RegexType::Simple(":".into())).is_some()
+                && lex.rmatch(RegexType::Simple(":")).is_some()
             {
                 if displayable.atl_transform.is_some() {
                     return Err(lex.parse_error("more than one 'at transform' block is given"));
@@ -803,7 +803,7 @@ fn parse_displayable_block(
         let state = sub.checkpoint();
         if sub.keyword("at".into()).is_some() {
             if sub.keyword("transform".into()).is_some()
-                && sub.rmatch(RegexType::Simple(":".into())).is_some()
+                && sub.rmatch(RegexType::Simple(":")).is_some()
             {
                 if displayable.atl_transform.is_some() {
                     return Err(sub.parse_error("more than one 'at transform' block is given"));

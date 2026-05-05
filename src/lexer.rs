@@ -105,7 +105,7 @@ pub enum GlobalRegex {
 
 pub enum RegexType {
     /// Will be matched as-is
-    Simple(String),
+    Simple(&'static str),
     /// Will be parsed into a Regex
     String(String),
     GlobalRegex(GlobalRegex),
@@ -293,7 +293,7 @@ impl Lexer {
             RegexType::Simple(s) => {
                 if substr.starts_with(&s) {
                     self.pos += s.len();
-                    return Some(s);
+                    return Some(s.to_string());
                 }
                 return None;
             }
@@ -341,7 +341,7 @@ impl Lexer {
     }
 
     pub fn match_literal(&mut self, literal: &'static str) -> Option<String> {
-        self.match_regexp(RegexType::Simple(literal.into()))
+        self.match_regexp(RegexType::Simple(literal))
     }
 
     pub fn rmatch_literal(&mut self, literal: &'static str) -> Option<String> {
@@ -629,7 +629,7 @@ impl Lexer {
 
         match global_name {
             Some(ref global_name) => {
-                if self.rmatch(RegexType::Simple(".".into())).is_some() {
+                if self.rmatch(RegexType::Simple(".")).is_some() {
                     if declare && Some(global_name) != self.global_label.as_ref() {
                         self.pos = old_pos;
                         return None;
@@ -643,9 +643,7 @@ impl Lexer {
                 }
             }
             None => {
-                if self.rmatch(RegexType::Simple(".".into())).is_none()
-                    || self.global_label.is_none()
-                {
+                if self.rmatch(RegexType::Simple(".")).is_none() || self.global_label.is_none() {
                     self.pos = old_pos;
                     return None;
                 }
@@ -691,11 +689,13 @@ impl Lexer {
                 return Err(self.parse_error("end of line reached while parsing string."));
             }
 
-            if self.rmatch(delim.clone().into()).is_some() {
+            self.skip_whitespace();
+            if self.text[self.pos..].starts_with(&delim) {
+                self.pos += delim.len();
                 break;
             }
 
-            if self.rmatch(RegexType::Simple(r"\\".into())).is_some() {
+            if self.rmatch(RegexType::Simple(r"\\")).is_some() {
                 self.pos += 1;
                 break;
             }
@@ -709,19 +709,16 @@ impl Lexer {
 
     pub fn parenthesised_python(&mut self) -> Result<bool> {
         // println!("parenthesised python");
-        let chars = self.text.chars().collect::<Vec<_>>();
-
-        if self.pos >= chars.len() {
+        let Some(c) = self.text[self.pos..].chars().next() else {
             return Ok(false);
-        }
+        };
 
         let old_pos = self.pos;
-        let c = chars[self.pos];
 
         match c {
             '(' => {
                 self.pos += 1;
-                if let Err(err) = self.delimited_python(")".into(), false) {
+                if let Err(err) = self.delimited_python(")", false) {
                     self.pos = old_pos;
                     return Err(err);
                 }
@@ -730,7 +727,7 @@ impl Lexer {
             }
             '[' => {
                 self.pos += 1;
-                if let Err(err) = self.delimited_python("]".into(), false) {
+                if let Err(err) = self.delimited_python("]", false) {
                     self.pos = old_pos;
                     return Err(err);
                 }
@@ -739,7 +736,7 @@ impl Lexer {
             }
             '{' => {
                 self.pos += 1;
-                if let Err(err) = self.delimited_python("}".into(), false) {
+                if let Err(err) = self.delimited_python("}", false) {
                     self.pos = old_pos;
                     return Err(err);
                 }
@@ -750,12 +747,14 @@ impl Lexer {
         }
     }
 
-    pub fn delimited_python(&mut self, delim: String, _expr: bool) -> Result<Option<String>> {
+    pub fn delimited_python(&mut self, delim: &'static str, _expr: bool) -> Result<Option<String>> {
         let start = self.pos;
 
-        let chars = self.text.chars().collect::<Vec<_>>();
         while !self.eol() {
-            let c = chars[self.pos];
+            let c = self.text[self.pos..]
+                .chars()
+                .next()
+                .expect("eol checked above");
 
             if delim.contains(c) {
                 return Ok(Some(self.text[start..self.pos].to_string()));
@@ -770,7 +769,7 @@ impl Lexer {
                 continue;
             }
 
-            self.pos += 1;
+            self.pos += c.len_utf8();
         }
 
         Err(self.parse_error(format!("reached end of line when expecting '{delim}'")))
@@ -818,7 +817,7 @@ impl Lexer {
                     break;
                 }
 
-                if self.rmatch(RegexType::Simple(".".into())).is_some() {
+                if self.rmatch(RegexType::Simple(".")).is_some() {
                     let n = self.word();
                     if n.is_none() {
                         return Err(self.parse_error("expecting name after dot."));
@@ -841,7 +840,7 @@ impl Lexer {
                 continue;
             }
 
-            if comma && self.rmatch(RegexType::Simple(",".into())).is_some() {
+            if comma && self.rmatch(RegexType::Simple(",")).is_some() {
                 continue;
             }
 
@@ -941,7 +940,7 @@ impl Lexer {
     }
 
     pub fn python_expression(&mut self) -> Result<String> {
-        let pe = self.delimited_python(":".into(), false)?;
+        let pe = self.delimited_python(":", false)?;
 
         match pe {
             Some(s) => Ok(s.trim().into()),
@@ -974,7 +973,7 @@ impl Lexer {
             return Ok(None);
         }
 
-        while self.rmatch(RegexType::Simple(".".into())).is_some() {
+        while self.rmatch(RegexType::Simple(".")).is_some() {
             let n = self.name();
             if n.is_none() {
                 return Err(self.parse_error("expecting name."));

@@ -8,6 +8,7 @@ use crate::{
 use anyhow::{Context, Result, bail};
 use indicatif::ProgressBar;
 use std::collections::BTreeMap;
+use std::fmt::Write;
 use std::fs;
 use std::path::{Path, PathBuf};
 use walkdir::WalkDir;
@@ -155,14 +156,13 @@ fn munge_filename(path: &PathBuf) -> Result<String> {
 
     stem = stem.replace(" ", "_");
 
-    let result = stem
-        .chars()
-        .map(|c| match c {
-            'a'..='z' | 'A'..='Z' | '0'..='9' | '_' => c.to_string(),
-            _ => format!("0x{:x}", c as u32),
-        })
-        .collect::<Vec<_>>()
-        .join("");
+    let mut result = String::with_capacity(stem.len());
+    for c in stem.chars() {
+        match c {
+            'a'..='z' | 'A'..='Z' | '0'..='9' | '_' => result.push(c),
+            _ => write!(&mut result, "0x{:x}", c as u32).expect("writing to String cannot fail"),
+        }
+    }
 
     Ok(format!("_m1_{result}__"))
 }
