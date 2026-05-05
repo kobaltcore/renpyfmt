@@ -9,6 +9,7 @@ mod test_language;
 pub use core::format_ast;
 pub(crate) use core::format_ast_with_config;
 pub(crate) use python::PythonFormatConfig;
+pub(crate) use python::format_python_file;
 
 #[cfg(test)]
 mod tests;

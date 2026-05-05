@@ -1,5 +1,6 @@
 use std::path::{Path, PathBuf};
 
+use anyhow::{Context, Result};
 use ruff_python_formatter::{PyFormatOptions, format_module_source};
 use ruff_workspace::FormatterSettings;
 
@@ -50,6 +51,13 @@ pub(crate) fn format_python_block(source: &str, config: &PythonFormatConfig) -> 
     } else {
         restore_leading_indent(&formatted, &base_indent)
     }
+}
+
+pub(crate) fn format_python_file(source: &str, config: &PythonFormatConfig) -> Result<String> {
+    let formatted = format_module_source(source, config.format_options(source))
+        .context("Ruff could not parse or format Python source")?;
+
+    Ok(formatted.as_code().to_string())
 }
 
 fn base_leading_indent(source: &str) -> String {
@@ -155,7 +163,7 @@ fn standalone_triple_quote_delimiter(line: &str) -> Option<&'static str> {
 
 #[cfg(test)]
 mod tests {
-    use super::{PythonFormatConfig, format_python_block};
+    use super::{PythonFormatConfig, format_python_block, format_python_file};
 
     #[test]
     fn formats_python_block_with_ruff() {
@@ -227,5 +235,18 @@ mod tests {
                 "\"\"\""
             )
         );
+    }
+
+    #[test]
+    fn formats_whole_python_file_with_ruff() {
+        assert_eq!(
+            format_python_file("x=[1,2]\n", &PythonFormatConfig::default()).unwrap(),
+            "x = [1, 2]\n"
+        );
+    }
+
+    #[test]
+    fn returns_error_for_invalid_python_file() {
+        assert!(format_python_file("if True print('hi')\n", &PythonFormatConfig::default()).is_err());
     }
 }

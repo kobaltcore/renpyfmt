@@ -26,6 +26,12 @@ fn write_script(root: &Path, contents: &str) -> PathBuf {
     script_path
 }
 
+fn write_file(root: &Path, name: &str, contents: &str) -> PathBuf {
+    let path = root.join(name);
+    fs::write(&path, contents).unwrap();
+    path
+}
+
 #[test]
 fn format_check_exits_zero_when_already_formatted() {
     let root = create_temp_test_dir("check-clean");
@@ -40,9 +46,67 @@ fn format_check_exits_zero_when_already_formatted() {
 
     assert_eq!(output.status.code(), Some(0));
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(
-        stdout.contains("Checked 1 .rpy file(s): 0 would change, 1 already formatted, 0 failed")
-    );
+    assert!(stdout.contains("Checked 1 file(s): 0 would change, 1 already formatted, 0 failed"));
+
+    let _ = fs::remove_dir_all(&root);
+}
+
+#[test]
+fn format_check_sees_both_rpy_and_py_files() {
+    let root = create_temp_test_dir("check-mixed-types");
+    write_script(&root, "python:\n    message = \"hi\"\n");
+    write_file(&root, "normal.py", "x=[1,2]\n");
+
+    let output = renpyfmt_command()
+        .arg("format")
+        .arg("--check")
+        .arg(&root)
+        .output()
+        .unwrap();
+
+    assert_eq!(output.status.code(), Some(1));
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("Would reformat"));
+    assert!(stdout.contains("Checked 2 file(s): 1 would change, 1 already formatted, 0 failed"));
+
+    let _ = fs::remove_dir_all(&root);
+}
+
+#[test]
+fn format_check_dirty_python_exits_one_without_modifying_file() {
+    let root = create_temp_test_dir("check-dirty-python");
+    let script_path = write_file(&root, "normal.py", "x=[1,2]\n");
+
+    let output = renpyfmt_command()
+        .arg("format")
+        .arg("--check")
+        .arg(&root)
+        .output()
+        .unwrap();
+
+    assert_eq!(output.status.code(), Some(1));
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("Checked 1 file(s): 1 would change, 0 already formatted, 0 failed"));
+    assert_eq!(fs::read_to_string(&script_path).unwrap(), "x=[1,2]\n");
+
+    let _ = fs::remove_dir_all(&root);
+}
+
+#[test]
+fn format_check_clean_python_counts_as_unchanged() {
+    let root = create_temp_test_dir("check-clean-python");
+    write_file(&root, "normal.py", "x = [1, 2]\n");
+
+    let output = renpyfmt_command()
+        .arg("format")
+        .arg("--check")
+        .arg(&root)
+        .output()
+        .unwrap();
+
+    assert_eq!(output.status.code(), Some(0));
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("Checked 1 file(s): 0 would change, 1 already formatted, 0 failed"));
 
     let _ = fs::remove_dir_all(&root);
 }

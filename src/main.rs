@@ -20,7 +20,7 @@ enum Commands {
         path: PathBuf,
     },
     Format {
-        /// Directory to search recursively for .rpy files.
+        /// Directory to search recursively for formattable files.
         path: PathBuf,
 
         /// Use this Ruff config file instead of auto-discovery.
