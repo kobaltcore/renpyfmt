@@ -14,6 +14,12 @@ pub struct Screen {
     pub children: Vec<Node>,
 }
 
+#[derive(Debug, Clone, Default)]
+pub struct Block {
+    pub properties: Vec<(String, String)>,
+    pub children: Vec<Node>,
+}
+
 #[derive(Debug, Clone)]
 pub enum Node {
     Displayable(Displayable),
@@ -44,13 +50,13 @@ pub struct Displayable {
 #[derive(Debug, Clone, Default)]
 pub struct If {
     pub loc: (PathBuf, usize),
-    pub entries: Vec<(Option<String>, Vec<Node>)>,
+    pub entries: Vec<(Option<String>, Block)>,
 }
 
 #[derive(Debug, Clone, Default)]
 pub struct ShowIf {
     pub loc: (PathBuf, usize),
-    pub entries: Vec<(Option<String>, Vec<Node>)>,
+    pub entries: Vec<(Option<String>, Block)>,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -59,7 +65,7 @@ pub struct For {
     pub target: String,
     pub index_expression: Option<String>,
     pub iterable: String,
-    pub children: Vec<Node>,
+    pub block: Block,
 }
 
 #[derive(Debug, Clone)]

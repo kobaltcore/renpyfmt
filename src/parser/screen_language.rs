@@ -259,9 +259,16 @@ const RESERVED_CHILD_NAMES: &[&str] = &[
 ];
 
 #[derive(Clone, Copy)]
+struct PropertyContext<'a> {
+    owner: &'a str,
+    allow_default_properties: bool,
+}
+
+#[derive(Clone, Copy)]
 struct BlockContext<'a> {
     container_name: &'a str,
     allow_break_continue: bool,
+    property_context: Option<PropertyContext<'a>>,
 }
 
 pub(super) fn parse_screen(lex: &mut Lexer, loc: (PathBuf, usize)) -> Result<slast::Screen> {
@@ -312,6 +319,7 @@ pub(super) fn parse_screen(lex: &mut Lexer, loc: (PathBuf, usize)) -> Result<sla
                 BlockContext {
                     container_name: "screen",
                     allow_break_continue: false,
+                    property_context: None,
                 },
             )?;
             screen.children.push(node);
@@ -386,7 +394,7 @@ fn parse_node(lex: &mut Lexer, ctx: BlockContext<'_>) -> Result<slast::Node> {
     match word.as_str() {
         "if" => parse_conditional(lex, start_loc, false, ctx),
         "showif" => parse_conditional(lex, start_loc, true, ctx),
-        "for" => parse_for(lex, start_loc),
+        "for" => parse_for(lex, start_loc, ctx),
         "break" => {
             if !ctx.allow_break_continue {
                 return Err(
@@ -454,7 +462,7 @@ fn parse_conditional(
 
     let mut entries = vec![(
         Some(condition),
-        parse_children_only(&mut lex.subblock_lexer(false), nested_ctx(showif, ctx))?,
+        parse_block(&mut lex.subblock_lexer(false), nested_ctx(showif, ctx))?,
     )];
     lex.advance();
     while !lex.eob {
@@ -468,7 +476,7 @@ fn parse_conditional(
             lex.expect_block()?;
             entries.push((
                 Some(condition),
-                parse_children_only(&mut lex.subblock_lexer(false), nested_ctx(showif, ctx))?,
+                parse_block(&mut lex.subblock_lexer(false), nested_ctx(showif, ctx))?,
             ));
             lex.advance();
             continue;
@@ -480,7 +488,7 @@ fn parse_conditional(
             lex.expect_block()?;
             entries.push((
                 None,
-                parse_children_only(&mut lex.subblock_lexer(false), nested_ctx(showif, ctx))?,
+                parse_block(&mut lex.subblock_lexer(false), nested_ctx(showif, ctx))?,
             ));
             lex.advance();
             break;
@@ -502,13 +510,14 @@ fn nested_ctx(showif: bool, ctx: BlockContext<'_>) -> BlockContext<'_> {
         BlockContext {
             container_name: "showif",
             allow_break_continue: ctx.allow_break_continue,
+            property_context: ctx.property_context,
         }
     } else {
         ctx
     }
 }
 
-fn parse_for(lex: &mut Lexer, loc: (PathBuf, usize)) -> Result<slast::Node> {
+fn parse_for(lex: &mut Lexer, loc: (PathBuf, usize), ctx: BlockContext<'_>) -> Result<slast::Node> {
     lex.skip_whitespace();
     let target_start = lex.pos;
     let mut target_end = None;
@@ -548,11 +557,12 @@ fn parse_for(lex: &mut Lexer, loc: (PathBuf, usize)) -> Result<slast::Node> {
     lex.require_or_error(LexerType::String(":".into()), "expected ':'")?;
     lex.expect_eol()?;
     lex.expect_block()?;
-    let children = parse_children_only(
+    let block = parse_block(
         &mut lex.subblock_lexer(false),
         BlockContext {
             container_name: "for",
             allow_break_continue: true,
+            property_context: ctx.property_context,
         },
     )?;
     lex.advance();
@@ -562,7 +572,7 @@ fn parse_for(lex: &mut Lexer, loc: (PathBuf, usize)) -> Result<slast::Node> {
         target,
         index_expression,
         iterable,
-        children,
+        block,
     }))
 }
 
@@ -647,6 +657,7 @@ fn parse_use(lex: &mut Lexer, loc: (PathBuf, usize)) -> Result<slast::Node> {
             BlockContext {
                 container_name: "use",
                 allow_break_continue: false,
+                property_context: None,
             },
         )?)
     } else {
@@ -779,6 +790,10 @@ fn parse_displayable_block(
                 BlockContext {
                     container_name: spec.name,
                     allow_break_continue: false,
+                    property_context: Some(PropertyContext {
+                        owner: spec.name,
+                        allow_default_properties: spec.default_properties,
+                    }),
                 },
             )?));
             continue;
@@ -821,6 +836,10 @@ fn parse_displayable_block(
             BlockContext {
                 container_name: spec.name,
                 allow_break_continue: false,
+                property_context: Some(PropertyContext {
+                    owner: spec.name,
+                    allow_default_properties: spec.default_properties,
+                }),
             },
         )?);
     }
@@ -829,16 +848,34 @@ fn parse_displayable_block(
 }
 
 fn parse_children_only(lex: &mut Lexer, ctx: BlockContext<'_>) -> Result<Vec<slast::Node>> {
-    let mut nodes = vec![];
+    Ok(parse_block(lex, ctx)?.children)
+}
+
+fn parse_block(lex: &mut Lexer, ctx: BlockContext<'_>) -> Result<slast::Block> {
+    let mut block = slast::Block::default();
+    let mut seen_properties = HashSet::new();
+
     if !lex.advance() {
-        return Ok(nodes);
+        return Ok(block);
     }
 
     while !lex.eob {
-        nodes.push(parse_node(lex, ctx)?);
+        if let Some(property_ctx) = ctx.property_context {
+            if try_parse_property_line(
+                lex,
+                &mut block.properties,
+                &mut seen_properties,
+                property_ctx.allow_default_properties,
+                property_ctx.owner,
+            )? {
+                continue;
+            }
+        }
+
+        block.children.push(parse_node(lex, ctx)?);
     }
 
-    Ok(nodes)
+    Ok(block)
 }
 
 fn try_parse_property_line(

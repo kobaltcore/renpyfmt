@@ -666,6 +666,48 @@ fn screen_icon_and_iconbutton_parse() {
 }
 
 #[test]
+fn screen_conditional_properties_inside_displayable_parse() {
+    let ast = assert_parse(parse_script(concat!(
+        "screen scenario_picker(found_hash):\n",
+        "    button:\n",
+        "        style \"scenario_button\"\n",
+        "        xfill True\n",
+        "        if scenario.hooks[found_hash]:\n",
+        "            ymaximum 100\n",
+        "        else:\n",
+        "            ymaximum 50\n",
+        "        margin 5, 0\n",
+        "        vbox\n",
+    )));
+
+    let AstNode::Screen(screen) = &ast[0] else {
+        panic!("expected screen node");
+    };
+    let crate::slast::Node::Displayable(button) = &screen.screen.children[0] else {
+        panic!("expected button displayable");
+    };
+    let crate::slast::Node::If(if_node) = &button.children[0] else {
+        panic!("expected conditional child");
+    };
+
+    assert_eq!(if_node.entries.len(), 2);
+    assert_eq!(
+        if_node.entries[0].1.properties,
+        vec![("ymaximum".to_string(), "100".to_string())]
+    );
+    assert_eq!(
+        if_node.entries[1].1.properties,
+        vec![("ymaximum".to_string(), "50".to_string())]
+    );
+    assert!(
+        button
+            .properties
+            .iter()
+            .any(|(name, expr)| name == "margin" && expr == "5, 0")
+    );
+}
+
+#[test]
 fn screen_duplicate_property_returns_parse_error() {
     assert_error_contains(
         parse_script("screen dupes:\n    text \"Hello\" xalign 0.0 xalign 1.0"),

@@ -165,9 +165,9 @@ impl Formatter {
     fn emit_sl_conditional(
         &mut self,
         first_keyword: &str,
-        entries: &[(Option<String>, Vec<Node>)],
+        entries: &[(Option<String>, slast::Block)],
     ) {
-        for (index, (condition, children)) in entries.iter().enumerate() {
+        for (index, (condition, block)) in entries.iter().enumerate() {
             let header = if index == 0 {
                 format!(
                     "{first_keyword} {}:",
@@ -182,7 +182,7 @@ impl Formatter {
             };
 
             self.line(&header);
-            self.indented(|formatter| formatter.emit_sl_nodes(children));
+            self.indented(|formatter| formatter.emit_sl_block(block));
         }
     }
 
@@ -193,7 +193,14 @@ impl Formatter {
         }
         line.push_str(&format!(" in {}:", node.iterable));
         self.line(&line);
-        self.indented(|formatter| formatter.emit_sl_nodes(&node.children));
+        self.indented(|formatter| formatter.emit_sl_block(&node.block));
+    }
+
+    fn emit_sl_block(&mut self, block: &slast::Block) {
+        for (name, expr) in &block.properties {
+            self.line(&format!("{name} {expr}"));
+        }
+        self.emit_sl_nodes(&block.children);
     }
 
     fn emit_sl_python(&mut self, node: &slast::Python) {
