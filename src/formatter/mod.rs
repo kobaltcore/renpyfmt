@@ -7,7 +7,7 @@ mod slast;
 mod test_language;
 
 pub use core::format_ast;
-pub use core::format_ast_with_config;
+pub use core::{format_ast_with_config, format_ast_with_config_owned};
 pub use python::{PythonFormatConfig, format_python_block, format_python_file};
 
 #[cfg(test)]

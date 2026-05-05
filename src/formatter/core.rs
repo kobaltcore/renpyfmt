@@ -350,11 +350,20 @@ impl Formatter {
             .max()
             .map_or(body_end_line, |line| line.max(body_end_line));
 
-        let mut merged_lines = vec![];
+        let mut merged = String::new();
+        let mut started = false;
+        let mut pending_blank = false;
         for line_number in body_start_line..=final_line {
             let standalone_for_line = standalone_comments.remove(&line_number);
             if let Some(comment_lines) = standalone_for_line.as_ref() {
-                merged_lines.extend(comment_lines.iter().cloned());
+                for comment_line in comment_lines {
+                    push_python_source_line(
+                        &mut merged,
+                        &mut started,
+                        &mut pending_blank,
+                        comment_line,
+                    );
+                }
             }
 
             let raw_line = body_lines
@@ -375,28 +384,14 @@ impl Formatter {
                 raw_line.to_string()
             };
 
-            if !(raw_line.trim().is_empty() && merged_lines.last().is_some_and(String::is_empty)) {
-                merged_lines.push(line);
+            if raw_line.trim().is_empty() && pending_blank {
+                continue;
             }
+
+            push_python_source_line(&mut merged, &mut started, &mut pending_blank, &line);
         }
 
-        let start = merged_lines
-            .iter()
-            .position(|line| !line.is_empty())
-            .unwrap_or(merged_lines.len());
-        let end = merged_lines
-            .iter()
-            .rposition(|line| !line.is_empty())
-            .map(|index| index + 1)
-            .unwrap_or(start);
-
-        let source = if start == end {
-            String::new()
-        } else {
-            merged_lines[start..end].join("\n")
-        };
-
-        super::python::format_python_block(&source, &self.python_format_config)
+        super::python::format_python_block(&merged, &self.python_format_config)
     }
 
     fn take_trailing_comment_for_current_line(&mut self, text: &str) -> String {
@@ -523,7 +518,40 @@ pub fn format_ast_with_config(
     comments: &CommentMap,
     python_format_config: &PythonFormatConfig,
 ) -> String {
-    let mut formatter = Formatter::new(comments.clone(), python_format_config.clone());
+    format_ast_with_config_owned(ast, comments.clone(), python_format_config.clone())
+}
+
+pub fn format_ast_with_config_owned(
+    ast: &[AstNode],
+    comments: CommentMap,
+    python_format_config: PythonFormatConfig,
+) -> String {
+    let mut formatter = Formatter::new(comments, python_format_config);
     formatter.nodes(ast);
     formatter.finish()
+}
+
+fn push_python_source_line(
+    out: &mut String,
+    started: &mut bool,
+    pending_blank: &mut bool,
+    line: &str,
+) {
+    if line.is_empty() {
+        if *started {
+            *pending_blank = true;
+        }
+        return;
+    }
+
+    if *started {
+        out.push('\n');
+        if *pending_blank {
+            out.push('\n');
+        }
+    }
+
+    out.push_str(line);
+    *started = true;
+    *pending_blank = false;
 }

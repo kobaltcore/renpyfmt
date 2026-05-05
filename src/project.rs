@@ -2,7 +2,7 @@ use crate::comments::{Comment, CommentMap, EOF_LINE};
 use crate::parser::parse_block;
 use crate::{
     ast::AstNode,
-    formatter::{PythonFormatConfig, format_ast_with_config, format_python_file},
+    formatter::{PythonFormatConfig, format_ast_with_config_owned, format_python_file},
     lexer::{Block, Lexer},
 };
 use anyhow::{Context, Result, bail};
@@ -688,7 +688,7 @@ pub fn format_file_source(
     let formatted = match extension {
         "rpy" => {
             let (ast, comments) = parse_file_ast(input_dir, input_file)?;
-            format_ast_with_config(&ast, &comments, python_format_config)
+            format_ast_with_config_owned(&ast, comments, python_format_config.clone())
         }
         "py" => format_python_file(&existing, python_format_config)
             .with_context(|| format!("Failed to format {}", input_file.display()))?,
