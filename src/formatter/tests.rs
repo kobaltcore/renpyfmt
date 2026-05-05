@@ -620,11 +620,11 @@ fn formats_translate_and_raw_block_statements() {
             "    count = 3\n",
             "\n",
             "testcase foo.bar:\n",
-            "    assert x\n",
+            "    assert eval x\n",
             "\n",
             "testsuite foo.bar:\n",
             "    testcase nested:\n",
-            "        assert y"
+            "        assert eval y"
         ),
         concat!(
             "translate None strings:\n",
@@ -638,11 +638,49 @@ fn formats_translate_and_raw_block_statements() {
             "    count = 3\n",
             "\n",
             "testcase foo.bar:\n",
-            "    assert x\n",
+            "    assert eval x\n",
             "\n",
             "testsuite foo.bar:\n",
             "    testcase nested:\n",
-            "        assert y"
+            "        assert eval y"
+        ),
+    );
+}
+
+#[test]
+fn formats_structured_test_language_blocks() {
+    assert_formats(
+        concat!(
+            "testsuite global:\n",
+            "    description \"Default project testsuite\"\n",
+            "    before testsuite:\n",
+            "        if not screen \"main_menu\":\n",
+            "            run MainMenu(confirm=False)\n",
+            "    teardown:\n",
+            "        exit\n",
+            "    testcase smoke:\n",
+            "        click \"Start\"\n",
+            "        pause until screen \"choice\"\n",
+            "        python hide:\n",
+            "            x=1\n",
+            "        $ print(\"ok\")\n",
+            "        screenshot \"main_menu\" crop (0, 0, 100, 100)"
+        ),
+        concat!(
+            "testsuite global:\n",
+            "    description \"Default project testsuite\"\n",
+            "    before testsuite:\n",
+            "        if not screen \"main_menu\":\n",
+            "            run MainMenu(confirm=False)\n",
+            "    teardown:\n",
+            "        exit\n",
+            "    testcase smoke:\n",
+            "        click \"Start\"\n",
+            "        pause until screen \"choice\"\n",
+            "        python hide:\n",
+            "            x = 1\n",
+            "        $ print(\"ok\")\n",
+            "        screenshot \"main_menu\" crop (0, 0, 100, 100)"
         ),
     );
 }

@@ -4,6 +4,7 @@ mod core;
 mod inline;
 mod python;
 mod slast;
+mod test_language;
 
 pub use core::format_ast;
 pub(crate) use core::format_ast_with_config;

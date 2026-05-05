@@ -1,4 +1,4 @@
-use crate::{atl::RawBlock, lexer::Block, slast};
+use crate::{atl::RawBlock, lexer::Block, slast, testast};
 use std::{
     collections::{HashMap, HashSet},
     path::PathBuf,
@@ -383,15 +383,13 @@ pub struct TranslateEarlyBlock {
 #[derive(Debug, Clone, Default)]
 pub struct Testcase {
     pub loc: (PathBuf, usize),
-    pub name: String,
-    pub block: Vec<Block>,
+    pub test: testast::TestCase,
 }
 
 #[derive(Debug, Clone, Default)]
 pub struct Testsuite {
     pub loc: (PathBuf, usize),
-    pub name: String,
-    pub block: Vec<Block>,
+    pub suite: testast::TestSuite,
 }
 
 #[derive(Debug, Clone)]

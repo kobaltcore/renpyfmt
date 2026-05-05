@@ -7,6 +7,7 @@ pub mod lexer;
 pub mod parser;
 pub mod project;
 pub mod slast;
+pub mod testast;
 #[cfg(test)]
 pub(crate) mod test_support;
 pub mod trie;

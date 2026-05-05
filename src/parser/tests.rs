@@ -2,6 +2,7 @@ use crate::{
     ast::AstNode,
     atl::AtlStatement,
     error::{ParseError, Result},
+    testast::{TestCondition, TestNode, TestSelector, TestSuiteEntry},
     test_support::{block, parse, parse_script},
 };
 use std::path::PathBuf;
@@ -591,32 +592,227 @@ fn translate_python_parses() {
 }
 
 #[test]
-fn testcase_parses_header_and_raw_block() {
+fn testcase_parses_structured_body_and_properties() {
     let ast = assert_parse(parse(vec![block(
         1,
         "testcase foo.bar:",
-        vec![block(2, "assert x", vec![])],
+        vec![
+            block(2, "description \"desc\"", vec![]),
+            block(3, "enabled flag", vec![]),
+            block(4, "parameter (x, y) = [(1, 2)]", vec![]),
+            block(5, "assert eval ready timeout 2.0", vec![]),
+        ],
     )]));
 
-    assert!(
-        matches!(&ast[0], AstNode::Testcase(node) if node.name == "foo.bar" && node.block.len() == 1)
+    let AstNode::Testcase(node) = &ast[0] else {
+        panic!("expected testcase");
+    };
+
+    assert_eq!(node.test.name, "foo.bar");
+    assert_eq!(node.test.properties.description.as_deref(), Some("\"desc\""));
+    assert_eq!(node.test.properties.enabled.as_deref(), Some("flag"));
+    assert_eq!(node.test.properties.parameters.len(), 1);
+    assert_eq!(node.test.properties.parameters[0].names, vec!["x", "y"]);
+    assert_eq!(node.test.properties.parameters[0].values_expr, "[(1, 2)]");
+    assert!(matches!(
+        &node.test.statements[0],
+        TestNode::Assert(assert)
+            if matches!(&assert.condition, TestCondition::Eval { expr, .. } if expr == "ready")
+                && assert.timeout.as_deref() == Some("2.0")
+    ));
+}
+
+#[test]
+fn testsuite_parses_hooks_and_nested_children() {
+    let ast = assert_parse(parse(vec![block(
+        1,
+        "testsuite foo.bar:",
+        vec![
+            block(2, "before testcase:", vec![block(3, "pass", vec![])]),
+            block(
+                4,
+                "testcase inner:",
+                vec![block(5, "advance until label chapter_5", vec![])],
+            ),
+        ],
+    )]));
+
+    let AstNode::Testsuite(node) = &ast[0] else {
+        panic!("expected testsuite");
+    };
+
+    assert_eq!(node.suite.name, "foo.bar");
+    assert_eq!(node.suite.entries.len(), 2);
+    assert!(matches!(
+        &node.suite.entries[0],
+        TestSuiteEntry::Hook(hook) if hook.kind.as_str() == "before testcase"
+    ));
+    assert!(matches!(
+        &node.suite.entries[1],
+        TestSuiteEntry::TestCase(case)
+            if case.name == "inner"
+                && matches!(
+                    &case.statements[0],
+                    TestNode::Until(until)
+                        if matches!(&until.condition, TestCondition::Label { name, .. } if name == "chapter_5")
+                )
+    ));
+}
+
+#[test]
+fn testcase_rejects_property_after_statement() {
+    assert_error_contains(
+        parse_script(
+            "testcase foo.bar:\n    pass\n    enabled flag",
+        ),
+        "Property enabled must be defined before any test statements.",
+        3,
     );
 }
 
 #[test]
-fn testsuite_parses_header_and_raw_block() {
-    let ast = assert_parse(parse(vec![block(
-        1,
-        "testsuite foo.bar:",
-        vec![block(
-            2,
-            "testcase inner:",
-            vec![block(3, "assert x", vec![])],
-        )],
-    )]));
+fn testsuite_rejects_duplicate_hook() {
+    assert_error_contains(
+        parse_script(
+            "testsuite foo.bar:\n    setup:\n        pass\n    setup:\n        pass",
+        ),
+        "Only one 'setup' block is allowed in a testsuite.",
+        4,
+    );
+}
 
-    assert!(
-        matches!(&ast[0], AstNode::Testsuite(node) if node.name == "foo.bar" && node.block.len() == 1)
+#[test]
+fn testsuite_rejects_invalid_before_clause() {
+    assert_error_contains(
+        parse_script(
+            "testsuite foo.bar:\n    before something:\n        pass",
+        ),
+        "Expected 'before testsuite' or 'before testcase'.",
+        2,
+    );
+}
+
+#[test]
+fn testcase_rejects_nested_testcase_in_block() {
+    assert_error_contains(
+        parse_script(
+            "testcase foo.bar:\n    testcase inner:\n        pass",
+        ),
+        "may not be nested inside a block",
+        2,
+    );
+}
+
+#[test]
+fn testsuite_hook_defaults_are_applied() {
+    let ast = assert_parse(parse_script(
+        "testsuite foo.bar:\n    before testcase:\n        pass\n    after testsuite:\n        pass",
+    ));
+
+    let AstNode::Testsuite(node) = &ast[0] else {
+        panic!("expected testsuite");
+    };
+
+    assert!(matches!(
+        &node.suite.entries[0],
+        TestSuiteEntry::Hook(hook) if hook.properties.depth.as_deref() == Some("-1")
+    ));
+    assert!(matches!(
+        &node.suite.entries[1],
+        TestSuiteEntry::Hook(hook) if hook.properties.depth.as_deref() == Some("0")
+    ));
+}
+
+#[test]
+fn selector_and_statement_variants_parse() {
+    let ast = assert_parse(parse_script(
+        r#"
+testcase foo.bar:
+    click "Next" button 1 pos (10, 20) always
+    drag pos (0, 0) to pos (100, 100) steps 10
+    pause until screen "choice"
+    $ print("ok")
+"#,
+    ));
+
+    let AstNode::Testcase(node) = &ast[0] else {
+        panic!("expected testcase");
+    };
+
+    assert!(matches!(
+        &node.test.statements[0],
+        TestNode::Click(click)
+            if click.button.as_deref() == Some("1")
+                && click.position.as_deref() == Some("(10, 20)")
+                && click.always
+                && matches!(
+                    click.selector.as_ref(),
+                    Some(TestSelector::Text(selector)) if selector.pattern == "Next"
+                )
+    ));
+    assert!(matches!(
+        &node.test.statements[1],
+        TestNode::Drag(drag)
+            if drag.start.position.as_deref() == Some("(0, 0)")
+                && drag.end.position.as_deref() == Some("(100, 100)")
+                && drag.steps.as_deref() == Some("10")
+    ));
+    assert!(matches!(
+        &node.test.statements[2],
+        TestNode::Until(until)
+            if matches!(
+                &until.condition,
+                TestCondition::Selector(TestSelector::Displayable(selector))
+                    if selector.screen.as_deref() == Some("\"choice\"")
+            )
+    ));
+    assert!(matches!(
+        &node.test.statements[3],
+        TestNode::Python(python) if !python.block && python.code == "print(\"ok\")"
+    ));
+}
+
+#[test]
+fn selector_rejects_two_text_patterns() {
+    assert_error_contains(
+        parse_script(
+            "testcase foo.bar:\n    click \"One\" \"Two\"",
+        ),
+        "Only one text pattern may be specified in a selector.",
+        2,
+    );
+}
+
+#[test]
+fn selector_rejects_text_with_screen() {
+    assert_error_contains(
+        parse_script(
+            "testcase foo.bar:\n    click \"One\" screen \"menu\"",
+        ),
+        "may not be specified with a screen or id",
+        2,
+    );
+}
+
+#[test]
+fn parameter_rejects_duplicate_names() {
+    assert_error_contains(
+        parse_script(
+            "testcase foo.bar:\n    parameter (x, x) = [(1, 2)]",
+        ),
+        "must be unique",
+        2,
+    );
+}
+
+#[test]
+fn parameter_rejects_empty_tuple() {
+    assert_error_contains(
+        parse_script(
+            "testcase foo.bar:\n    parameter () = []",
+        ),
+        "Expected at least one name",
+        2,
     );
 }
 

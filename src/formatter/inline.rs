@@ -1,7 +1,4 @@
-use crate::{
-    ast::{ArgumentInfo, ImageSpecifier, ParameterKind, ParameterSignature},
-    lexer::Block,
-};
+use crate::ast::{ArgumentInfo, ImageSpecifier, ParameterKind, ParameterSignature};
 
 pub(crate) fn encode_say_string(s: &str) -> String {
     let mut escaped = s.replace('\\', "\\\\");
@@ -114,15 +111,4 @@ pub(crate) fn format_parameter_signature(signature: &ParameterSignature) -> Stri
     parts.extend(var_keyword);
 
     format!("({})", parts.join(", "))
-}
-
-pub(crate) fn format_raw_block(blocks: &[Block], indent: usize) -> Vec<String> {
-    let mut lines = vec![];
-
-    for block in blocks {
-        lines.push(format!("{}{}", " ".repeat(indent), block.text));
-        lines.extend(format_raw_block(&block.block, indent + 4));
-    }
-
-    lines
 }

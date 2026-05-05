@@ -28,6 +28,7 @@ mod screen_language;
 mod statements_flow;
 mod statements_init;
 mod statements_media;
+mod test_language;
 mod statements_translate;
 #[cfg(test)]
 mod tests;

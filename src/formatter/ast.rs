@@ -2,15 +2,15 @@ use crate::ast::{
     Call, Camera, CompileIf, Default_, Define, EarlyPython, EndTranslate, Hide, If, Image, Init,
     InitOffset, Jump, Label, LayeredImage, LayeredImageChild, LayeredImageDisplayable,
     LayeredImageProperty, LayeredImagePropertyValue, Menu, Pass, Python, PythonOneLine, RPY,
-    Return, Say, Scene, Show, ShowLayer, Style, Testcase, Testsuite, Transform, Translate,
-    TranslateBlock, TranslateEarlyBlock, TranslateString, While, With,
+    Return, Say, Scene, Show, ShowLayer, Style, Transform, Translate, TranslateBlock,
+    TranslateEarlyBlock, TranslateString, While, With,
 };
 
 use super::{
     core::{Formatter, Mode},
     inline::{
         encode_say_string, format_argument_info, format_image_specifier,
-        format_parameter_signature, format_raw_block,
+        format_parameter_signature,
     },
 };
 
@@ -782,20 +782,6 @@ impl Formatter {
 
         self.line_with_trailing(&format!("translate {language}:"));
         self.indented(|formatter| formatter.nodes(&node.block));
-    }
-
-    pub(crate) fn emit_testcase(&mut self, node: &Testcase) {
-        self.line_with_trailing(&format!("testcase {}:", node.name));
-        for line in format_raw_block(&node.block, self.current_indent() + 4) {
-            self.literal_line(&line);
-        }
-    }
-
-    pub(crate) fn emit_testsuite(&mut self, node: &Testsuite) {
-        self.line_with_trailing(&format!("testsuite {}:", node.name));
-        for line in format_raw_block(&node.block, self.current_indent() + 4) {
-            self.literal_line(&line);
-        }
     }
 
     pub(crate) fn emit_python(&mut self, node: &Python) {

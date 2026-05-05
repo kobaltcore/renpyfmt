@@ -442,12 +442,6 @@ impl Formatter {
         self.last_emitted_line = line_number;
     }
 
-    pub(crate) fn literal_line(&mut self, text: &str) {
-        self.out.push_str(text);
-        self.out.push('\n');
-        self.at_line_start = true;
-    }
-
     pub(crate) fn blank_line(&mut self) {
         if !self.out.is_empty() && !self.out.ends_with("\n\n") {
             self.out.push('\n');

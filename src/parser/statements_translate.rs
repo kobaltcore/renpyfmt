@@ -1,4 +1,5 @@
 use super::*;
+use super::test_language::{parse_testcase_statement, parse_testsuite_statement};
 
 impl Parser for Translate {
     fn parse(&self, lex: &mut Lexer, loc: (PathBuf, usize)) -> Result<ParseNodes> {
@@ -71,34 +72,12 @@ impl Parser for Translate {
 
 impl Parser for Testcase {
     fn parse(&self, lex: &mut Lexer, loc: (PathBuf, usize)) -> Result<ParseNodes> {
-        let name = lex.require_or_error(
-            LexerType::Type(LexerTypeOptions::DottedName),
-            "expected dotted name",
-        )?;
-        lex.require_or_error(LexerType::String(":".into()), "expected ':'")?;
-        lex.expect_eol()?;
-        lex.expect_block()?;
-
-        let block = lex.subblock.clone();
-        lex.advance();
-
-        Ok(vec![AstNode::Testcase(Testcase { loc, name, block })].into())
+        parse_testcase_statement(lex, loc)
     }
 }
 
 impl Parser for Testsuite {
     fn parse(&self, lex: &mut Lexer, loc: (PathBuf, usize)) -> Result<ParseNodes> {
-        let name = lex.require_or_error(
-            LexerType::Type(LexerTypeOptions::DottedName),
-            "expected dotted name",
-        )?;
-        lex.require_or_error(LexerType::String(":".into()), "expected ':'")?;
-        lex.expect_eol()?;
-        lex.expect_block()?;
-
-        let block = lex.subblock.clone();
-        lex.advance();
-
-        Ok(vec![AstNode::Testsuite(Testsuite { loc, name, block })].into())
+        parse_testsuite_statement(lex, loc)
     }
 }
