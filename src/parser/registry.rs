@@ -7,7 +7,12 @@ use crate::{
     trie::ParseTrie,
 };
 
-use super::statements_media::{RegisteredStatement, RegisteredStatementKind};
+use super::statements_media::{
+    AudioStatementParser, HideScreenStatementParser, PauseStatementParser, PlayLikeMode,
+    ScreenStatementParser, StopAudioStatementParser, WindowAutoStatementParser,
+    WindowStatementParser,
+};
+use crate::ast::{AudioTarget, ScreenStatementKind, WindowKind};
 
 pub(super) fn new_parser() -> ParseTrie {
     let mut parser = ParseTrie::new();
@@ -48,67 +53,99 @@ fn register_statements(parser: &mut ParseTrie) {
 
     parser.add(
         vec!["play".into(), "music".into()],
-        Box::new(RegisteredStatement::new(RegisteredStatementKind::PlayMusic)),
+        Box::new(AudioStatementParser {
+            target: AudioTarget::Music,
+            mode: PlayLikeMode::Play,
+        }),
     );
     parser.add(
         vec!["queue".into(), "music".into()],
-        Box::new(RegisteredStatement::new(RegisteredStatementKind::QueueMusic)),
+        Box::new(AudioStatementParser {
+            target: AudioTarget::Music,
+            mode: PlayLikeMode::Queue,
+        }),
     );
     parser.add(
         vec!["stop".into(), "music".into()],
-        Box::new(RegisteredStatement::new(RegisteredStatementKind::StopMusic)),
+        Box::new(StopAudioStatementParser {
+            target: AudioTarget::Music,
+        }),
     );
     parser.add(
         vec!["play".into(), "sound".into()],
-        Box::new(RegisteredStatement::new(RegisteredStatementKind::PlaySound)),
+        Box::new(AudioStatementParser {
+            target: AudioTarget::Sound,
+            mode: PlayLikeMode::Play,
+        }),
     );
     parser.add(
         vec!["queue".into(), "sound".into()],
-        Box::new(RegisteredStatement::new(RegisteredStatementKind::QueueSound)),
+        Box::new(AudioStatementParser {
+            target: AudioTarget::Sound,
+            mode: PlayLikeMode::Queue,
+        }),
     );
     parser.add(
         vec!["stop".into(), "sound".into()],
-        Box::new(RegisteredStatement::new(RegisteredStatementKind::StopSound)),
+        Box::new(StopAudioStatementParser {
+            target: AudioTarget::Sound,
+        }),
     );
     parser.add(
         vec!["play".into()],
-        Box::new(RegisteredStatement::new(RegisteredStatementKind::Play)),
+        Box::new(AudioStatementParser {
+            target: AudioTarget::Generic(String::new()),
+            mode: PlayLikeMode::Play,
+        }),
     );
     parser.add(
         vec!["queue".into()],
-        Box::new(RegisteredStatement::new(RegisteredStatementKind::Queue)),
+        Box::new(AudioStatementParser {
+            target: AudioTarget::Generic(String::new()),
+            mode: PlayLikeMode::Queue,
+        }),
     );
     parser.add(
         vec!["stop".into()],
-        Box::new(RegisteredStatement::new(RegisteredStatementKind::Stop)),
+        Box::new(StopAudioStatementParser {
+            target: AudioTarget::Generic(String::new()),
+        }),
     );
     parser.add(
         vec!["pause".into()],
-        Box::new(RegisteredStatement::new(RegisteredStatementKind::Pause)),
+        Box::new(PauseStatementParser),
     );
     parser.add(
         vec!["show".into(), "screen".into()],
-        Box::new(RegisteredStatement::new(RegisteredStatementKind::ShowScreen)),
+        Box::new(ScreenStatementParser {
+            kind: ScreenStatementKind::Show,
+        }),
     );
     parser.add(
         vec!["call".into(), "screen".into()],
-        Box::new(RegisteredStatement::new(RegisteredStatementKind::CallScreen)),
+        Box::new(ScreenStatementParser {
+            kind: ScreenStatementKind::Call,
+        }),
     );
     parser.add(
         vec!["hide".into(), "screen".into()],
-        Box::new(RegisteredStatement::new(RegisteredStatementKind::HideScreen)),
+        Box::new(HideScreenStatementParser),
     );
     parser.add(
         vec!["window".into(), "show".into()],
-        Box::new(RegisteredStatement::new(RegisteredStatementKind::WindowShow)),
+        Box::new(WindowStatementParser {
+            kind: WindowKind::Show,
+        }),
     );
     parser.add(
         vec!["window".into(), "hide".into()],
-        Box::new(RegisteredStatement::new(RegisteredStatementKind::WindowHide)),
+        Box::new(WindowStatementParser {
+            kind: WindowKind::Hide,
+        }),
     );
     parser.add(
         vec!["window".into(), "auto".into()],
-        Box::new(RegisteredStatement::new(RegisteredStatementKind::WindowAuto)),
+        Box::new(WindowAutoStatementParser),
     );
 
     let custom_statements = vec![

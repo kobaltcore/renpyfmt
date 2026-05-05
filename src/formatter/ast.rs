@@ -1,9 +1,11 @@
 use crate::ast::{
-    Call, Camera, CompileIf, Default_, Define, EarlyPython, EndTranslate, Hide, If, Image, Init,
-    InitOffset, Jump, Label, LayeredImage, LayeredImageChild, LayeredImageDisplayable,
-    LayeredImageProperty, LayeredImagePropertyValue, Menu, Pass, Python, PythonOneLine, RPY,
-    Return, Say, Scene, Show, ShowLayer, Style, Transform, Translate, TranslateBlock,
-    TranslateEarlyBlock, TranslateString, While, With,
+    AudioOperation, AudioStatement, AudioTarget, Call, Camera, CompileIf, Default_, Define,
+    EarlyPython, EndTranslate, Hide, If, Image, Init, InitOffset, Jump, Label, LayeredImage,
+    LayeredImageChild, LayeredImageDisplayable, LayeredImageProperty, LayeredImagePropertyValue,
+    Menu, Pass, PauseStatement, Python, PythonOneLine, RPY, Return, Say, Scene, ScreenStatement,
+    ScreenStatementKind, Show, ShowLayer, Style, Transform, Translate, TranslateBlock,
+    TranslateEarlyBlock, TranslateString, While, WindowAutoKind, WindowAutoStatement,
+    WindowKind, WindowStatement, With,
 };
 
 use super::{
@@ -81,6 +83,130 @@ impl Formatter {
         if node.expr != "None" {
             self.line_with_trailing(&format!("with {}", node.expr));
         }
+    }
+
+    pub(crate) fn emit_audio_statement(&mut self, node: &AudioStatement) {
+        let mut parts = vec![match (&node.operation, &node.target) {
+            (AudioOperation::Play, AudioTarget::Music) => "play music".to_string(),
+            (AudioOperation::Queue, AudioTarget::Music) => "queue music".to_string(),
+            (AudioOperation::Stop, AudioTarget::Music) => "stop music".to_string(),
+            (AudioOperation::Play, AudioTarget::Sound) => "play sound".to_string(),
+            (AudioOperation::Queue, AudioTarget::Sound) => "queue sound".to_string(),
+            (AudioOperation::Stop, AudioTarget::Sound) => "stop sound".to_string(),
+            (AudioOperation::Play, AudioTarget::Generic(channel)) => format!("play {channel}"),
+            (AudioOperation::Queue, AudioTarget::Generic(channel)) => format!("queue {channel}"),
+            (AudioOperation::Stop, AudioTarget::Generic(channel)) => format!("stop {channel}"),
+        }];
+
+        if let Some(file) = &node.file {
+            parts.push(file.clone());
+        }
+
+        if let Some(channel) = &node.channel {
+            parts.push(format!("channel {channel}"));
+        }
+
+        if let Some(loop_mode) = node.loop_mode {
+            parts.push(if loop_mode { "loop" } else { "noloop" }.to_string());
+        }
+
+        if let Some(fadeout) = &node.fadeout {
+            parts.push(format!("fadeout {fadeout}"));
+        }
+
+        if let Some(fadein) = &node.fadein {
+            parts.push(format!("fadein {fadein}"));
+        }
+
+        if node.if_changed {
+            parts.push("if_changed".to_string());
+        }
+
+        if let Some(volume) = &node.volume {
+            parts.push(format!("volume {volume}"));
+        }
+
+        self.line_with_trailing(&parts.join(" "));
+    }
+
+    pub(crate) fn emit_pause_statement(&mut self, node: &PauseStatement) {
+        if let Some(delay) = &node.delay {
+            self.line_with_trailing(&format!("pause {delay}"));
+        } else {
+            self.line_with_trailing("pause");
+        }
+    }
+
+    pub(crate) fn emit_screen_statement(&mut self, node: &ScreenStatement) {
+        let prefix = match node.kind {
+            ScreenStatementKind::Show => "show screen",
+            ScreenStatementKind::Call => "call screen",
+            ScreenStatementKind::Hide => "hide screen",
+        };
+
+        let mut line = prefix.to_string();
+
+        if node.screen.expression {
+            line.push_str(" expression");
+        }
+        line.push(' ');
+        line.push_str(&node.screen.value);
+
+        if let Some(arguments) = &node.arguments {
+            if node.screen.expression {
+                line.push_str(" pass ");
+            }
+            line.push_str(&format_argument_info(arguments));
+        }
+
+        let mut parts = vec![line];
+        if !matches!(node.kind, ScreenStatementKind::Hide) && !node.predict {
+            parts.push("nopredict".to_string());
+        }
+
+        if let Some(with) = &node.with {
+            parts.push(format!("with {with}"));
+        }
+
+        if let Some(layer) = &node.layer {
+            parts.push(format!("onlayer {layer}"));
+        }
+
+        if let Some(zorder) = &node.zorder {
+            parts.push(format!("zorder {zorder}"));
+        }
+
+        if let Some(tag) = &node.tag {
+            parts.push(format!("as {tag}"));
+        }
+
+        self.line_with_trailing(&parts.join(" "));
+    }
+
+    pub(crate) fn emit_window_statement(&mut self, node: &WindowStatement) {
+        let prefix = match node.kind {
+            WindowKind::Show => "window show",
+            WindowKind::Hide => "window hide",
+        };
+
+        if let Some(transition) = &node.transition {
+            self.line_with_trailing(&format!("{prefix} {transition}"));
+        } else {
+            self.line_with_trailing(prefix);
+        }
+    }
+
+    pub(crate) fn emit_window_auto_statement(&mut self, node: &WindowAutoStatement) {
+        let line = match &node.kind {
+            WindowAutoKind::Auto(Some(expr)) => format!("window auto {expr}"),
+            WindowAutoKind::Auto(None) => "window auto".to_string(),
+            WindowAutoKind::Show(Some(expr)) => format!("window auto show {expr}"),
+            WindowAutoKind::Show(None) => "window auto show".to_string(),
+            WindowAutoKind::Hide(Some(expr)) => format!("window auto hide {expr}"),
+            WindowAutoKind::Hide(None) => "window auto hide".to_string(),
+        };
+
+        self.line_with_trailing(&line);
     }
 
     pub(crate) fn emit_say(&mut self, node: &Say, with_suffix: Option<&With>) {

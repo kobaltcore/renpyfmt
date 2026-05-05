@@ -1,5 +1,7 @@
 use crate::{
-    ast::AstNode,
+    ast::{
+        AstNode, AudioOperation, AudioTarget, ScreenStatementKind, WindowAutoKind,
+    },
     atl::AtlStatement,
     error::{ParseError, Result},
     testast::{TestCondition, TestNode, TestSelector, TestSuiteEntry},
@@ -190,18 +192,95 @@ fn registered_builtin_user_statements_parse() {
     ));
 
     assert_eq!(ast.len(), 16);
-    assert!(ast.iter().all(|node| matches!(node, AstNode::UserStatement(_))));
     assert!(matches!(
         &ast[0],
-        AstNode::UserStatement(node) if node.line == "play music \"theme.ogg\" fadeout 1.0 fadein 0.5 if_changed volume 0.8"
+        AstNode::AudioStatement(node)
+            if matches!(node.operation, AudioOperation::Play)
+                && matches!(node.target, AudioTarget::Music)
+                && node.file.as_deref() == Some("\"theme.ogg\"")
+                && node.fadeout.as_deref() == Some("1.0")
+                && node.fadein.as_deref() == Some("0.5")
+                && node.if_changed
+                && node.volume.as_deref() == Some("0.8")
     ));
     assert!(matches!(
         &ast[10],
-        AstNode::UserStatement(node) if node.line == "show screen preferences(page=\"audio\") nopredict with dissolve onlayer screens zorder 20 as prefs"
+        AstNode::ScreenStatement(node)
+            if matches!(node.kind, ScreenStatementKind::Show)
+                && node.screen.value == "preferences"
+                && !node.screen.expression
+                && node.arguments.is_some()
+                && !node.predict
+                && node.with.as_deref() == Some("dissolve")
+                && node.layer.as_deref() == Some("screens")
+                && node.zorder.as_deref() == Some("20")
+                && node.tag.as_deref() == Some("prefs")
     ));
     assert!(matches!(
         &ast[15],
-        AstNode::UserStatement(node) if node.line == "window auto hide Dissolve(0.3)"
+        AstNode::WindowAutoStatement(node)
+            if matches!(&node.kind, WindowAutoKind::Hide(Some(expr)) if expr == "Dissolve(0.3)")
+    ));
+}
+
+#[test]
+fn registered_builtin_user_statements_parse_expression_screen_and_window_auto_variants() {
+    let ast = assert_parse(parse_script(
+        concat!(
+            "show screen expression current_screen pass (page=selected) with dissolve onlayer overlay zorder 7 as current\n",
+            "call screen expression current_screen pass (page=selected)\n",
+            "hide screen expression current_screen with fade onlayer overlay\n",
+            "window auto\n",
+            "window auto True\n",
+            "window auto show\n",
+            "window auto hide Dissolve(0.3)\n",
+        ),
+    ));
+
+    assert!(matches!(
+        &ast[0],
+        AstNode::ScreenStatement(node)
+            if matches!(node.kind, ScreenStatementKind::Show)
+                && node.screen.expression
+                && node.screen.value == "current_screen"
+                && node.arguments.is_some()
+                && node.with.as_deref() == Some("dissolve")
+                && node.layer.as_deref() == Some("overlay")
+                && node.zorder.as_deref() == Some("7")
+                && node.tag.as_deref() == Some("current")
+    ));
+    assert!(matches!(
+        &ast[1],
+        AstNode::ScreenStatement(node)
+            if matches!(node.kind, ScreenStatementKind::Call)
+                && node.screen.expression
+                && node.arguments.is_some()
+    ));
+    assert!(matches!(
+        &ast[2],
+        AstNode::ScreenStatement(node)
+            if matches!(node.kind, ScreenStatementKind::Hide)
+                && node.screen.expression
+                && node.with.as_deref() == Some("fade")
+                && node.layer.as_deref() == Some("overlay")
+    ));
+    assert!(matches!(
+        &ast[3],
+        AstNode::WindowAutoStatement(node) if matches!(node.kind, WindowAutoKind::Auto(None))
+    ));
+    assert!(matches!(
+        &ast[4],
+        AstNode::WindowAutoStatement(node)
+            if matches!(&node.kind, WindowAutoKind::Auto(Some(expr)) if expr == "True")
+    ));
+    assert!(matches!(
+        &ast[5],
+        AstNode::WindowAutoStatement(node) if matches!(node.kind, WindowAutoKind::Show(None))
+    ));
+    assert!(matches!(
+        &ast[6],
+        AstNode::WindowAutoStatement(node)
+            if matches!(&node.kind, WindowAutoKind::Hide(Some(expr)) if expr == "Dissolve(0.3)")
     ));
 }
 

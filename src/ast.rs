@@ -99,6 +99,122 @@ pub struct UserStatement {
     pub code_block: Option<Vec<AstNode>>,
 }
 
+#[derive(Debug, Clone)]
+pub enum AudioOperation {
+    Play,
+    Queue,
+    Stop,
+}
+
+#[derive(Debug, Clone)]
+pub enum AudioTarget {
+    Music,
+    Sound,
+    Generic(String),
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct AudioStatement {
+    pub loc: (PathBuf, usize),
+    pub operation: AudioOperation,
+    pub target: AudioTarget,
+    pub file: Option<String>,
+    pub channel: Option<String>,
+    pub fadeout: Option<String>,
+    pub fadein: Option<String>,
+    pub volume: Option<String>,
+    pub loop_mode: Option<bool>,
+    pub if_changed: bool,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct PauseStatement {
+    pub loc: (PathBuf, usize),
+    pub delay: Option<String>,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct ScreenName {
+    pub value: String,
+    pub expression: bool,
+}
+
+#[derive(Debug, Clone)]
+pub enum ScreenStatementKind {
+    Show,
+    Call,
+    Hide,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct ScreenStatement {
+    pub loc: (PathBuf, usize),
+    pub kind: ScreenStatementKind,
+    pub screen: ScreenName,
+    pub arguments: Option<ArgumentInfo>,
+    pub predict: bool,
+    pub with: Option<String>,
+    pub layer: Option<String>,
+    pub zorder: Option<String>,
+    pub tag: Option<String>,
+}
+
+#[derive(Debug, Clone)]
+pub enum WindowKind {
+    Show,
+    Hide,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct WindowStatement {
+    pub loc: (PathBuf, usize),
+    pub kind: WindowKind,
+    pub transition: Option<String>,
+}
+
+#[derive(Debug, Clone)]
+pub enum WindowAutoKind {
+    Auto(Option<String>),
+    Show(Option<String>),
+    Hide(Option<String>),
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct WindowAutoStatement {
+    pub loc: (PathBuf, usize),
+    pub kind: WindowAutoKind,
+}
+
+impl Default for AudioOperation {
+    fn default() -> Self {
+        Self::Play
+    }
+}
+
+impl Default for AudioTarget {
+    fn default() -> Self {
+        Self::Music
+    }
+}
+
+impl Default for ScreenStatementKind {
+    fn default() -> Self {
+        Self::Show
+    }
+}
+
+impl Default for WindowKind {
+    fn default() -> Self {
+        Self::Show
+    }
+}
+
+impl Default for WindowAutoKind {
+    fn default() -> Self {
+        Self::Auto(None)
+    }
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct Hide {
     pub loc: (PathBuf, usize),
@@ -400,6 +516,11 @@ pub enum AstNode {
     With(With),
     Say(Say),
     UserStatement(UserStatement),
+    AudioStatement(AudioStatement),
+    PauseStatement(PauseStatement),
+    ScreenStatement(ScreenStatement),
+    WindowStatement(WindowStatement),
+    WindowAutoStatement(WindowAutoStatement),
     Hide(Hide),
     PythonOneLine(PythonOneLine),
     Jump(Jump),
@@ -448,6 +569,11 @@ impl AstNode {
             AstNode::With(n) => n.loc.1,
             AstNode::Say(n) => n.loc.1,
             AstNode::UserStatement(n) => n.loc.1,
+            AstNode::AudioStatement(n) => n.loc.1,
+            AstNode::PauseStatement(n) => n.loc.1,
+            AstNode::ScreenStatement(n) => n.loc.1,
+            AstNode::WindowStatement(n) => n.loc.1,
+            AstNode::WindowAutoStatement(n) => n.loc.1,
             AstNode::Hide(n) => n.loc.1,
             AstNode::PythonOneLine(n) => n.loc.1,
             AstNode::Jump(n) => n.loc.1,

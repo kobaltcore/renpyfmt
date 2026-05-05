@@ -132,6 +132,42 @@ fn formats_supported_flow_and_init_statements() {
 }
 
 #[test]
+fn formats_built_in_registered_statements_structurally() {
+    assert_formats(
+        concat!(
+            "play music \"theme.ogg\" fadein 0.5 fadeout 1.0 if_changed volume 0.8\n",
+            "queue music [\"a.ogg\", \"b.ogg\"] fadein 1.25 channel music_loop loop\n",
+            "stop music channel music_loop fadeout 2.0\n",
+            "play ambient \"wind.ogg\" volume 0.4 channel weather noloop\n",
+            "pause 0.25\n",
+            "show screen expression current_screen pass (page=selected) as current zorder 7 onlayer overlay nopredict with dissolve\n",
+            "call screen confirm(\"Quit?\") with dissolve\n",
+            "hide screen expression current_screen onlayer overlay with fade\n",
+            "window show Dissolve(0.2)\n",
+            "window hide\n",
+            "window auto\n",
+            "window auto show\n",
+            "window auto hide Dissolve(0.3)"
+        ),
+        concat!(
+            "play music \"theme.ogg\" fadeout 1.0 fadein 0.5 if_changed volume 0.8\n",
+            "queue music [\"a.ogg\", \"b.ogg\"] channel music_loop loop fadein 1.25\n",
+            "stop music channel music_loop fadeout 2.0\n",
+            "play ambient \"wind.ogg\" channel weather noloop volume 0.4\n",
+            "pause 0.25\n",
+            "show screen expression current_screen pass (page=selected) nopredict with dissolve onlayer overlay zorder 7 as current\n",
+            "call screen confirm(\"Quit?\") with dissolve\n",
+            "hide screen expression current_screen with fade onlayer overlay\n",
+            "window show Dissolve(0.2)\n",
+            "window hide\n",
+            "window auto\n",
+            "window auto show\n",
+            "window auto hide Dissolve(0.3)"
+        ),
+    );
+}
+
+#[test]
 fn formats_init_python_compact_form() {
     assert_formats(
         concat!(

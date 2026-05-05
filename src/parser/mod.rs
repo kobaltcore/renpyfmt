@@ -1,13 +1,14 @@
 use crate::{
     ast::{
-        ArgumentInfo, AstNode, Call, Camera, CompileIf, Default_, Define, EarlyPython,
-        EndTranslate, Hide, If, Image, ImageSpecifier, Init, InitOffset, Jump, Label, LayeredImage,
-        LayeredImageAlways, LayeredImageAttribute, LayeredImageChild, LayeredImageCondition,
-        LayeredImageConditionGroup, LayeredImageDisplayable, LayeredImageGroup, LayeredImageProperty,
-        LayeredImagePropertyValue, Menu, Parameter, ParameterKind, ParameterSignature, Pass, Python,
-        PythonOneLine, RPY, Return, Say, Scene, Screen, Show, ShowLayer, Style, Testcase,
-        Testsuite, Transform, Translate, TranslateBlock, TranslateEarlyBlock, TranslateString,
-        UserStatement, While, With,
+        ArgumentInfo, AstNode, AudioStatement, Call, Camera, CompileIf, Default_, Define,
+        EarlyPython, EndTranslate, Hide, If, Image, ImageSpecifier, Init, InitOffset, Jump, Label,
+        LayeredImage, LayeredImageAlways, LayeredImageAttribute, LayeredImageChild,
+        LayeredImageCondition, LayeredImageConditionGroup, LayeredImageDisplayable,
+        LayeredImageGroup, LayeredImageProperty, LayeredImagePropertyValue, Menu, Parameter,
+        ParameterKind, ParameterSignature, Pass, PauseStatement, Python, PythonOneLine, RPY,
+        Return, Say, Scene, Screen, ScreenStatement, Show, ShowLayer, Style, Testcase, Testsuite,
+        Transform, Translate, TranslateBlock, TranslateEarlyBlock, TranslateString, UserStatement,
+        While, WindowAutoStatement, WindowStatement, With,
     },
     atl::{
         AtlStatement, RawBlock, RawChild, RawChoice, RawContainsExpr, RawEvent, RawFunction,

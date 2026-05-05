@@ -140,6 +140,11 @@ impl Formatter {
                 let text = self.take_trailing_comment_for_current_line(&node.line);
                 self.line(&text);
             }
+            AstNode::AudioStatement(node) => self.emit_audio_statement(node),
+            AstNode::PauseStatement(node) => self.emit_pause_statement(node),
+            AstNode::ScreenStatement(node) => self.emit_screen_statement(node),
+            AstNode::WindowStatement(node) => self.emit_window_statement(node),
+            AstNode::WindowAutoStatement(node) => self.emit_window_auto_statement(node),
             AstNode::Hide(node) => self.emit_hide(node, with_suffix),
             AstNode::PythonOneLine(node) => self.emit_python_one_line(node),
             AstNode::Jump(node) => self.emit_jump(node),
