@@ -5,6 +5,7 @@ edition = "2024"
 
 [dependencies]
 regex = "1.12.3"
+rayon = "1.11.0"
 walkdir = "2.5.0"
 anyhow = "1.0.102"
 pathdiff = "0.2.3"

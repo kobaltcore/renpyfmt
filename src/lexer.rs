@@ -681,7 +681,10 @@ impl Lexer {
             return Ok(false);
         }
 
-        let delim: String = start.unwrap().trim_start_matches(['u', 'r', 'f', 'U', 'R', 'F']).into();
+        let delim: String = start
+            .unwrap()
+            .trim_start_matches(['u', 'r', 'f', 'U', 'R', 'F'])
+            .into();
 
         loop {
             if self.eol() {

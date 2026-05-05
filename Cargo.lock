@@ -1783,6 +1783,7 @@ dependencies = [
  "lazy_static",
  "once_cell",
  "pathdiff",
+ "rayon",
  "regex",
  "ruff_python_formatter",
  "ruff_workspace",

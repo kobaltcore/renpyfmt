@@ -853,9 +853,7 @@ fn parse_displayable_block(
         if spec.nchildren == ChildCount::Zero
             && matches!(
                 node,
-                slast::Node::Displayable(_)
-                    | slast::Node::Use(_)
-                    | slast::Node::Transclude(_)
+                slast::Node::Displayable(_) | slast::Node::Use(_) | slast::Node::Transclude(_)
             )
         {
             return Err(sub.parse_error(format!("{} does not take children", spec.name)));

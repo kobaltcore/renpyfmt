@@ -722,11 +722,9 @@ fn screen_displayable_at_property_before_block_parses() {
         panic!("expected vbox displayable");
     };
 
-    assert!(
-        vbox.properties.iter().any(|(name, expr)| {
-            name == "at" && expr == "(alpha_blend(1.0) if renpy.store.from_intro else None)"
-        })
-    );
+    assert!(vbox.properties.iter().any(|(name, expr)| {
+        name == "at" && expr == "(alpha_blend(1.0) if renpy.store.from_intro else None)"
+    }));
     assert!(
         vbox.properties
             .iter()

@@ -7,6 +7,7 @@ use crate::{
 };
 use anyhow::{Context, Result, bail};
 use indicatif::ProgressBar;
+use rayon::prelude::*;
 use std::collections::BTreeMap;
 use std::fmt::Write;
 use std::fs;
@@ -714,18 +715,25 @@ pub fn parse_directory(path: PathBuf, pb: ProgressBar) -> Result<()> {
     let mut success_count = 0;
     let mut failures = vec![];
 
-    for input_file in &files {
-        pb.set_message(input_file.display().to_string());
-        match parse_file(&path, input_file) {
+    let results: Vec<_> = files
+        .par_iter()
+        .map(|input_file| {
+            let result = parse_file(&path, input_file);
+            pb.inc(1);
+            (input_file.clone(), result)
+        })
+        .collect();
+
+    pb.finish_and_clear();
+
+    for (input_file, result) in results {
+        match result {
             Ok(()) => {
                 success_count += 1;
             }
-            Err(err) => failures.push((input_file.clone(), err)),
+            Err(err) => failures.push((input_file, err)),
         }
-        pb.inc(1);
     }
-
-    pb.finish_and_clear();
 
     for (path, err) in &failures {
         eprintln!("error: {}", path.display());
@@ -768,22 +776,29 @@ pub fn format_directory(
     let mut report = FormatReport::default();
     let mut failures = vec![];
 
-    for input_file in &files {
-        pb.set_message(input_file.display().to_string());
-        match format_file(&path, input_file, &ctx, mode) {
+    let results: Vec<_> = files
+        .par_iter()
+        .map(|input_file| {
+            let result = format_file(&path, input_file, &ctx, mode);
+            pb.inc(1);
+            (input_file.clone(), result)
+        })
+        .collect();
+
+    pb.finish_and_clear();
+
+    for (input_file, result) in results {
+        match result {
             Ok(FileFormatOutcome::Changed) => {
                 report.changed_count += 1;
-                report.changed_files.push(input_file.clone());
+                report.changed_files.push(input_file);
             }
             Ok(FileFormatOutcome::Unchanged) => {
                 report.unchanged_count += 1;
             }
-            Err(err) => failures.push((input_file.clone(), err)),
+            Err(err) => failures.push((input_file, err)),
         }
-        pb.inc(1);
     }
-
-    pb.finish_and_clear();
 
     for (path, err) in &failures {
         eprintln!("error: {}", path.display());
@@ -1476,6 +1491,26 @@ mod tests {
         let err = format_directory(root.clone(), None, FormatMode::Check, pb).unwrap_err();
 
         assert!(err.to_string().contains("encountered format errors"));
+
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn format_directory_check_preserves_sorted_changed_file_order() {
+        let root = create_temp_test_dir("format-directory-parallel-order");
+        let nested = root.join("nested");
+        std::fs::create_dir_all(&nested).unwrap();
+        std::fs::write(root.join("b.py"), "x=[1,2]\n").unwrap();
+        std::fs::write(root.join("a.rpy"), "python:\n    message='hi'\n").unwrap();
+        std::fs::write(nested.join("c.py"), "y=[3,4]\n").unwrap();
+
+        let pb = ProgressBar::hidden();
+        let report = format_directory(root.clone(), None, FormatMode::Check, pb).unwrap();
+
+        assert_eq!(
+            report.changed_files,
+            vec![root.join("a.rpy"), root.join("b.py"), nested.join("c.py")]
+        );
 
         let _ = std::fs::remove_dir_all(&root);
     }
