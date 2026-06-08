@@ -189,4 +189,67 @@ mod tests {
 
         assert_eq!(definition.range.start.line, 3);
     }
+
+    #[test]
+    fn resolves_python_name_from_inline_python_to_init_block_definition() {
+        let path = PathBuf::from("/tmp/python_refs.rpy");
+        let uri = Url::from_file_path(&path).ok().unwrap();
+        let text = concat!(
+            "init python:\n",
+            "    def day_planner():\n",
+            "        return 1\n",
+            "\n",
+            "label start:\n",
+            "    $ day_planner()\n",
+        );
+        let source = SourceDocument::new(Some(uri.clone()), path, text.into());
+        let parsed = parse_document(source, ParseOptions);
+
+        let definition = parsed
+            .symbols
+            .goto_definition(&uri, Position::new(5, 6))
+            .expect("python definition");
+
+        assert_eq!(definition.range.start.line, 1);
+    }
+
+    #[test]
+    fn resolves_with_expression_name_to_inline_python_assignment() {
+        let path = PathBuf::from("/tmp/with_expr.rpy");
+        let uri = Url::from_file_path(&path).ok().unwrap();
+        let text = concat!(
+            "$ demotrans = ImageDissolve(\"demotrans.png\", 3.0, 128)\n",
+            "scene circiris with demotrans\n",
+        );
+        let source = SourceDocument::new(Some(uri.clone()), path, text.into());
+        let parsed = parse_document(source, ParseOptions);
+
+        let definition = parsed
+            .symbols
+            .goto_definition(&uri, Position::new(1, 20))
+            .expect("with definition");
+
+        assert_eq!(definition.range.start.line, 0);
+    }
+
+    #[test]
+    fn resolves_say_speaker_name_to_python_assignment() {
+        let path = PathBuf::from("/tmp/say_speaker.rpy");
+        let uri = Url::from_file_path(&path).ok().unwrap();
+        let text = concat!(
+            "init:\n",
+            "    $ e = Character('Eileen', color=(200, 255, 200, 255))\n",
+            "\n",
+            "e \"hello world\"\n",
+        );
+        let source = SourceDocument::new(Some(uri.clone()), path, text.into());
+        let parsed = parse_document(source, ParseOptions);
+
+        let definition = parsed
+            .symbols
+            .goto_definition(&uri, Position::new(3, 0))
+            .expect("speaker definition");
+
+        assert_eq!(definition.range.start.line, 1);
+    }
 }

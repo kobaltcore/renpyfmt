@@ -4,8 +4,12 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use anyhow::{Result, bail};
+use ruff_python_ast::visitor::{self, Visitor};
+use ruff_python_ast::{Expr, ExprContext};
+use ruff_python_parser::parse_expression;
+use ruff_text_size::Ranged;
 
-use crate::ast::{AstNode, Call, Hide, ImageSpecifier, Jump, Python, PythonOneLine, Scene, Screen, ScreenStatement, Style, Transform};
+use crate::ast::{AstNode, Call, Hide, ImageSpecifier, Jump, Python, PythonOneLine, Say, Scene, Screen, ScreenStatement, Style, Transform, With};
 use crate::comments::{Comment, CommentMap, EOF_LINE};
 use crate::index::{
     IndexedReferenceKind, IndexedSymbolKind, LocationRange, SymbolIndex, SymbolLanguage,
@@ -492,6 +496,35 @@ fn index_renpy(source: &Arc<SourceDocument>, renpy: &RenpyParse, symbols: &mut S
                     Some("default".into()),
                 );
             }
+            AstNode::With(With { loc, expr, .. }) => {
+                push_python_expression_references_at_line(
+                    symbols,
+                    source,
+                    uri,
+                    loc.1,
+                    expr,
+                );
+            }
+            AstNode::Say(Say { loc, who, with, .. }) => {
+                if let Some(who) = who {
+                    push_python_expression_references_at_line(
+                        symbols,
+                        source,
+                        uri,
+                        loc.1,
+                        who,
+                    );
+                }
+                if let Some(with) = with {
+                    push_python_expression_references_at_line(
+                        symbols,
+                        source,
+                        uri,
+                        loc.1,
+                        with,
+                    );
+                }
+            }
             AstNode::Jump(Jump { loc, target, expression, .. }) if !expression => {
                 push_reference_at_line(
                     symbols,
@@ -686,6 +719,32 @@ fn push_reference_at_line(
     );
 }
 
+fn push_python_expression_references_at_line(
+    symbols: &mut SymbolIndex,
+    source: &Arc<SourceDocument>,
+    uri: &tower_lsp::lsp_types::Url,
+    line: usize,
+    expression: &str,
+) {
+    let Ok(parsed) = parse_expression(expression) else {
+        return;
+    };
+
+    let Some(line_text) = source.line_index.line_text(&source.text, line) else {
+        return;
+    };
+    let Some(expr_column) = line_text.find(expression) else {
+        return;
+    };
+    let mut collector = RenpyPythonExprReferenceCollector {
+        symbols,
+        uri,
+        expr_column,
+        line,
+    };
+    collector.visit_expr(parsed.expr());
+}
+
 fn find_name_range(
     source: &Arc<SourceDocument>,
     one_based_line: usize,
@@ -726,6 +785,44 @@ fn indent_of_line(text: &str, one_based_line: usize) -> usize {
         .nth(one_based_line.saturating_sub(1))
         .map(|line| line.len() - line.trim_start_matches(' ').len())
         .unwrap_or(0)
+}
+
+struct RenpyPythonExprReferenceCollector<'a> {
+    symbols: &'a mut SymbolIndex,
+    uri: &'a tower_lsp::lsp_types::Url,
+    expr_column: usize,
+    line: usize,
+}
+
+impl<'a> Visitor<'a> for RenpyPythonExprReferenceCollector<'_> {
+    fn visit_expr(&mut self, expr: &'a Expr) {
+        if let Expr::Name(name) = expr
+            && matches!(name.ctx, ExprContext::Load)
+        {
+            let range = tower_lsp::lsp_types::Range::new(
+                tower_lsp::lsp_types::Position::new(
+                    (self.line - 1) as u32,
+                    (self.expr_column + name.range().start().to_usize()) as u32,
+                ),
+                tower_lsp::lsp_types::Position::new(
+                    (self.line - 1) as u32,
+                    (self.expr_column + name.range().end().to_usize()) as u32,
+                ),
+            );
+            self.symbols.push_reference(
+                name.id.as_str(),
+                IndexedReferenceKind::Python,
+                SymbolLanguage::Renpy,
+                LocationRange {
+                    uri: self.uri.clone(),
+                    range,
+                },
+                None,
+            );
+        }
+
+        visitor::walk_expr(self, expr);
+    }
 }
 
 fn walk_node(node: &AstNode, visitor: &mut dyn AstVisitor) {

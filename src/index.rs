@@ -119,19 +119,27 @@ impl SymbolIndex {
     }
 
     pub fn lookup_reference_targets(&self, kind: IndexedReferenceKind, name: &str) -> Vec<SymbolId> {
-        let symbol_kind = match kind {
-            IndexedReferenceKind::Label => IndexedSymbolKind::Label,
-            IndexedReferenceKind::Screen => IndexedSymbolKind::Screen,
-            IndexedReferenceKind::Transform => IndexedSymbolKind::Transform,
-            IndexedReferenceKind::Style => IndexedSymbolKind::Style,
-            IndexedReferenceKind::Image => IndexedSymbolKind::Image,
-            IndexedReferenceKind::Variable => IndexedSymbolKind::Variable,
-            IndexedReferenceKind::Python => IndexedSymbolKind::Assignment,
-        };
-        self.names
-            .get(&(symbol_kind, name.to_string()))
-            .cloned()
-            .unwrap_or_default()
+        match kind {
+            IndexedReferenceKind::Label => self.lookup_symbols_by_kind(IndexedSymbolKind::Label, name),
+            IndexedReferenceKind::Screen => {
+                self.lookup_symbols_by_kind(IndexedSymbolKind::Screen, name)
+            }
+            IndexedReferenceKind::Transform => {
+                self.lookup_symbols_by_kind(IndexedSymbolKind::Transform, name)
+            }
+            IndexedReferenceKind::Style => self.lookup_symbols_by_kind(IndexedSymbolKind::Style, name),
+            IndexedReferenceKind::Image => self.lookup_symbols_by_kind(IndexedSymbolKind::Image, name),
+            IndexedReferenceKind::Variable => {
+                self.lookup_symbols_by_kind(IndexedSymbolKind::Variable, name)
+            }
+            IndexedReferenceKind::Python => {
+                let mut targets = self.lookup_symbols_by_kind(IndexedSymbolKind::Function, name);
+                targets.extend(self.lookup_symbols_by_kind(IndexedSymbolKind::Class, name));
+                targets.extend(self.lookup_symbols_by_kind(IndexedSymbolKind::Assignment, name));
+                targets.extend(self.lookup_symbols_by_kind(IndexedSymbolKind::Import, name));
+                targets
+            }
+        }
     }
 
     pub fn symbol(&self, id: SymbolId) -> Option<&IndexedSymbol> {
@@ -227,6 +235,15 @@ impl SymbolIndex {
                 ),
             })
             .collect()
+    }
+}
+
+impl SymbolIndex {
+    fn lookup_symbols_by_kind(&self, kind: IndexedSymbolKind, name: &str) -> Vec<SymbolId> {
+        self.names
+            .get(&(kind, name.to_string()))
+            .cloned()
+            .unwrap_or_default()
     }
 }
 

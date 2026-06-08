@@ -1,12 +1,13 @@
 use std::sync::Arc;
 
-use ruff_python_ast::{Alias, Expr, Stmt};
+use ruff_python_ast::visitor::{self, Visitor};
+use ruff_python_ast::{Alias, Expr, ExprContext, Stmt};
 use ruff_python_parser::parse_unchecked_source;
 use ruff_text_size::Ranged;
 use tower_lsp::lsp_types::{Position, Range};
 
 use crate::index::{
-    IndexedSymbolKind, LocationRange, SymbolIndex, SymbolLanguage,
+    IndexedReferenceKind, IndexedSymbolKind, LocationRange, SymbolIndex, SymbolLanguage,
 };
 use crate::parse::{
     FragmentOrigin, ParseDiagnostic, ParseSeverity, ParsedDocument, PythonFragmentId,
@@ -92,6 +93,13 @@ pub fn index_python_fragment(
     for stmt in parsed.suite() {
         index_python_stmt(source, fragment, stmt, symbols, true);
     }
+
+    let mut collector = PythonReferenceCollector {
+        source,
+        fragment,
+        symbols,
+    };
+    collector.visit_body(parsed.suite());
 }
 
 fn index_python_stmt(
@@ -224,6 +232,35 @@ fn push_import_symbol(
 fn build_identity_line_map(text: &str) -> Vec<usize> {
     let line_count = text.lines().count().max(1);
     (1..=line_count).collect()
+}
+
+struct PythonReferenceCollector<'a> {
+    source: &'a Arc<SourceDocument>,
+    fragment: &'a PythonFragmentParse,
+    symbols: &'a mut SymbolIndex,
+}
+
+impl<'a> Visitor<'a> for PythonReferenceCollector<'_> {
+    fn visit_expr(&mut self, expr: &'a Expr) {
+        if let Expr::Name(name) = expr
+            && matches!(name.ctx, ExprContext::Load)
+        {
+            self.symbols.push_reference(
+                name.id.as_str(),
+                IndexedReferenceKind::Python,
+                SymbolLanguage::Python,
+                LocationRange {
+                    uri: self.source.file_url().expect("file url"),
+                    range: self
+                        .fragment
+                        .origin
+                        .map_text_range(&self.fragment.source, name.range()),
+                },
+                Some(self.fragment.id.0),
+            );
+        }
+        visitor::walk_expr(self, expr);
+    }
 }
 
 impl FragmentOrigin {
