@@ -9,7 +9,7 @@ use crate::{
 use anyhow::{Context, Result, bail};
 use indicatif::ProgressBar;
 use rayon::prelude::*;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -28,6 +28,12 @@ struct LexerContext {
 pub enum FormatMode {
     Write,
     Check,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum FormatInput {
+    Paths(Vec<PathBuf>),
+    Stdin { filename: PathBuf },
 }
 
 #[derive(Debug, Default)]
@@ -204,7 +210,16 @@ fn list_logical_lines(
     ctx: &LexerContext,
     path: &PathBuf,
 ) -> Result<(Vec<(PathBuf, usize, String)>, CommentMap)> {
-    let mut data = fs::read_to_string(path)?;
+    let data = fs::read_to_string(path)?;
+    list_logical_lines_from_source(ctx, path, &data)
+}
+
+fn list_logical_lines_from_source(
+    ctx: &LexerContext,
+    path: &PathBuf,
+    source: &str,
+) -> Result<(Vec<(PathBuf, usize, String)>, CommentMap)> {
+    let mut data = source.to_owned();
     let stem = path.file_stem().unwrap().to_str().unwrap();
 
     if stem.ends_with("_ren") && path.extension() == Some("py".as_ref()) {
@@ -523,7 +538,7 @@ fn collect_rpy_files(path: &Path) -> Result<Vec<PathBuf>> {
 }
 
 fn collect_format_files(path: &Path) -> Result<Vec<PathBuf>> {
-    collect_files(path, |extension| extension == "rpy" || extension == "py")
+    collect_files(path, is_supported_format_extension)
 }
 
 fn collect_files(path: &Path, mut include: impl FnMut(&str) -> bool) -> Result<Vec<PathBuf>> {
@@ -556,11 +571,76 @@ fn collect_files(path: &Path, mut include: impl FnMut(&str) -> bool) -> Result<V
     Ok(files)
 }
 
+fn is_supported_format_extension(extension: &str) -> bool {
+    extension == "rpy" || extension == "py"
+}
+
+fn is_supported_format_file(path: &Path) -> bool {
+    path.extension()
+        .and_then(|ext| ext.to_str())
+        .is_some_and(is_supported_format_extension)
+}
+
+fn collect_format_files_from_inputs(paths: &[PathBuf]) -> Result<Vec<PathBuf>> {
+    let mut deduped = BTreeSet::new();
+
+    for path in paths {
+        if !path.exists() {
+            bail!("Path does not exist: {}", path.display());
+        }
+
+        if path.is_dir() {
+            for file in collect_format_files(path)? {
+                deduped.insert(file);
+            }
+            continue;
+        }
+
+        if path.is_file() {
+            if !is_supported_format_file(path) {
+                bail!("Unsupported file type for {}", path.display());
+            }
+            deduped.insert(path.clone());
+            continue;
+        }
+
+        bail!("Path is not a file or directory: {}", path.display());
+    }
+
+    Ok(deduped.into_iter().collect())
+}
+
+fn config_discovery_base_for_paths(paths: &[PathBuf]) -> PathBuf {
+    match paths {
+        [] => PathBuf::from("."),
+        [path] if path.is_file() => path
+            .parent()
+            .map(Path::to_path_buf)
+            .unwrap_or_else(|| PathBuf::from(".")),
+        [path] if path.is_dir() => path.clone(),
+        [_] => PathBuf::from("."),
+        _ => PathBuf::from("."),
+    }
+}
+
 pub fn parse_file_ast(
     input_dir: &Path,
     input_file: &PathBuf,
 ) -> Result<(Vec<AstNode>, CommentMap)> {
-    let (lines, comments) = list_logical_lines_for_path(input_dir, input_file)
+    let existing = fs::read_to_string(input_file)
+        .with_context(|| format!("Failed to read {}", input_file.display()))?;
+    parse_file_ast_from_source(input_dir, input_file, &existing)
+}
+
+fn parse_file_ast_from_source(
+    input_dir: &Path,
+    input_file: &PathBuf,
+    source: &str,
+) -> Result<(Vec<AstNode>, CommentMap)> {
+    let ctx = LexerContext {
+        input_dir: input_dir.to_path_buf(),
+    };
+    let (lines, comments) = list_logical_lines_from_source(&ctx, input_file, source)
         .with_context(|| format!("Failed to list logical lines for {}", input_file.display()))?;
     let nested = group_logical_lines(lines)
         .with_context(|| format!("Failed to group logical lines for {}", input_file.display()))?;
@@ -585,7 +665,7 @@ fn format_file(
 ) -> Result<FileFormatOutcome> {
     let existing = fs::read_to_string(input_file)
         .with_context(|| format!("Failed to read {}", input_file.display()))?;
-    let output = format_file_source(input_dir, input_file, &ctx.python_format_config)?;
+    let output = format_source(input_dir, input_file, &existing, &ctx.python_format_config)?;
 
     if existing == output {
         return Ok(FileFormatOutcome::Unchanged);
@@ -606,6 +686,15 @@ pub fn format_file_source(
 ) -> Result<String> {
     let existing = fs::read_to_string(input_file)
         .with_context(|| format!("Failed to read {}", input_file.display()))?;
+    format_source(input_dir, input_file, &existing, python_format_config)
+}
+
+pub fn format_source(
+    input_dir: &Path,
+    input_file: &PathBuf,
+    existing: &str,
+    python_format_config: &PythonFormatConfig,
+) -> Result<String> {
     let extension = input_file
         .extension()
         .and_then(|ext| ext.to_str())
@@ -613,7 +702,7 @@ pub fn format_file_source(
 
     let formatted = match extension {
         "rpy" => {
-            let (ast, comments) = parse_file_ast(input_dir, input_file)?;
+            let (ast, comments) = parse_file_ast_from_source(input_dir, input_file, existing)?;
             format_ast_with_config_owned(&ast, comments, python_format_config.clone())
         }
         "py" => format_python_file(&existing, python_format_config)
@@ -626,6 +715,16 @@ pub fn format_file_source(
     } else {
         format!("{}\n", formatted.trim_end_matches('\n'))
     })
+}
+
+pub fn format_stdin_source(
+    source: &str,
+    filename: PathBuf,
+    config_base: PathBuf,
+    ruff_config: Option<PathBuf>,
+) -> Result<String> {
+    let python_format_config = resolve_python_format_config(&config_base, ruff_config.as_deref())?;
+    format_source(&config_base, &filename, source, &python_format_config)
 }
 
 pub fn parse_directory(path: PathBuf, pb: ProgressBar) -> Result<()> {
@@ -686,10 +785,24 @@ pub fn format_directory(
     mode: FormatMode,
     pb: ProgressBar,
 ) -> Result<FormatReport> {
-    let files = collect_format_files(&path)?;
+    format_inputs(FormatInput::Paths(vec![path]), ruff_config, mode, pb)
+}
+
+pub fn format_inputs(
+    input: FormatInput,
+    ruff_config: Option<PathBuf>,
+    mode: FormatMode,
+    pb: ProgressBar,
+) -> Result<FormatReport> {
+    let FormatInput::Paths(paths) = input else {
+        bail!("stdin input must be handled separately");
+    };
+
+    let files = collect_format_files_from_inputs(&paths)?;
+    let config_base = config_discovery_base_for_paths(&paths);
 
     let ctx = FormatContext {
-        python_format_config: resolve_python_format_config(&path, ruff_config.as_deref())?,
+        python_format_config: resolve_python_format_config(&config_base, ruff_config.as_deref())?,
     };
 
     if files.is_empty() {
@@ -704,7 +817,7 @@ pub fn format_directory(
     let results: Vec<_> = files
         .par_iter()
         .map(|input_file| {
-            let result = format_file(&path, input_file, &ctx, mode);
+            let result = format_file(&config_base, input_file, &ctx, mode);
             pb.inc(1);
             (input_file.clone(), result)
         })
@@ -1459,6 +1572,38 @@ mod tests {
             report.changed_files,
             vec![root.join("a.rpy"), root.join("b.py"), nested.join("c.py")]
         );
+
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn collect_format_files_from_inputs_deduplicates_and_sorts_results() {
+        let root = create_temp_test_dir("format-inputs-dedup");
+        let nested = root.join("nested");
+        std::fs::create_dir_all(&nested).unwrap();
+        let root_py = root.join("b.py");
+        let nested_rpy = nested.join("a.rpy");
+        std::fs::write(&root_py, "x=[1,2]\n").unwrap();
+        std::fs::write(&nested_rpy, "python:\n    message='hi'\n").unwrap();
+
+        let files =
+            collect_format_files_from_inputs(&[root.clone(), nested.clone(), root_py]).unwrap();
+
+        assert_eq!(files, vec![root.join("b.py"), nested.join("a.rpy")]);
+
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn format_source_formats_rpy_without_reading_from_disk() {
+        let root = create_temp_test_dir("format-source-rpy");
+        let script_path = root.join("script.rpy");
+        let config = resolve_python_format_config(&root, None).unwrap();
+
+        let formatted =
+            format_source(&root, &script_path, "python:\n    message='hi'\n", &config).unwrap();
+
+        assert_eq!(formatted, "python:\n    message = \"hi\"\n");
 
         let _ = std::fs::remove_dir_all(&root);
     }

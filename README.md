@@ -6,6 +6,25 @@
 
 It ships with a complete, standalone parser for the Ren'Py language, allowing for deep understanding of the code and thus proper formatting. Embedded Python blocks and Python files are formatted via `ruff`.
 
+## Usage
+
+```sh
+renpyfmt format [PATHS]...
+renpyfmt check [PATHS]...
+renpyfmt format - --stdin-filename script.rpy
+renpyfmt check - --stdin-filename script.rpy
+```
+
+`format` rewrites files in place, or writes formatted output to stdout when reading from stdin.
+
+`check` performs the same discovery and formatting pass without writing changes. It exits with:
+
+- `0` when every input is already formatted
+- `1` when one or more inputs would change
+- `2` on real errors
+
+Stdin input always requires `--stdin-filename <PATH>` so `renpyfmt` can choose `.rpy` vs `.py` formatting and discover Ruff configuration from the right directory.
+
 | OS      | amd64 | aarch64 |
 | ------- | ----- | ------- |
 | Linux   | ✅    | ✅      |
