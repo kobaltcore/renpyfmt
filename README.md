@@ -6,6 +6,14 @@
 
 It ships with a complete, standalone parser for the Ren'Py language, allowing for deep understanding of the code and thus proper formatting. Embedded Python blocks and Python files are formatted via `ruff`.
 
+## Supported Platforms
+
+| OS      | amd64 | aarch64 |
+| ------- | ----- | ------- |
+| Linux   | ✅    | ✅      |
+| macOS   | ✅    | ✅      |
+| Windows | ✅    | ❌      |
+
 ## Usage
 
 ```sh
@@ -25,11 +33,31 @@ renpyfmt check - --stdin-filename script.rpy
 
 Stdin input always requires `--stdin-filename <PATH>` so `renpyfmt` can choose `.rpy` vs `.py` formatting and discover Ruff configuration from the right directory.
 
-| OS      | amd64 | aarch64 |
-| ------- | ----- | ------- |
-| Linux   | ✅    | ✅      |
-| macOS   | ✅    | ✅      |
-| Windows | ✅    | ❌      |
+## Formatting in VS Code
+
+To format `.rpy` files from VS Code, install:
+
+- a Ren'Py language extension for `.rpy` files
+- [Advanced Local Formatters](https://marketplace.visualstudio.com/items?itemName=webfreak.advanced-local-formatters)
+
+Then add this to `.vscode/settings.json`:
+
+```json
+{
+  "advancedLocalFormatters.formatters": [
+    {
+      "command": ["renpyfmt", "format", "-", "--stdin-filename", "$absoluteFilePath"],
+      "languages": ["renpy"]
+    }
+  ],
+  "[renpy]": {
+    "editor.defaultFormatter": "webfreak.advanced-local-formatters",
+    "editor.formatOnSave": true
+  }
+}
+```
+
+If your Ren'Py extension uses a different language id than `renpy`, replace it in both places above. If `renpyfmt` is not on your `PATH`, use an absolute path to the executable instead of `renpyfmt`.
 
 ## Installation
 
