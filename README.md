@@ -76,7 +76,3 @@ Download the pre-built binaries for your operating system and architecture for t
 After this, either add the binaries to your PATH or use them directly from within the download directory.
 
 <a href="https://unsplash.com/photos/E8Ufcyxz514?utm_source=unsplash&utm_medium=referral&utm_content=creditShareLink">Photo by Milad Fakurian on Unsplash</a>
-
-```
-
-```
