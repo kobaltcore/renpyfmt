@@ -49,7 +49,7 @@ impl Backend {
             })
             .collect::<Vec<_>>();
 
-        self.workspace.write().await.upsert(document);
+        self.workspace.write().await.upsert(document, true);
         self.client.publish_diagnostics(uri, diagnostics, None).await;
     }
 
@@ -62,7 +62,14 @@ impl Backend {
 
 #[tower_lsp::async_trait]
 impl LanguageServer for Backend {
-    async fn initialize(&self, _: InitializeParams) -> Result<InitializeResult> {
+    async fn initialize(&self, params: InitializeParams) -> Result<InitializeResult> {
+        let roots = workspace_roots_from_initialize(&params);
+        {
+            let mut workspace = self.workspace.write().await;
+            workspace.set_roots(roots);
+            workspace.index_workspace();
+        }
+
         Ok(InitializeResult {
             server_info: Some(ServerInfo {
                 name: "renpyfmt".into(),
@@ -75,6 +82,13 @@ impl LanguageServer for Backend {
                 hover_provider: Some(HoverProviderCapability::Simple(true)),
                 document_symbol_provider: Some(OneOf::Left(true)),
                 workspace_symbol_provider: Some(OneOf::Left(true)),
+                workspace: Some(WorkspaceServerCapabilities {
+                    workspace_folders: Some(WorkspaceFoldersServerCapabilities {
+                        supported: Some(true),
+                        change_notifications: Some(OneOf::Left(true)),
+                    }),
+                    file_operations: None,
+                }),
                 ..ServerCapabilities::default()
             },
         })
@@ -102,10 +116,20 @@ impl LanguageServer for Backend {
     }
 
     async fn did_close(&self, params: DidCloseTextDocumentParams) {
-        self.workspace.write().await.remove(&params.text_document.uri);
+        self.workspace.write().await.close(&params.text_document.uri);
         self.client
             .publish_diagnostics(params.text_document.uri, Vec::new(), None)
             .await;
+    }
+
+    async fn did_change_workspace_folders(&self, params: DidChangeWorkspaceFoldersParams) {
+        let mut workspace = self.workspace.write().await;
+        let mut roots = workspace_roots_from_changes(&workspace, &params.event);
+        if roots.is_empty() {
+            roots = workspace.roots().to_vec();
+        }
+        workspace.set_roots(roots);
+        workspace.index_workspace();
     }
 
     async fn formatting(&self, params: DocumentFormattingParams) -> Result<Option<Vec<TextEdit>>> {
@@ -156,19 +180,20 @@ impl LanguageServer for Backend {
         let workspace = self.workspace.read().await;
         let uri = &params.text_document_position_params.text_document.uri;
         let position = params.text_document_position_params.position;
-        Ok(workspace
-            .goto_definition(uri, position)
-            .map(|location| GotoDefinitionResponse::Scalar(location)))
+        Ok(workspace.goto_definition(uri, position).map(|locations| {
+            if locations.len() == 1 {
+                GotoDefinitionResponse::Scalar(locations[0].clone())
+            } else {
+                GotoDefinitionResponse::Array(locations)
+            }
+        }))
     }
 
     async fn hover(&self, params: HoverParams) -> Result<Option<Hover>> {
         let workspace = self.workspace.read().await;
         let uri = &params.text_document_position_params.text_document.uri;
         let position = params.text_document_position_params.position;
-        let Some(document) = workspace.document(uri) else {
-            return Ok(None);
-        };
-        let Some(contents) = document.symbols.hover(uri, position) else {
+        let Some(contents) = workspace.hover(uri, position) else {
             return Ok(None);
         };
         Ok(Some(Hover {
@@ -202,6 +227,46 @@ fn full_document_end(text: &str) -> Position {
         }
     }
     Position::new(line, col)
+}
+
+fn workspace_roots_from_initialize(params: &InitializeParams) -> Vec<PathBuf> {
+    let mut roots = params
+        .workspace_folders
+        .as_ref()
+        .into_iter()
+        .flatten()
+        .filter_map(|folder| folder.uri.to_file_path().ok())
+        .collect::<Vec<_>>();
+
+    if roots.is_empty()
+        && let Some(root_uri) = &params.root_uri
+        && let Ok(path) = root_uri.to_file_path()
+    {
+        roots.push(path);
+    }
+
+    roots
+}
+
+fn workspace_roots_from_changes(
+    workspace: &WorkspaceState,
+    changes: &WorkspaceFoldersChangeEvent,
+) -> Vec<PathBuf> {
+    let mut roots = workspace.roots().to_vec();
+
+    for removed in &changes.removed {
+        if let Ok(path) = removed.uri.to_file_path() {
+            roots.retain(|root| root != &path);
+        }
+    }
+
+    for added in &changes.added {
+        if let Ok(path) = added.uri.to_file_path() {
+            roots.push(path);
+        }
+    }
+
+    roots
 }
 
 #[cfg(test)]
@@ -242,6 +307,12 @@ mod tests {
                     "definitionProvider": true,
                     "hoverProvider": true,
                     "documentSymbolProvider": true,
+                    "workspace": {
+                        "workspaceFolders": {
+                            "supported": true,
+                            "changeNotifications": true
+                        }
+                    },
                     "workspaceSymbolProvider": true
                 },
                 "serverInfo": {
