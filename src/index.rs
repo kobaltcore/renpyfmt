@@ -160,6 +160,12 @@ impl SymbolIndex {
 
     pub fn goto_definition(&self, uri: &Url, position: Position) -> Option<Location> {
         if let Some(symbol) = self.symbol_at(uri, position) {
+            if let Some(previous_definition) = self.preferred_definition_for_symbol(symbol) {
+                return Some(Location::new(
+                    previous_definition.definition.uri.clone(),
+                    previous_definition.definition.range,
+                ));
+            }
             return Some(Location::new(
                 symbol.definition.uri.clone(),
                 symbol.definition.range,
@@ -244,6 +250,28 @@ impl SymbolIndex {
             .get(&(kind, name.to_string()))
             .cloned()
             .unwrap_or_default()
+    }
+
+    fn preferred_definition_for_symbol(&self, symbol: &IndexedSymbol) -> Option<&IndexedSymbol> {
+        if !matches!(symbol.kind, IndexedSymbolKind::Assignment | IndexedSymbolKind::Variable) {
+            return None;
+        }
+
+        self.symbols
+            .iter()
+            .filter(|candidate| {
+                candidate.id != symbol.id
+                    && candidate.name == symbol.name
+                    && candidate.kind == symbol.kind
+                    && candidate.definition.uri == symbol.definition.uri
+                    && candidate.definition.range.start.line <= symbol.definition.range.start.line
+            })
+            .min_by_key(|candidate| {
+                (
+                    candidate.definition.range.start.line,
+                    candidate.definition.range.start.character,
+                )
+            })
     }
 }
 

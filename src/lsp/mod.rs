@@ -7,7 +7,6 @@ use tower_lsp::jsonrpc::Result;
 use tower_lsp::lsp_types::*;
 use tower_lsp::{Client, LanguageServer, LspService, Server};
 
-use crate::index::{IndexedReference, IndexedSymbol, IndexedSymbolKind, SymbolLanguage};
 use crate::formatter::PythonFormatConfig;
 use crate::parse::{ParseOptions, ParseSeverity, parse_document};
 use crate::project::format_source;
@@ -61,173 +60,6 @@ impl Backend {
     }
 }
 
-const SEMANTIC_TOKEN_TYPES: &[SemanticTokenType] = &[
-    SemanticTokenType::KEYWORD,
-    SemanticTokenType::VARIABLE,
-    SemanticTokenType::FUNCTION,
-    SemanticTokenType::CLASS,
-    SemanticTokenType::NAMESPACE,
-];
-
-fn semantic_tokens_legend() -> SemanticTokensLegend {
-    SemanticTokensLegend {
-        token_types: SEMANTIC_TOKEN_TYPES.to_vec(),
-        token_modifiers: Vec::new(),
-    }
-}
-
-#[derive(Clone, Copy)]
-struct TokenSpan {
-    line: u32,
-    start: u32,
-    length: u32,
-    token_type: u32,
-}
-
-fn compute_semantic_tokens(document: &crate::parse::ParsedDocument) -> SemanticTokens {
-    let mut spans = Vec::new();
-    collect_keyword_tokens(document, &mut spans);
-    collect_symbol_tokens(document, &mut spans);
-    collect_reference_tokens(document, &mut spans);
-    spans.sort_by_key(|span| (span.line, span.start, span.length, span.token_type));
-    spans.dedup_by_key(|span| (span.line, span.start, span.length, span.token_type));
-
-    let mut data = Vec::with_capacity(spans.len());
-    let mut previous_line = 0u32;
-    let mut previous_start = 0u32;
-
-    for (index, span) in spans.into_iter().enumerate() {
-        let delta_line = if index == 0 {
-            span.line
-        } else {
-            span.line.saturating_sub(previous_line)
-        };
-        let delta_start = if index == 0 || delta_line > 0 {
-            span.start
-        } else {
-            span.start.saturating_sub(previous_start)
-        };
-        data.push(SemanticToken {
-            delta_line,
-            delta_start,
-            length: span.length,
-            token_type: span.token_type,
-            token_modifiers_bitset: 0,
-        });
-        previous_line = span.line;
-        previous_start = span.start;
-    }
-
-    SemanticTokens {
-        result_id: None,
-        data,
-    }
-}
-
-fn collect_symbol_tokens(document: &crate::parse::ParsedDocument, spans: &mut Vec<TokenSpan>) {
-    let Some(uri) = document.source.file_url() else {
-        return;
-    };
-    for symbol in &document.symbols.symbols {
-        if symbol.definition.uri != uri {
-            continue;
-        }
-        if let Some(span) = span_from_range(&symbol.definition.range, token_type_for_symbol(symbol)) {
-            spans.push(span);
-        }
-    }
-}
-
-fn collect_reference_tokens(document: &crate::parse::ParsedDocument, spans: &mut Vec<TokenSpan>) {
-    let Some(uri) = document.source.file_url() else {
-        return;
-    };
-    for reference in &document.symbols.references {
-        if reference.range.uri != uri {
-            continue;
-        }
-        if let Some(span) = span_from_range(&reference.range.range, token_type_for_reference(reference)) {
-            spans.push(span);
-        }
-    }
-}
-
-fn span_from_range(range: &Range, token_type: u32) -> Option<TokenSpan> {
-    if range.start.line != range.end.line {
-        return None;
-    }
-    let length = range.end.character.saturating_sub(range.start.character);
-    if length == 0 {
-        return None;
-    }
-    Some(TokenSpan {
-        line: range.start.line,
-        start: range.start.character,
-        length,
-        token_type,
-    })
-}
-
-fn token_type_for_symbol(symbol: &IndexedSymbol) -> u32 {
-    match symbol.kind {
-        IndexedSymbolKind::Label => 4,
-        IndexedSymbolKind::Screen => 4,
-        IndexedSymbolKind::Transform => 2,
-        IndexedSymbolKind::Style => 4,
-        IndexedSymbolKind::Image => 4,
-        IndexedSymbolKind::Variable | IndexedSymbolKind::Assignment | IndexedSymbolKind::Import => 1,
-        IndexedSymbolKind::Function => 2,
-        IndexedSymbolKind::Class => 3,
-    }
-}
-
-fn token_type_for_reference(reference: &IndexedReference) -> u32 {
-    match reference.language {
-        SymbolLanguage::Python => 1,
-        SymbolLanguage::Renpy => 1,
-    }
-}
-
-fn collect_keyword_tokens(document: &crate::parse::ParsedDocument, spans: &mut Vec<TokenSpan>) {
-    if !matches!(document.language, crate::source::DocumentLanguage::Renpy) {
-        return;
-    }
-    const KEYWORDS: &[&str] = &[
-        "label", "screen", "transform", "style", "image", "default", "define", "jump", "call",
-        "scene", "show", "hide", "with", "python", "init", "menu", "if", "elif", "else", "while",
-        "return",
-    ];
-
-    for (line_index, line) in document.source.text.lines().enumerate() {
-        for keyword in KEYWORDS {
-            let mut offset = 0usize;
-            while let Some(found) = line[offset..].find(keyword) {
-                let start = offset + found;
-                let end = start + keyword.len();
-                let before_ok = start == 0
-                    || !line[..start]
-                        .chars()
-                        .last()
-                        .is_some_and(|ch| ch.is_alphanumeric() || ch == '_');
-                let after_ok = end == line.len()
-                    || !line[end..]
-                        .chars()
-                        .next()
-                        .is_some_and(|ch| ch.is_alphanumeric() || ch == '_');
-                if before_ok && after_ok {
-                    spans.push(TokenSpan {
-                        line: line_index as u32,
-                        start: start as u32,
-                        length: keyword.len() as u32,
-                        token_type: 0,
-                    });
-                }
-                offset = end;
-            }
-        }
-    }
-}
-
 #[tower_lsp::async_trait]
 impl LanguageServer for Backend {
     async fn initialize(&self, _: InitializeParams) -> Result<InitializeResult> {
@@ -243,16 +75,6 @@ impl LanguageServer for Backend {
                 hover_provider: Some(HoverProviderCapability::Simple(true)),
                 document_symbol_provider: Some(OneOf::Left(true)),
                 workspace_symbol_provider: Some(OneOf::Left(true)),
-                semantic_tokens_provider: Some(
-                    SemanticTokensServerCapabilities::SemanticTokensOptions(
-                        SemanticTokensOptions {
-                            legend: semantic_tokens_legend(),
-                            full: Some(SemanticTokensFullOptions::Bool(true)),
-                            range: None,
-                            work_done_progress_options: WorkDoneProgressOptions::default(),
-                        },
-                    ),
-                ),
                 ..ServerCapabilities::default()
             },
         })
@@ -357,17 +179,6 @@ impl LanguageServer for Backend {
             range: None,
         }))
     }
-
-    async fn semantic_tokens_full(
-        &self,
-        params: SemanticTokensParams,
-    ) -> Result<Option<SemanticTokensResult>> {
-        let workspace = self.workspace.read().await;
-        let Some(document) = workspace.document(&params.text_document.uri) else {
-            return Ok(None);
-        };
-        Ok(Some(compute_semantic_tokens(&document).into()))
-    }
 }
 
 pub async fn run_server() {
@@ -402,8 +213,6 @@ mod tests {
     use tower_lsp::jsonrpc::{Request, Response};
 
     use super::*;
-    use crate::parse::{ParseOptions, parse_document};
-    use crate::source::SourceDocument;
 
     fn initialize_request(id: i64) -> Request {
         Request::build("initialize")
@@ -433,14 +242,7 @@ mod tests {
                     "definitionProvider": true,
                     "hoverProvider": true,
                     "documentSymbolProvider": true,
-                    "workspaceSymbolProvider": true,
-                    "semanticTokensProvider": {
-                        "full": true,
-                        "legend": {
-                            "tokenModifiers": [],
-                            "tokenTypes": ["keyword", "variable", "function", "class", "namespace"]
-                        }
-                    }
+                    "workspaceSymbolProvider": true
                 },
                 "serverInfo": {
                     "name": "renpyfmt",
@@ -485,30 +287,5 @@ mod tests {
             .and_then(|value| value.as_array())
             .expect("diagnostic array");
         assert!(!diagnostics.is_empty());
-    }
-
-    #[test]
-    fn semantic_tokens_include_keywords_and_python_references() {
-        let path = PathBuf::from("/tmp/semantic_tokens.rpy");
-        let source = SourceDocument::new(
-            Url::from_file_path(&path).ok(),
-            path,
-            concat!(
-                "init python:\n",
-                "    def day_planner():\n",
-                "        return 1\n",
-                "\n",
-                "label start:\n",
-                "    $ day_planner()\n",
-            )
-            .into(),
-        );
-        let document = parse_document(source, ParseOptions);
-        let tokens = compute_semantic_tokens(&document);
-
-        assert!(!tokens.data.is_empty());
-        assert!(tokens.data.iter().any(|token| token.token_type == 0));
-        assert!(tokens.data.iter().any(|token| token.token_type == 2));
-        assert!(tokens.data.iter().any(|token| token.token_type == 1));
     }
 }

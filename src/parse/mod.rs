@@ -252,4 +252,26 @@ mod tests {
 
         assert_eq!(definition.range.start.line, 1);
     }
+
+    #[test]
+    fn resolves_reassigned_inline_python_name_to_first_assignment() {
+        let path = PathBuf::from("/tmp/reassigned_name.rpy");
+        let uri = Url::from_file_path(&path).ok().unwrap();
+        let text = concat!(
+            "label start:\n",
+            "    $ date = False\n",
+            "\n",
+            "label test:\n",
+            "    $ date = True\n",
+        );
+        let source = SourceDocument::new(Some(uri.clone()), path, text.into());
+        let parsed = parse_document(source, ParseOptions);
+
+        let definition = parsed
+            .symbols
+            .goto_definition(&uri, Position::new(4, 6))
+            .expect("reassigned definition");
+
+        assert_eq!(definition.range.start.line, 1);
+    }
 }
