@@ -1,3 +1,4 @@
+node_modules/
 tarpaulin-report.html
 *.rpy
 bin/
@@ -11,7 +12,6 @@ out/
 stats/
 *.psd
 *.c
-*.json
 *.pkl
 *.bin
 *.jpg

@@ -1,0 +1,57 @@
+{
+  "name": "renpyfmt-vscode",
+  "displayName": "renpyfmt",
+  "description": "VS Code language client for renpyfmt.",
+  "version": "0.0.1",
+  "publisher": "local",
+  "private": true,
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Formatters"
+  ],
+  "activationEvents": [
+    "onLanguage:renpy"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "languages": [
+      {
+        "id": "renpy",
+        "aliases": [
+          "Ren'Py",
+          "renpy"
+        ],
+        "extensions": [
+          ".rpy"
+        ]
+      }
+    ],
+    "configuration": {
+      "title": "renpyfmt",
+      "properties": {
+        "renpyfmt.serverPath": {
+          "type": "string",
+          "default": "",
+          "description": "Absolute path to the renpyfmt executable. Leave empty to use ../target/debug/renpyfmt relative to this extension."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "build": "tsc -p ./",
+    "compile": "npm run build",
+    "watch": "tsc -watch -p ./"
+  },
+  "dependencies": {
+    "vscode-languageclient": "^9.0.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "@types/vscode": "^1.90.0",
+    "typescript": "^5.7.2"
+  }
+}
