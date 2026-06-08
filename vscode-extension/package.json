@@ -11,7 +11,8 @@
   },
   "categories": [
     "Programming Languages",
-    "Formatters"
+    "Formatters",
+    "Snippets"
   ],
   "activationEvents": [
     "onLanguage:renpy"
@@ -26,8 +27,23 @@
           "renpy"
         ],
         "extensions": [
-          ".rpy"
-        ]
+          ".rpy",
+          ".rpym"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "renpy",
+        "scopeName": "source.renpy",
+        "path": "./syntaxes/renpy.tmLanguage.json"
+      }
+    ],
+    "snippets": [
+      {
+        "language": "renpy",
+        "path": "./snippets/snippets.json"
       }
     ],
     "configuration": {
