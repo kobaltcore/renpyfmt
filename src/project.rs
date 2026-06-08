@@ -1,10 +1,10 @@
 use crate::comments::{Comment, CommentMap, EOF_LINE};
-use crate::parser::parse_block;
+use crate::parse::{ParseOptions, parse_document};
 use crate::ruff_config::resolve_python_format_config;
 use crate::{
     ast::AstNode,
     formatter::{PythonFormatConfig, format_ast_with_config_owned, format_python_file},
-    lexer::{Block, Lexer},
+    lexer::Block,
 };
 use anyhow::{Context, Result, bail};
 use indicatif::ProgressBar;
@@ -633,22 +633,27 @@ pub fn parse_file_ast(
 }
 
 fn parse_file_ast_from_source(
-    input_dir: &Path,
+    _input_dir: &Path,
     input_file: &PathBuf,
     source: &str,
 ) -> Result<(Vec<AstNode>, CommentMap)> {
-    let ctx = LexerContext {
-        input_dir: input_dir.to_path_buf(),
-    };
-    let (lines, comments) = list_logical_lines_from_source(&ctx, input_file, source)
-        .with_context(|| format!("Failed to list logical lines for {}", input_file.display()))?;
-    let nested = group_logical_lines(lines)
-        .with_context(|| format!("Failed to group logical lines for {}", input_file.display()))?;
-
-    let mut lex = Lexer::new(nested);
-    let ast = parse_block(&mut lex)
-        .with_context(|| format!("Failed to parse {}", input_file.display()))?;
-    Ok((ast, comments))
+    let source_document = crate::source::SourceDocument::new(
+        None,
+        input_file.clone(),
+        source.to_string(),
+    );
+    let parsed = parse_document(source_document, ParseOptions);
+    match parsed.renpy {
+        Some(renpy) => Ok((renpy.ast, renpy.comments)),
+        None => {
+            let message = parsed
+                .diagnostics
+                .first()
+                .map(|diagnostic| diagnostic.message.clone())
+                .unwrap_or_else(|| format!("Failed to parse {}", input_file.display()));
+            bail!("{message}")
+        }
+    }
 }
 
 fn parse_file(input_dir: &Path, input_file: &PathBuf) -> Result<()> {

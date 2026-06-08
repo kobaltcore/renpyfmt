@@ -18,12 +18,19 @@ etcetera = "0.11.0"
 derivative = "2.2.0"
 clap = { version = "4.6.1", features = ["derive"] }
 indicatif = { version = "0.18", default-features = false }
+tower-lsp = "0.20.0"
+tokio = { version = "1.48.0", features = ["full"] }
 ruff_formatter = { git = "https://github.com/astral-sh/ruff.git", tag = "0.15.12" }
 ruff_python_ast = { git = "https://github.com/astral-sh/ruff.git", tag = "0.15.12" }
 ruff_python_formatter = { git = "https://github.com/astral-sh/ruff.git", tag = "0.15.12" }
+ruff_python_parser = { git = "https://github.com/astral-sh/ruff.git", tag = "0.15.12" }
+ruff_text_size = { git = "https://github.com/astral-sh/ruff.git", tag = "0.15.12" }
 
 [dev-dependencies]
 criterion = "0.8.2"
+futures = "0.3.31"
+serde_json = "1.0.145"
+tower = "0.4.13"
 
 [[bench]]
 name = "logical_lines"

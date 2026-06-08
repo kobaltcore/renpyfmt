@@ -1,6 +1,7 @@
 use anyhow::Result;
 use clap::{Args, Parser, Subcommand};
 use indicatif::{ProgressBar, ProgressStyle};
+use renpyfmt::lsp;
 use renpyfmt::project::{
     FormatInput, FormatMode, format_inputs, format_stdin_source, parse_directory,
 };
@@ -22,6 +23,7 @@ enum Commands {
         /// Directory to search recursively for .rpy files.
         path: PathBuf,
     },
+    Lsp,
     Format(FormatCommandArgs),
     Check(FormatCommandArgs),
 }
@@ -146,6 +148,10 @@ fn try_main() -> Result<CommandOutcome> {
 
     match cli.command {
         Commands::Parse { path } => run_parse(path),
+        Commands::Lsp => {
+            tokio::runtime::Runtime::new()?.block_on(lsp::run_server());
+            Ok(CommandOutcome::Success)
+        }
         Commands::Format(args) => run_format_like(args, FormatMode::Write),
         Commands::Check(args) => run_format_like(args, FormatMode::Check),
     }
