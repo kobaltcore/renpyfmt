@@ -198,6 +198,39 @@ fn check_stdin_exits_one_for_dirty_input_and_zero_for_clean_input() {
 }
 
 #[test]
+fn relative_stdin_filenames_format_and_check_without_existing_files() {
+    let root = create_temp_test_dir("relative-stdin");
+    fs::create_dir(root.join("nested")).unwrap();
+    for filename in ["script.rpy", "nested/script.rpy", "script.py"] {
+        let (source, formatted) = if filename.ends_with(".rpy") {
+            ("python:\n    x=[1,2]\n", "python:\n    x = [1, 2]\n")
+        } else {
+            ("x=[1,2]\n", "x = [1, 2]\n")
+        };
+        let command = |mode: &str| {
+            let mut command = renpyfmt_command();
+            command
+                .current_dir(&root)
+                .args([mode, "-", "--stdin-filename", filename]);
+            command
+        };
+        let output = run_with_stdin(command("format"), source);
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert_eq!(String::from_utf8(output.stdout).unwrap(), formatted);
+        assert_eq!(
+            run_with_stdin(command("check"), source).status.code(),
+            Some(1)
+        );
+        assert!(run_with_stdin(command("check"), formatted).status.success());
+    }
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
 fn stdin_requires_stdin_filename() {
     let format_output = run_with_stdin(
         {

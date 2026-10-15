@@ -45,7 +45,7 @@ impl SourceDocument {
     pub fn file_url(&self) -> Option<Url> {
         self.uri
             .clone()
-            .or_else(|| Url::from_file_path(&self.path).ok())
+            .or_else(|| Url::from_file_path(std::path::absolute(&self.path).ok()?).ok())
     }
 }
 

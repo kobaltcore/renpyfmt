@@ -15,7 +15,7 @@ export async function activate(
 ): Promise<void> {
   const command = getServerCommand(context);
   const repoRoot = path.resolve(context.extensionPath, "..");
-  const outputChannel = vscode.window.createOutputChannel("renpyfmt");
+  const outputChannel = vscode.window.createOutputChannel("renpyfmt", { log: true });
 
   if (!fs.existsSync(command)) {
     void vscode.window.showErrorMessage(

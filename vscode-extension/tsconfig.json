@@ -11,7 +11,10 @@
     "sourceMap": true,
     "moduleResolution": "Node16",
     "esModuleInterop": true,
-    "skipLibCheck": true
+    "skipLibCheck": true,
+    "types": [
+      "node"
+    ]
   },
   "include": [
     "src"

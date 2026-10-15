@@ -4,10 +4,12 @@ This extension launches `renpyfmt lsp` for `.rpy` files.
 
 ## Local setup
 
+Requires Rust 1.97 or newer and VS Code 1.140 or newer.
+
 1. Build the server from the repo root:
 
 ```bash
-rtk cargo build
+cargo build
 ```
 
 2. Install extension dependencies:

@@ -325,6 +325,51 @@ mod tests {
     }
 
     #[tokio::test(flavor = "current_thread")]
+    async fn formatting_formats_embedded_python_through_service() {
+        let (mut service, _socket) = LspService::new(Backend::new);
+        service
+            .ready()
+            .await
+            .unwrap()
+            .call(initialize_request(1))
+            .await
+            .unwrap();
+
+        let uri = Url::parse("file:///tmp/format_python.rpy").unwrap();
+        let open = Request::build("textDocument/didOpen")
+            .params(json!({
+                "textDocument": {
+                    "uri": uri,
+                    "languageId": "renpy",
+                    "version": 1,
+                    "text": "label start:\n    python:\n        value={\"a\":1}\n"
+                }
+            }))
+            .finish();
+        service.ready().await.unwrap().call(open).await.unwrap();
+
+        let request = Request::build("textDocument/formatting")
+            .params(json!({
+                "textDocument": { "uri": uri },
+                "options": { "tabSize": 4, "insertSpaces": true }
+            }))
+            .id(2)
+            .finish();
+        let response = service.ready().await.unwrap().call(request).await.unwrap();
+        let expected = Response::from_ok(
+            2.into(),
+            json!([{
+                "range": {
+                    "start": { "line": 0, "character": 0 },
+                    "end": { "line": 3, "character": 0 }
+                },
+                "newText": "label start:\n    python:\n        value = {\"a\": 1}\n"
+            }]),
+        );
+        assert_eq!(response, Some(expected));
+    }
+
+    #[tokio::test(flavor = "current_thread")]
     async fn did_open_publishes_diagnostics() {
         let (mut service, mut socket) = LspService::new(Backend::new);
         let _ = service
